@@ -1,0 +1,56 @@
+[package]
+name = "agentdb"
+version = "0.1.0"
+edition = "2021"
+description = "Single-file embedded database for AI agents. SQL + Vector Search + Memory Graphs."
+license = "MIT"
+repository = "https://github.com/hvrcharon1/agentdb"
+keywords = ["database", "vector-search", "ai", "agents", "sqlite"]
+categories = ["database", "embedded"]
+
+[lib]
+name = "agentdb"
+crate-type = ["cdylib", "rlib"]
+
+[[example]]
+name = "agent_memory"
+path = "examples/agent_memory.rs"
+
+[[example]]
+name = "rag_pipeline"
+path = "examples/rag_pipeline.rs"
+
+[[example]]
+name = "graph_traverse"
+path = "examples/graph_traverse.rs"
+
+[dependencies]
+rusqlite = { version = "0.31", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+bincode = "1"
+thiserror = "1"
+uuid = { version = "1", features = ["v4"] }
+rand = "0.8"
+tokio = { version = "1", features = ["full"], optional = true }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+tempfile = "3"
+
+[features]
+default = []
+async = ["tokio"]
+
+[[bench]]
+name = "vector_search"
+harness = false
+
+[[bench]]
+name = "graph_traverse"
+harness = false
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
