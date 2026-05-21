@@ -1,0 +1,47 @@
+AgentDB
+=======
+
+Copyright Waiver — Public Domain Dedication
+-------------------------------------------
+
+Datacules LLC, the author and copyright holder of AgentDB, hereby
+irrevocably waives all copyright and related or neighboring rights to
+AgentDB, to the fullest extent permitted by applicable law.
+
+This waiver covers:
+  - The source code of AgentDB
+  - All documentation
+  - All examples and test code
+  - All build scripts and tooling
+  - All assets in this repository
+
+This work is published from the United States of America.
+
+For more information, see: https://github.com/hvrcharon1/agentdb/blob/main/LICENSE
+
+
+Third-Party Dependencies
+------------------------
+
+AgentDB depends on third-party Rust crates. Each crate carries its own
+license. Key dependencies and their licenses:
+
+  rusqlite     MIT / Apache-2.0     https://github.com/rusqlite/rusqlite
+  serde        MIT / Apache-2.0     https://github.com/serde-rs/serde
+  serde_json   MIT / Apache-2.0     https://github.com/serde-rs/json
+  bincode      MIT                  https://github.com/bincode-org/bincode
+  thiserror    MIT / Apache-2.0     https://github.com/dtolnay/thiserror
+  uuid         MIT / Apache-2.0     https://github.com/uuid-rs/uuid
+  rand         MIT / Apache-2.0     https://github.com/rust-random/rand
+  tokio        MIT                  https://github.com/tokio-rs/tokio
+  criterion    MIT / Apache-2.0     https://github.com/bheisler/criterion.rs
+
+None of these dependencies impose obligations on users of AgentDB beyond
+their own license terms. None are GPL-licensed.
+
+SQLite (bundled via rusqlite) is itself public domain:
+  https://www.sqlite.org/copyright.html
+
+
+Datacules LLC
+https://datacules.com

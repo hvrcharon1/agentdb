@@ -1,21 +1,81 @@
-MIT License
+AgentDB Licensing
+=================
 
-Copyright (c) 2026 Harshal Vijay Rasal
+AgentDB is released into the public domain by its author,
+Datacules LLC.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Anyone is free to copy, modify, publish, use, compile, sell, or distribute
+this software, either in source code form or as a compiled binary, for any
+purpose, commercial or non-commercial, and by any means.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+In jurisdictions that recognize copyright laws, the author or authors of
+AgentDB dedicate any and all copyright interest in the software to the
+public domain. We make this dedication for the benefit of the public at
+large and to the detriment of our heirs and successors. We intend this
+dedication to be an overt act of relinquishment in perpetuity of all
+present and future rights to this software under copyright law.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+
+Permissive Fallback License
+===========================
+
+For jurisdictions where public domain dedication is not legally recognized
+or enforceable, Datacules LLC hereby grants every person a worldwide,
+royalty-free, non-exclusive, irrevocable license to:
+
+  1. Use AgentDB for any purpose, commercial or non-commercial.
+  2. Study, copy, and modify the source code.
+  3. Redistribute original or modified versions in source or binary form.
+  4. Sublicense these rights to third parties.
+  5. Embed AgentDB in closed-source or proprietary software without
+     disclosure obligations.
+
+No attribution is required. No license file inclusion is required.
+No royalties are owed. No notification to Datacules LLC is required.
+
+This fallback license grants the same practical rights as the public
+domain dedication above and is provided solely to ensure legal clarity
+in all jurisdictions worldwide.
+
+
+Commercial Licenses (Optional)
+==============================
+
+The public domain dedication and fallback license above are always free
+and impose no obligations. However, Datacules LLC offers optional
+commercial licenses for organizations that require:
+
+  - Legal warranty and indemnification
+  - Liability coverage
+  - Priority support and SLA guarantees
+  - Written contractual assurance of the above rights
+
+Purchasing a commercial license is never required to use AgentDB.
+It exists solely for risk-averse enterprises and regulated industries
+(aerospace, medical, financial) that require contractual guarantees.
+
+For commercial licensing inquiries, contact: legal@datacules.com
+
+
+Philosophy
+==========
+
+AgentDB follows the licensing philosophy pioneered by SQLite:
+
+  "The best way to make software ubiquitous is to make it legally invisible."
+
+We deliberately avoided GPL, LGPL, Apache, and MIT licenses because even
+their small requirements — attribution, license file inclusion — create
+friction. Our goal is zero legal friction for every user, everywhere,
+forever.
+
+Datacules LLC
+https://datacules.com
