@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 120" width="480" height="120">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0e1a"/>
+      <stop offset="100%" style="stop-color:#0d1220"/>
+    </linearGradient>
+    <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#00d4ff;stop-opacity:0.3"/>
+      <stop offset="100%" style="stop-color:#00d4ff;stop-opacity:0"/>
+    </radialGradient>
+    <linearGradient id="rustGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff6b35"/>
+      <stop offset="100%" style="stop-color:#e8440a"/>
+    </linearGradient>
+    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#00d4ff"/>
+      <stop offset="100%" style="stop-color:#0088cc"/>
+    </linearGradient>
+    <radialGradient id="nodeGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#7c3aed"/>
+      <stop offset="100%" style="stop-color:#5b21b6"/>
+    </radialGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="textGlow" x="-5%" y="-20%" width="110%" height="140%">
+      <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+      <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="480" height="120" rx="16" fill="url(#bg)"/>
+
+  <!-- Subtle grid -->
+  <g opacity="0.04" stroke="#00d4ff" stroke-width="0.5">
+    <line x1="0" y1="20" x2="480" y2="20"/><line x1="0" y1="40" x2="480" y2="40"/>
+    <line x1="0" y1="60" x2="480" y2="60"/><line x1="0" y1="80" x2="480" y2="80"/>
+    <line x1="0" y1="100" x2="480" y2="100"/>
+    <line x1="40" y1="0" x2="40" y2="120"/><line x1="80" y1="0" x2="80" y2="120"/>
+    <line x1="120" y1="0" x2="120" y2="120"/><line x1="160" y1="0" x2="160" y2="120"/>
+    <line x1="200" y1="0" x2="200" y2="120"/><line x1="240" y1="0" x2="240" y2="120"/>
+    <line x1="280" y1="0" x2="280" y2="120"/><line x1="320" y1="0" x2="320" y2="120"/>
+    <line x1="360" y1="0" x2="360" y2="120"/><line x1="400" y1="0" x2="400" y2="120"/>
+    <line x1="440" y1="0" x2="440" y2="120"/>
+  </g>
+
+  <!-- Outer rust ring -->
+  <circle cx="60" cy="60" r="50" fill="none" stroke="url(#rustGrad)" stroke-width="2" opacity="0.9" filter="url(#glow)"/>
+  <!-- Core glow -->
+  <circle cx="60" cy="60" r="44" fill="url(#coreGlow)"/>
+
+  <!-- DB stack layers -->
+  <ellipse cx="60" cy="72" rx="22" ry="6" fill="none" stroke="#0088cc" stroke-width="1.5" opacity="0.6"/>
+  <ellipse cx="60" cy="72" rx="22" ry="6" fill="#0d1f33" opacity="0.8"/>
+  <ellipse cx="60" cy="62" rx="22" ry="6" fill="none" stroke="#00aadd" stroke-width="1.5" opacity="0.8"/>
+  <ellipse cx="60" cy="62" rx="22" ry="6" fill="#0d2040" opacity="0.9"/>
+  <ellipse cx="60" cy="52" rx="22" ry="6" fill="url(#cyanGrad)" opacity="0.95" filter="url(#glow)"/>
+  <rect x="38" y="52" width="44" height="20" fill="#0d2040" opacity="0.5"/>
+  <line x1="38" y1="52" x2="38" y2="72" stroke="#0088cc" stroke-width="1.5" opacity="0.6"/>
+  <line x1="82" y1="52" x2="82" y2="72" stroke="#0088cc" stroke-width="1.5" opacity="0.6"/>
+
+  <!-- Memory graph nodes -->
+  <circle cx="60" cy="38" r="5" fill="url(#nodeGrad)" filter="url(#softGlow)"/>
+  <circle cx="44" cy="30" r="3.5" fill="#7c3aed" opacity="0.9" filter="url(#softGlow)"/>
+  <circle cx="76" cy="30" r="3.5" fill="#7c3aed" opacity="0.9" filter="url(#softGlow)"/>
+  <circle cx="36" cy="44" r="3" fill="#5b21b6" opacity="0.8"/>
+  <line x1="60" y1="38" x2="44" y2="30" stroke="#7c3aed" stroke-width="1.2" opacity="0.7" filter="url(#glow)"/>
+  <line x1="60" y1="38" x2="76" y2="30" stroke="#7c3aed" stroke-width="1.2" opacity="0.7" filter="url(#glow)"/>
+  <line x1="44" y1="30" x2="36" y2="44" stroke="#5b21b6" stroke-width="1" opacity="0.5"/>
+
+  <!-- Vector dots -->
+  <circle cx="72" cy="44" r="1.5" fill="#00d4ff" opacity="0.8"/>
+  <circle cx="78" cy="40" r="1.2" fill="#00d4ff" opacity="0.6"/>
+  <circle cx="75" cy="37" r="1" fill="#00d4ff" opacity="0.4"/>
+
+  <!-- Rust arc accent -->
+  <path d="M 82 22 Q 90 16 88 26" stroke="url(#rustGrad)" stroke-width="1.5" fill="none" opacity="0.7" stroke-linecap="round"/>
+
+  <!-- Wordmark: Agent -->
+  <text x="132" y="58" font-family="'Courier New', 'Lucida Console', monospace" font-size="38" font-weight="700" letter-spacing="-1" fill="#e8f4fd" filter="url(#textGlow)">Agent</text>
+
+  <!-- Wordmark: DB (rust orange) -->
+  <text x="290" y="58" font-family="'Courier New', 'Lucida Console', monospace" font-size="38" font-weight="700" letter-spacing="-1" fill="url(#rustGrad)" filter="url(#glow)">DB</text>
+
+  <!-- Tagline -->
+  <text x="133" y="80" font-family="'Courier New', 'Lucida Console', monospace" font-size="11" letter-spacing="3" fill="#00d4ff" opacity="0.7">SQL · VECTORS · MEMORY GRAPH</text>
+
+  <!-- Datacules badge -->
+  <text x="133" y="100" font-family="'Courier New', 'Lucida Console', monospace" font-size="9" letter-spacing="1.5" fill="#ffffff" opacity="0.25">BY DATACULES LLC</text>
+
+  <!-- Accent line -->
+  <line x1="132" y1="65" x2="390" y2="65" stroke="#00d4ff" stroke-width="0.5" opacity="0.2"/>
+</svg>
