@@ -142,11 +142,10 @@ db.execute("
 // Insert an event
 db.execute_params(
     "INSERT INTO events VALUES (?1, ?2, ?3, ?4, ?5)",
-    &[&"evt_001", &"user_message", &r#"{"text":"What is Rust?"}"
-#, &"agent_42", &1700000000_i64],
+    &[&"evt_001", &"user_message", &r#"{"text":"What is Rust?"}"#, &"agent_42", &1700000000_i64],
 )?;
 
-// Query with a join
+// Query with filtering
 let rows = db.query_json("
     SELECT e.id, e.kind, e.ts
     FROM events e
@@ -243,8 +242,8 @@ graph.add_edge("concept_rust", "concept_safety", "relates_to", 0.90)?;
 let neighbors = graph.neighbors(
     "session_42",
     TraversalOptions {
-        relation:  None,           // all relation types
-        max_depth: 2,              // up to 2 hops
+        relation:   None,          // all relation types
+        max_depth:  2,             // up to 2 hops
         min_weight: Some(0.6),    // only strong connections
     },
 )?;
@@ -292,7 +291,6 @@ use agentdb::{AgentDB, VectorEntry, TraversalOptions, SearchOptions, DistanceMet
 use serde_json::json;
 
 fn main() -> agentdb::Result<()> {
-    // Open (or create) a database
     let db = AgentDB::open("agent.agentdb")?;
 
     // ── Layer 1: Relational ────────────────────────────────────────
@@ -309,7 +307,7 @@ fn main() -> agentdb::Result<()> {
     )?;
 
     // ── Layer 2: Vectors ───────────────────────────────────────────
-    let col = db.vectors().collection("thoughts", 4)?; // dim=4 for demo
+    let col = db.vectors().collection("thoughts", 4)?;
     col.upsert(VectorEntry {
         id: "thought_rust".into(),
         vector: vec![0.9, 0.1, 0.05, 0.0],
@@ -332,13 +330,13 @@ fn main() -> agentdb::Result<()> {
     graph.add_node("session_42",   "session", Some(json!({ "user": "harshal" })))?;
     graph.add_node("concept_rust", "concept", Some(json!({ "label": "Rust" })))?;
     graph.add_node("concept_ai",   "concept", Some(json!({ "label": "AI" })))?;
-    graph.add_edge("session_42", "concept_rust", "discussed", 0.95)?;
-    graph.add_edge("session_42", "concept_ai",   "discussed", 0.80)?;
-    graph.add_edge("concept_rust", "concept_ai", "relates_to", 0.70)?;
+    graph.add_edge("session_42",   "concept_rust", "discussed", 0.95)?;
+    graph.add_edge("session_42",   "concept_ai",   "discussed", 0.80)?;
+    graph.add_edge("concept_rust", "concept_ai",   "relates_to", 0.70)?;
 
     let neighbors = graph.neighbors("session_42", TraversalOptions {
-        relation: Some("discussed".into()),
-        max_depth: 2,
+        relation:   Some("discussed".into()),
+        max_depth:  2,
         min_weight: Some(0.5),
     })?;
     println!("Graph neighbors: {}", neighbors.len());
@@ -495,18 +493,25 @@ CREATE TABLE _adb_edges (
 
 ## Comparison
 
-| Feature | AgentDB | ChromaDB | Weaviate | Qdrant | Neo4j |
-|---|---|---|---|---|---|
-| Embedded (no server) | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Single file | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Relational SQL | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Vector / ANN search | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Memory graph layer | ✅ | ❌ | ✅ | ❌ | ✅ |
-| Offline-first | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Zero configuration | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Rust native | ✅ | ❌ | ❌ | ✅ | ❌ |
-| Public domain license | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Works on edge / mobile | ✅ | ❌ | ❌ | ❌ | ❌ |
+AgentDB is designed to replace the combination of multiple tools that AI agent stacks currently require. The table below shows how it stacks up against the most common alternatives, including SQLite as the closest embedded relational baseline.
+
+| Feature | AgentDB | SQLite | ChromaDB | Weaviate | Qdrant | Neo4j |
+|---|---|---|---|---|---|---|
+| Embedded (no server) | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Single file | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Zero configuration | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Offline-first | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Relational SQL | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Vector / ANN search | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ |
+| Memory graph layer | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ |
+| Rust native | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| Public domain license | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Works on edge / mobile | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Built for AI agents | ✅ | ❌ | ⚠️ | ⚠️ | ⚠️ | ❌ |
+
+> ⚠️ = Partial support or requires significant additional tooling
+
+**Key takeaway:** SQLite is the closest thing to AgentDB in terms of embedding model and file simplicity, but it has no vector search and no graph layer. AgentDB extends that embedded, zero-config philosophy with the two capabilities AI agents specifically need.
 
 ---
 
