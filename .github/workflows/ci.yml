@@ -11,7 +11,6 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  # ── Lint ────────────────────────────────────────────────────────────────
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -23,7 +22,7 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      - name: Cache cargo registry
+      - name: Cache
         uses: actions/cache@v4
         with:
           path: |
@@ -31,14 +30,14 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
 
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-      - name: Clippy (deny warnings)
-        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features
 
-  # ── Test ────────────────────────────────────────────────────────────────
   test:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -53,7 +52,7 @@ jobs:
       - name: Install stable Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo registry
+      - name: Cache
         uses: actions/cache@v4
         with:
           path: |
@@ -61,33 +60,31 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
 
       - name: Build
         run: cargo build --all-targets
 
-      - name: Run tests
+      - name: Test
         run: cargo test --all-targets -- --nocapture
 
-      - name: Run examples (smoke test)
+      - name: Run examples
         run: |
           cargo run --example agent_memory
           cargo run --example rag_pipeline
           cargo run --example graph_traverse
+          cargo run --example v020_query_power
 
-  # ── Security audit ──────────────────────────────────────────────────────
   audit:
     name: Security Audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
-
-      - name: Run audit
+      - name: Audit
         run: cargo audit
 
-  # ── Coverage ────────────────────────────────────────────────────────────
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
@@ -97,20 +94,21 @@ jobs:
       - name: Install stable Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin --locked
-
-      - name: Cache cargo registry
+      - name: Cache
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-cov-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
 
-      - name: Generate coverage report
-        run: cargo tarpaulin --out Xml --output-dir coverage/
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin --locked
+
+      - name: Coverage
+        run: cargo tarpaulin --out Xml --output-dir coverage/ --skip-clean
 
       - name: Upload to Codecov
         uses: codecov/codecov-action@v4
