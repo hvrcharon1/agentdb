@@ -4,8 +4,8 @@
 
 <p align="center">
   <b>The embedded database built for AI agents.</b><br/>
-  One file. Three layers. Zero servers.<br/>
-  Relational SQL &nbsp;·&nbsp; Vector Search &nbsp;·&nbsp; Memory Graphs — all in Rust.
+  One file. Five layers. Zero servers.<br/>
+  Relational SQL &nbsp;·&nbsp; Vector Search &nbsp;·&nbsp; Full-Text Search &nbsp;·&nbsp; Hybrid Queries &nbsp;·&nbsp; Memory Graphs — all in Rust.
 </p>
 
 <p align="center">
@@ -13,7 +13,7 @@
   &nbsp;
   <img src="https://img.shields.io/badge/language-Rust%202021-orange.svg" alt="Rust"/>
   &nbsp;
-  <img src="https://img.shields.io/badge/status-alpha-blue.svg" alt="Status"/>
+  <img src="https://img.shields.io/badge/version-v0.2.0-blue.svg" alt="v0.2.0"/>
   &nbsp;
   <img src="https://img.shields.io/badge/by-Datacules%20LLC-lightgrey.svg" alt="Datacules LLC"/>
 </p>
@@ -25,10 +25,12 @@
 - [Overview](#overview)
 - [Why AgentDB?](#why-agentdb)
 - [Architecture](#architecture)
-- [The Three Layers](#the-three-layers)
+- [The Five Layers](#the-five-layers)
   - [Layer 1 — Relational SQL](#layer-1--relational-sql)
   - [Layer 2 — Vector Store](#layer-2--vector-store)
   - [Layer 3 — Memory Graph](#layer-3--memory-graph)
+  - [Layer 4 — Full-Text Search](#layer-4--full-text-search)
+  - [Layer 5 — Hybrid Queries](#layer-5--hybrid-queries)
 - [Quick Start](#quick-start)
 - [API Reference](#api-reference)
 - [Internal Schema](#internal-schema)
@@ -42,31 +44,37 @@
 
 ## Overview
 
-AgentDB is a single-file, embedded database engine written in Rust, purpose-built for AI agents and LLM-powered applications. It unifies three storage primitives that AI applications need — structured queries, semantic vector search, and episodic memory graphs — into one self-contained `.agentdb` file.
+AgentDB is a single-file, embedded database engine written in Rust, purpose-built for AI agents and LLM-powered applications. It unifies five storage and query primitives into one self-contained `.agentdb` file:
 
-There is no server to run. No daemon to manage. No network to configure. You open a file and start building.
+- Structured relational SQL
+- Semantic vector search (HNSW, pure Rust)
+- Episodic memory graphs (typed nodes, weighted edges, recursive traversal)
+- Full-text search (FTS5, BM25 ranking, Porter stemming)
+- Hybrid queries (graph + vector blended ranking)
+
+There is no server to run. No daemon to manage. No network to configure.
 
 ```rust
 let db = AgentDB::open("agent.agentdb")?;
 ```
 
-That single line gives your agent a full relational database, a vector index, and a traversable memory graph — all persisted to a single file on disk.
+That single line gives your agent a full relational database, a vector index, a traversable memory graph, a full-text search engine, and hybrid query capability — all persisted to one file on disk.
 
 ---
 
 ## Why AgentDB?
 
-Modern AI agents have three distinct data needs, and today every one of them requires a separate tool:
+Modern AI agents have needs that today require multiple separate tools:
 
 | What the agent needs | Today's solution | The problem |
 |---|---|---|
 | Store structured events, sessions, logs | Relational database | No vector search, no graph |
 | Semantic similarity search over memories | ChromaDB, Qdrant, Pinecone | Separate service, no SQL, network required |
 | Traverse knowledge and memory relationships | Neo4j, custom graph DB | Heavy, not embeddable, not offline |
+| Keyword search over stored text | Elasticsearch, Typesense | Yet another service, heavy infra |
+| Combined graph + semantic retrieval | Custom code | Fragile, no standard, high latency |
 
-Every additional service adds latency, operational complexity, infrastructure cost, and failure points. For edge deployments, mobile agents, or local-first applications, running three separate databases is not viable.
-
-**AgentDB collapses all three into one embedded file.** No services. No ports. No sync headaches. The entire database is a single `.agentdb` file you can copy, move, back up, or delete like any other file.
+**AgentDB collapses all five into one embedded file.** No services. No ports. No sync headaches.
 
 ### Key Properties
 
@@ -83,186 +91,189 @@ Every additional service adds latency, operational complexity, infrastructure co
 
 ## Architecture
 
-AgentDB is built on a layered architecture. All three layers share the same underlying storage engine and co-exist within one `.agentdb` file.
+All five layers share the same underlying storage engine and co-exist within one `.agentdb` file.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
 │                    agent.agentdb                         │
 │                                                          │
 │  ┌───────────────────────┐  ┌───────────────────────┐   │
-│  │   Layer 1: Relational  │  │  Layer 2: Vector Store │   │
-│  │                       │  │                       │   │
-│  │  Full SQL support     │  │  HNSW index (pure     │   │
-│  │  Transactions         │  │  Rust), cosine /      │   │
-│  │  Indexes              │  │  euclidean / dot      │   │
-│  │  Any user-defined     │  │  Stored as BLOBs,     │   │
-│  │  tables               │  │  lazy-built index     │   │
+│  │  Layer 1: Relational   │  │  Layer 2: Vector Store  │   │
+│  │  Full SQL, indexes,    │  │  HNSW (pure Rust),      │   │
+│  │  transactions, JSON    │  │  cosine/euclidean/dot,  │   │
+│  │  user-defined tables   │  │  batch upsert, filter   │   │
+│  └───────────────────────┘  └───────────────────────┘   │
+│                                                          │
+│  ┌───────────────────────┐  ┌───────────────────────┐   │
+│  │  Layer 3: Memory Graph │  │  Layer 4: Full-Text     │   │
+│  │  Typed nodes, weighted │  │  FTS5 virtual tables,   │   │
+│  │  edges, recursive CTE  │  │  BM25, Porter stemmer,  │   │
+│  │  depth + weight filter │  │  snippets, optimize      │   │
 │  └───────────────────────┘  └───────────────────────┘   │
 │                                                          │
 │  ┌──────────────────────────────────────────────────┐   │
-│  │              Layer 3: Memory Graph               │   │
-│  │                                                  │   │
-│  │  Typed nodes (session, concept, entity, ...)     │   │
-│  │  Weighted, labeled directed edges                │   │
-│  │  Depth-limited traversal via recursive queries   │   │
-│  │  Weight and relation filtering                   │   │
+│  │           Layer 5: Hybrid Queries               │   │
+│  │  Graph traversal + vector ANN + alpha blending   │   │
+│  │  Graph-connected nodes get a weighted rank boost  │   │
 │  └──────────────────────────────────────────────────┘   │
 │                                                          │
-│  Internal meta-tables: _adb_meta, _adb_collections,      │
-│  _adb_vectors, _adb_hnsw_index, _adb_nodes, _adb_edges   │
+│  _adb_meta · _adb_collections · _adb_vectors             │
+│  _adb_hnsw_index · _adb_nodes · _adb_edges               │
+│  _adb_fts_{collection} (FTS5 virtual tables)              │
 │                                                          │
 │  WAL mode · ACID · Foreign keys · Concurrent reads       │
 └──────────────────────────────────────────────────────────┘
 ```
 
-The three layers are fully independent — you can use only the relational layer, only vectors, or all three simultaneously. They share a single write lock and WAL journal, so they stay consistent with each other at all times.
-
 ---
 
-## The Three Layers
+## The Five Layers
 
 ### Layer 1 — Relational SQL
 
-The relational layer gives you a complete SQL engine. Create any tables you need alongside AgentDB's internal tables. Run joins, aggregations, CTEs, and full-text queries. Everything is ACID-compliant and durable.
+Full SQL engine. Create any tables alongside AgentDB’s internal tables. Run joins, aggregations, CTEs. ACID-compliant and durable.
 
-**Use it for:** conversation history, session metadata, user profiles, event logs, structured agent state, audit trails.
+**Use it for:** conversation history, session metadata, user profiles, event logs, structured agent state.
 
 ```rust
-// Create a table for agent events
 db.execute("
     CREATE TABLE IF NOT EXISTS events (
         id       TEXT PRIMARY KEY,
         kind     TEXT NOT NULL,
-        payload  TEXT,          -- JSON
+        payload  TEXT,
         agent_id TEXT NOT NULL,
         ts       INTEGER NOT NULL
     )
 ")?;
 
-// Insert an event
 db.execute_params(
     "INSERT INTO events VALUES (?1, ?2, ?3, ?4, ?5)",
-    &[&"evt_001", &"user_message", &r#"{"text":"What is Rust?"}"#, &"agent_42", &1700000000_i64],
+    &[&"evt_001", &"user_message", &r#"{"text":"Hello"}"#, &"agent_42", &1700000000_i64],
 )?;
 
-// Query with filtering
-let rows = db.query_json("
-    SELECT e.id, e.kind, e.ts
-    FROM events e
-    WHERE e.agent_id = 'agent_42'
-    ORDER BY e.ts DESC
-    LIMIT 20
-")?;
+let rows = db.query_json(
+    "SELECT * FROM events WHERE agent_id = 'agent_42' ORDER BY ts DESC LIMIT 20"
+)?;
 ```
 
-**Capabilities:**
-- Full SQL: `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `CREATE`, `DROP`
-- Transactions: wrap multiple operations in a single atomic commit
-- Indexes: create indexes on any column for fast lookups
-- JSON: store and query structured JSON payloads inline
-- User tables co-exist safely with internal `_adb_*` tables
+**Capabilities:** full SQL, transactions, indexes, JSON payloads, user tables co-exist with `_adb_*` internal tables.
 
 ---
 
 ### Layer 2 — Vector Store
 
-The vector layer stores high-dimensional embeddings alongside their metadata and builds an HNSW (Hierarchical Navigable Small World) index for approximate nearest-neighbor (ANN) search. The index is implemented from scratch in pure Rust — no external C libraries.
+HNSW-based approximate nearest-neighbor search. Pure Rust, no C libraries. Advanced metadata filtering with MongoDB-style operators.
 
-**Use it for:** semantic memory search, RAG pipelines, similarity-based retrieval, embedding-based deduplication, clustering agent thoughts.
+**Use it for:** semantic memory search, RAG pipelines, similarity retrieval, embedding deduplication.
 
 ```rust
-// Create a collection (dim=1536 for OpenAI text-embedding-ada-002)
 let col = db.vectors().collection("memories", 1536)?;
 
-// Store an embedding with metadata
+// Single upsert
 col.upsert(VectorEntry {
     id: "mem_001".into(),
-    vector: embedding_from_openai("Rust is a systems language"),
-    metadata: Some(json!({
-        "text": "Rust is a systems language",
-        "role": "user",
-        "session": "session_42",
-        "ts": 1700000000
-    })),
+    vector: my_embedding,
+    metadata: Some(json!({ "role": "user", "score": 9, "ts": 1700000000 })),
 })?;
 
-// Semantic search — find the 5 closest memories
+// Batch upsert (single transaction)
+col.upsert_batch(vec![
+    BatchEntry { id: "m1".into(), vector: embed_1, metadata: Some(json!({ "score": 8 })) },
+    BatchEntry { id: "m2".into(), vector: embed_2, metadata: Some(json!({ "score": 6 })) },
+])?;
+
+// Advanced metadata filter
 let results = col.search(
-    &query_embedding,
+    &query_vec,
     SearchOptions {
         top_k: 5,
         metric: DistanceMetric::Cosine,
-        filter: Some(json!({ "role": "user" })),
+        filter: Some(json!({ "role": "user", "score": { "$gte": 8 } })),
     },
 )?;
-
-for r in &results {
-    println!("id={} score={:.4}", r.id, r.score);
-}
 ```
 
-**Capabilities:**
-- Multiple named collections per database, each with its own dimension and metric
-- Distance metrics: cosine similarity, euclidean distance, dot product
-- Metadata: attach arbitrary JSON to every vector
-- Filtering: filter search results by metadata fields
-- Lazy indexing: HNSW index is built on first search, serialized to disk
-- Manual reindex: call `col.reindex()` to force a rebuild
-- Persistence: index and raw vectors both stored in the `.agentdb` file
+**Filter operators:** `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$exists`
 
-**HNSW parameters:**
-- `M = 16` — maximum connections per node
-- `ef_construction = 200` — search width during index construction
-- Supports up to tens of millions of vectors per collection
+**HNSW:** M=16, ef\_construction=200, cosine / euclidean / dot product, lazy index build, serialized to disk.
 
 ---
 
 ### Layer 3 — Memory Graph
 
-The memory graph layer lets you model relationships between concepts, sessions, entities, and any other typed objects your agent encounters. Nodes and edges are stored in the database with typed labels and weights. Traversal is powered by recursive queries — no in-memory graph library required.
+Typed nodes and weighted directed edges with recursive CTE traversal. No in-memory graph library required.
 
-**Use it for:** agent knowledge graphs, concept relationship maps, session-to-concept linking, multi-hop reasoning chains, episodic memory networks.
+**Use it for:** agent knowledge graphs, concept maps, session-to-concept linking, multi-hop reasoning chains.
 
 ```rust
 let graph = db.memory();
 
-// Add typed nodes
-graph.add_node("session_42",    "session", Some(json!({ "user": "harshal", "date": "2025-01-01" })))?;
-graph.add_node("concept_rust",  "concept", Some(json!({ "label": "Rust programming" })))?;
-graph.add_node("concept_perf",  "concept", Some(json!({ "label": "Performance" })))?;
-graph.add_node("concept_safety","concept", Some(json!({ "label": "Memory safety" })))?;
+graph.add_node("session_42",   "session", Some(json!({ "user": "harshal" })))?;
+graph.add_node("concept_rust", "concept", Some(json!({ "label": "Rust" })))?;
+graph.add_edge("session_42", "concept_rust", "discussed", 0.95)?;
 
-// Connect them with labeled, weighted edges
-graph.add_edge("session_42",   "concept_rust",   "discussed",  0.95)?;
-graph.add_edge("session_42",   "concept_perf",   "discussed",  0.70)?;
-graph.add_edge("concept_rust", "concept_perf",   "relates_to", 0.85)?;
-graph.add_edge("concept_rust", "concept_safety", "relates_to", 0.90)?;
+let neighbors = graph.neighbors("session_42", TraversalOptions {
+    relation:   Some("discussed".into()),
+    max_depth:  2,
+    min_weight: Some(0.6),
+})?;
+```
 
-// Traverse: what did session_42 discuss, and what does it relate to?
-let neighbors = graph.neighbors(
-    "session_42",
-    TraversalOptions {
-        relation:   None,          // all relation types
-        max_depth:  2,             // up to 2 hops
-        min_weight: Some(0.6),    // only strong connections
-    },
-)?;
+**Capabilities:** typed nodes, labeled directed edges, weighted traversal, depth limit, relation filter, weight filter, cascade deletes.
 
-for n in &neighbors {
-    println!("depth={} weight={:.2}  {} ({})",
-        n.depth, n.weight, n.node.id, n.node.kind);
+---
+
+### Layer 4 — Full-Text Search
+
+FTS5 virtual tables with BM25 ranking and Porter stemmer. Per-collection FTS indexes, snippet extraction, index optimization.
+
+**Use it for:** keyword search over stored documents, hybrid keyword + semantic retrieval, search-as-you-type on agent memory.
+
+```rust
+let fts = db.fts();
+
+// Index document text
+fts.index_text("memories", "mem_001", &col.id, "Rust is a systems language focused on safety")?;
+fts.optimize("memories")?;
+
+// Keyword search with BM25 ranking
+let results = fts.search("memories", "systems safety", 5)?;
+for r in &results {
+    println!("{} | snippet: {} | rank: {:.4}", r.id, r.snippet, r.rank);
+}
+
+// Delete from index
+fts.delete_text("memories", "mem_001")?;
+```
+
+**Capabilities:** FTS5 virtual tables per collection, BM25 ranking, Porter stemmer, highlighted snippets, `optimize()` to merge segments.
+
+---
+
+### Layer 5 — Hybrid Queries
+
+Combines memory graph traversal with vector ANN search into a single blended ranking. Graph-connected nodes get a weighted boost proportional to their edge weight. Alpha controls the blend.
+
+**Use it for:** personalized retrieval (graph priors + semantic similarity), session-aware RAG, multi-hop context retrieval.
+
+```rust
+let results = db.hybrid_query(HybridQuery {
+    anchor_node: "session_42",   // start graph traversal here
+    embedding:   &query_vec,     // ANN search with this vector
+    collection:  "memories",     // which vector collection to search
+    graph_depth: 2,              // traverse up to 2 hops
+    top_k:       10,             // return top 10 results
+    alpha:       0.6,            // 0.0 = pure graph, 1.0 = pure vector
+    filter:      None,
+})?;
+
+for r in &results {
+    println!("{} | rank={:.4}  vec={:.4}  graph={:.2}",
+        r.id, r.rank_score, r.vector_score, r.graph_weight);
 }
 ```
 
-**Capabilities:**
-- Typed nodes: any string type (`"session"`, `"concept"`, `"entity"`, `"document"`, ...)
-- Labeled directed edges: any relation name (`"discussed"`, `"relates_to"`, `"authored"`, ...)
-- Weighted edges: float weight from `0.0` to `1.0` expressing connection strength
-- Depth-limited traversal: bound recursion to prevent unbounded graph walks
-- Relation filtering: traverse only edges matching a specific relation type
-- Weight filtering: exclude weak edges below a minimum threshold
-- Node lookup by kind: list all nodes of a given type
-- Stats: node count and edge count in O(1)
+**Ranking formula:** `rank = alpha × vector_similarity + (1 - alpha) × graph_weight`
 
 ---
 
@@ -271,81 +282,73 @@ for n in &neighbors {
 ### 1. Add to your project
 
 ```toml
-# Cargo.toml
 [dependencies]
 agentdb = { git = "https://github.com/hvrcharon1/agentdb" }
 ```
 
-### 2. Run the example
+### 2. Run the examples
 
 ```bash
 git clone https://github.com/hvrcharon1/agentdb
 cd agentdb
-cargo run --example agent_memory
+cargo run --example agent_memory       # all three base layers
+cargo run --example rag_pipeline       # local RAG with vector search
+cargo run --example graph_traverse     # memory graph traversal
+cargo run --example v020_query_power   # batch, filters, FTS, hybrid
 ```
 
 ### 3. Full working example
 
 ```rust
-use agentdb::{AgentDB, VectorEntry, TraversalOptions, SearchOptions, DistanceMetric};
+use agentdb::{
+    AgentDB, BatchEntry, DistanceMetric, HybridQuery,
+    SearchOptions, TraversalOptions, VectorEntry,
+};
 use serde_json::json;
 
 fn main() -> agentdb::Result<()> {
     let db = AgentDB::open("agent.agentdb")?;
 
-    // ── Layer 1: Relational ────────────────────────────────────────
-    db.execute("
-        CREATE TABLE IF NOT EXISTS sessions (
-            id      TEXT PRIMARY KEY,
-            user    TEXT NOT NULL,
-            started INTEGER NOT NULL
-        )
-    ")?;
-    db.execute_params(
-        "INSERT OR IGNORE INTO sessions VALUES (?1, ?2, ?3)",
-        &[&"session_42", &"harshal", &1700000000_i64],
-    )?;
+    // Layer 1: SQL
+    db.execute("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, user TEXT)")?;
 
-    // ── Layer 2: Vectors ───────────────────────────────────────────
+    // Layer 2: Vectors + batch upsert + advanced filter
     let col = db.vectors().collection("thoughts", 4)?;
-    col.upsert(VectorEntry {
-        id: "thought_rust".into(),
-        vector: vec![0.9, 0.1, 0.05, 0.0],
-        metadata: Some(json!({ "text": "Rust is fast", "session": "session_42" })),
-    })?;
-    col.upsert(VectorEntry {
-        id: "thought_ai".into(),
-        vector: vec![0.1, 0.05, 0.9, 0.0],
-        metadata: Some(json!({ "text": "AI agents need memory", "session": "session_42" })),
+    col.upsert_batch(vec![
+        BatchEntry { id: "t1".into(), vector: vec![0.9,0.1,0.0,0.0], metadata: Some(json!({"score":9})) },
+        BatchEntry { id: "t2".into(), vector: vec![0.1,0.9,0.0,0.0], metadata: Some(json!({"score":5})) },
+    ])?;
+    let results = col.search(&[0.9,0.1,0.0,0.0], SearchOptions {
+        top_k: 1,
+        metric: DistanceMetric::Cosine,
+        filter: Some(json!({ "score": { "$gte": 8 } })),
     })?;
 
-    let results = col.search(
-        &[0.85, 0.1, 0.1, 0.0],
-        SearchOptions { top_k: 2, metric: DistanceMetric::Cosine, filter: None },
-    )?;
-    println!("Vector search top result: {}", results[0].id);
-
-    // ── Layer 3: Memory Graph ──────────────────────────────────────
+    // Layer 3: Memory graph
     let graph = db.memory();
-    graph.add_node("session_42",   "session", Some(json!({ "user": "harshal" })))?;
-    graph.add_node("concept_rust", "concept", Some(json!({ "label": "Rust" })))?;
-    graph.add_node("concept_ai",   "concept", Some(json!({ "label": "AI" })))?;
-    graph.add_edge("session_42",   "concept_rust", "discussed", 0.95)?;
-    graph.add_edge("session_42",   "concept_ai",   "discussed", 0.80)?;
-    graph.add_edge("concept_rust", "concept_ai",   "relates_to", 0.70)?;
+    graph.add_node("s1", "session", None)?;
+    graph.add_node("t1", "thought", None)?;
+    graph.add_edge("s1", "t1", "recalled", 0.9)?;
 
-    let neighbors = graph.neighbors("session_42", TraversalOptions {
-        relation:   Some("discussed".into()),
-        max_depth:  2,
-        min_weight: Some(0.5),
+    // Layer 4: Full-text search
+    let fts = db.fts();
+    fts.index_text("thoughts", "t1", &col.id, "Rust systems programming")?;
+    let kw = fts.search("thoughts", "systems", 5)?;
+
+    // Layer 5: Hybrid query
+    let hybrid = db.hybrid_query(HybridQuery {
+        anchor_node: "s1",
+        embedding:   &[0.9,0.1,0.0,0.0],
+        collection:  "thoughts",
+        graph_depth: 1,
+        top_k:       5,
+        alpha:       0.6,
+        filter:      None,
     })?;
-    println!("Graph neighbors: {}", neighbors.len());
 
-    // ── Stats ──────────────────────────────────────────────────────
     let stats = db.stats()?;
-    println!("Collections: {}  Vectors: {}  Nodes: {}  Edges: {}",
+    println!("collections={} vectors={} nodes={} edges={}",
         stats.collections, stats.vectors, stats.nodes, stats.edges);
-
     Ok(())
 }
 ```
@@ -358,34 +361,37 @@ fn main() -> agentdb::Result<()> {
 
 | Method | Description |
 |---|---|
-| `AgentDB::open(path)` | Open or create a database at the given file path |
-| `AgentDB::open(":memory:")` | Open an in-memory database (useful for tests) |
-| `db.execute(sql)` | Execute a SQL statement, returns rows changed |
+| `AgentDB::open(path)` | Open or create a database file |
+| `AgentDB::open(":memory:")` | Open an in-memory database (tests) |
+| `db.execute(sql)` | Execute a SQL statement |
 | `db.execute_params(sql, params)` | Execute a parameterized SQL statement |
-| `db.query_json(sql)` | Run a SQL query, returns `Vec<serde_json::Value>` |
-| `db.vectors()` | Access the vector store layer → `VectorStore` |
-| `db.memory()` | Access the memory graph layer → `MemoryGraph` |
-| `db.stats()` | Return `DbStats` — collections, vectors, nodes, edges |
-| `db.close()` | Flush dirty indexes and close the database gracefully |
+| `db.query_json(sql)` | Query → `Vec<serde_json::Value>` |
+| `db.vectors()` | Access vector store → `VectorStore` |
+| `db.memory()` | Access memory graph → `MemoryGraph` |
+| `db.fts()` | Access full-text search → `FullTextStore` |
+| `db.hybrid_query(q)` | Run a hybrid graph + vector query |
+| `db.stats()` | Return `DbStats` |
+| `db.close()` | Flush dirty indexes and close |
 
 ### `VectorStore`
 
 | Method | Description |
 |---|---|
-| `db.vectors().collection(name, dim)` | Get or create a collection with cosine metric |
+| `db.vectors().collection(name, dim)` | Get or create collection (cosine) |
 | `db.vectors().collection_with_metric(name, dim, metric)` | Get or create with explicit metric |
-| `db.vectors().list_collections()` | List all collections with name, dim, count |
-| `db.vectors().drop_collection(name)` | Delete a collection and all its vectors |
+| `db.vectors().list_collections()` | List all collections |
+| `db.vectors().drop_collection(name)` | Drop a collection and its vectors |
 
 ### `Collection`
 
 | Method | Description |
 |---|---|
-| `col.upsert(entry)` | Insert or update a vector entry |
-| `col.search(query, opts)` | ANN search — returns `Vec<SearchResult>` |
+| `col.upsert(entry)` | Insert or update a single vector |
+| `col.upsert_batch(entries)` | Bulk insert in a single transaction |
+| `col.search(query, opts)` | ANN search → `Vec<SearchResult>` |
 | `col.delete(id)` | Delete a vector by ID |
 | `col.reindex()` | Force rebuild the HNSW index |
-| `col.count()` | Return the number of vectors in the collection |
+| `col.count()` | Number of vectors in collection |
 
 ### `MemoryGraph`
 
@@ -393,20 +399,43 @@ fn main() -> agentdb::Result<()> {
 |---|---|
 | `graph.add_node(id, kind, data)` | Insert or update a node |
 | `graph.get_node(id)` | Fetch a node by ID |
-| `graph.delete_node(id)` | Delete a node and all its edges |
+| `graph.delete_node(id)` | Delete node and cascade its edges |
 | `graph.add_edge(src, dst, relation, weight)` | Insert or update a directed edge |
 | `graph.delete_edge(src, dst, relation)` | Delete a specific edge |
-| `graph.neighbors(id, opts)` | Traverse the graph from a node |
+| `graph.neighbors(id, opts)` | Recursive graph traversal |
 | `graph.nodes_by_kind(kind)` | List all nodes of a given type |
-| `graph.stats()` | Return total node count and edge count |
+| `graph.stats()` | Node count and edge count |
+
+### `FullTextStore`
+
+| Method | Description |
+|---|---|
+| `fts.index_text(collection, vec_id, col_id, text)` | Index text for a vector entry |
+| `fts.search(collection, query, top_k)` | BM25 full-text search |
+| `fts.delete_text(collection, vec_id)` | Remove a document from the index |
+| `fts.optimize(collection)` | Merge FTS index segments |
+
+### `HybridQuery`
+
+```rust
+HybridQuery {
+    anchor_node: &str,       // graph traversal start node
+    embedding:   &[f32],     // ANN search query vector
+    collection:  &str,       // vector collection name
+    graph_depth: usize,      // max hops from anchor
+    top_k:       usize,      // results to return
+    alpha:       f64,        // 0.0=graph only, 1.0=vector only
+    filter:      Option<Value>, // metadata filter on vector results
+}
+```
 
 ### `SearchOptions`
 
 ```rust
 SearchOptions {
-    top_k:  usize,               // number of results to return
-    metric: DistanceMetric,      // Cosine | Euclidean | DotProduct
-    filter: Option<Value>,       // JSON metadata filter (exact match)
+    top_k:  usize,
+    metric: DistanceMetric,   // Cosine | Euclidean | DotProduct
+    filter: Option<Value>,    // supports $eq $ne $gt $gte $lt $lte $in $nin $exists
 }
 ```
 
@@ -414,86 +443,40 @@ SearchOptions {
 
 ```rust
 TraversalOptions {
-    relation:   Option<String>,  // filter by edge relation label (None = all)
-    max_depth:  usize,           // maximum hops from the anchor node
+    relation:   Option<String>,  // filter by relation label (None = all)
+    max_depth:  usize,           // max hops
     min_weight: Option<f64>,     // exclude edges below this weight
 }
 ```
-
-### `DistanceMetric`
-
-| Variant | Description |
-|---|---|
-| `DistanceMetric::Cosine` | Cosine distance (default, good for text embeddings) |
-| `DistanceMetric::Euclidean` | Euclidean (L2) distance |
-| `DistanceMetric::DotProduct` | Dot product distance (good for normalized vectors) |
 
 ---
 
 ## Internal Schema
 
-AgentDB manages six internal tables, all prefixed with `_adb_`. These are created automatically on first open and should not be modified directly.
-
 ```sql
--- Database metadata and schema version
-CREATE TABLE _adb_meta (
-    key   TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-);
-
--- Vector collection registry
-CREATE TABLE _adb_collections (
-    id         TEXT PRIMARY KEY,
-    name       TEXT UNIQUE NOT NULL,
-    dim        INTEGER NOT NULL,
-    metric     TEXT NOT NULL DEFAULT 'cosine',
-    count      INTEGER NOT NULL DEFAULT 0,
-    created_at INTEGER NOT NULL
-);
-
--- Raw vector storage (f32 arrays as little-endian BLOBs)
-CREATE TABLE _adb_vectors (
-    id            TEXT NOT NULL,
-    collection_id TEXT NOT NULL,
-    vector        BLOB NOT NULL,
-    metadata      TEXT,           -- JSON
-    created_at    INTEGER NOT NULL,
-    PRIMARY KEY (id, collection_id)
-);
-
--- Serialized HNSW index per collection
-CREATE TABLE _adb_hnsw_index (
-    collection_id TEXT PRIMARY KEY,
-    index_blob    BLOB NOT NULL,   -- bincode-serialized HnswIndex
-    built_at      INTEGER NOT NULL,
-    is_dirty      INTEGER NOT NULL DEFAULT 0
-);
-
--- Memory graph nodes
-CREATE TABLE _adb_nodes (
-    id         TEXT PRIMARY KEY,
-    kind       TEXT NOT NULL,
-    data       TEXT,               -- JSON
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-);
-
--- Memory graph edges (directed, weighted, labeled)
-CREATE TABLE _adb_edges (
-    src        TEXT NOT NULL,
-    dst        TEXT NOT NULL,
-    relation   TEXT NOT NULL,
-    weight     REAL NOT NULL DEFAULT 1.0,
-    created_at INTEGER NOT NULL,
-    PRIMARY KEY (src, dst, relation)
-);
+CREATE TABLE _adb_meta        (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE _adb_collections (id TEXT PRIMARY KEY, name TEXT UNIQUE, dim INTEGER,
+                                metric TEXT, count INTEGER, created_at INTEGER);
+CREATE TABLE _adb_vectors     (id TEXT, collection_id TEXT, vector BLOB,
+                                metadata TEXT, created_at INTEGER,
+                                PRIMARY KEY (id, collection_id));
+CREATE TABLE _adb_hnsw_index  (collection_id TEXT PRIMARY KEY, index_blob BLOB,
+                                built_at INTEGER, is_dirty INTEGER);
+CREATE TABLE _adb_nodes       (id TEXT PRIMARY KEY, kind TEXT, data TEXT,
+                                created_at INTEGER, updated_at INTEGER);
+CREATE TABLE _adb_edges       (src TEXT, dst TEXT, relation TEXT, weight REAL,
+                                created_at INTEGER, PRIMARY KEY (src, dst, relation));
+-- FTS5 virtual tables (one per collection, created on first index_text call):
+CREATE VIRTUAL TABLE _adb_fts_{name} USING fts5(vec_id, collection_id UNINDEXED,
+                                                 text, content='',
+                                                 tokenize='porter ascii');
 ```
 
 ---
 
 ## Comparison
 
-AgentDB is designed to replace the combination of multiple tools that AI agent stacks currently require. The table below shows how it stacks up against the most common alternatives, including SQLite as the closest embedded relational baseline.
+AgentDB replaces the combination of multiple tools that AI agent stacks currently require. SQLite is included as the closest embedded relational baseline.
 
 | Feature | AgentDB | SQLite | ChromaDB | Weaviate | Qdrant | Neo4j |
 |---|---|---|---|---|---|---|
@@ -503,15 +486,18 @@ AgentDB is designed to replace the combination of multiple tools that AI agent s
 | Offline-first | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Relational SQL | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Vector / ANN search | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ |
+| Advanced metadata filter | ✅ | ❌ | ⚠️ | ✅ | ✅ | ❌ |
+| Batch vector upsert | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ |
+| Full-text search (BM25) | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | Memory graph layer | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ |
+| Hybrid graph + vector query | ✅ | ❌ | ❌ | ⚠️ | ❌ | ❌ |
 | Rust native | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
 | Public domain license | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Works on edge / mobile | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Built for AI agents | ✅ | ❌ | ⚠️ | ⚠️ | ⚠️ | ❌ |
 
-> ⚠️ = Partial support or requires significant additional tooling
+> ⚠️ = Partial support or requires additional tooling
 
-**Key takeaway:** SQLite is the closest thing to AgentDB in terms of embedding model and file simplicity, but it has no vector search and no graph layer. AgentDB extends that embedded, zero-config philosophy with the two capabilities AI agents specifically need.
+**Key takeaway:** SQLite is the closest thing to AgentDB in terms of embedding model and file simplicity, but has no vector search, no graph layer, no FTS with BM25, and no hybrid queries. AgentDB extends that zero-config philosophy with everything AI agents specifically need.
 
 ---
 
@@ -519,81 +505,91 @@ AgentDB is designed to replace the combination of multiple tools that AI agent s
 
 ```
 agentdb/
-├── Cargo.toml                  # Dependencies and crate configuration
-├── README.md                   # This file
+├── Cargo.toml
+├── README.md
 ├── LICENSE                     # Public domain dedication
 ├── NOTICE                      # Copyright waiver + dependency audit
-├── ARCHITECTURE.md             # Deep-dive on internal design decisions
-├── ROADMAP.md                  # Versioned feature roadmap
+├── ARCHITECTURE.md
+├── ROADMAP.md
 ├── .gitignore
-│
+├── .github/
+│   └── workflows/
+│       ├── ci.yml              # lint, test (ubuntu/macos/windows), audit, coverage
+│       ├── bench.yml           # Criterion benchmarks on push to main
+│       └── release.yml         # build + publish on git tag
 ├── assets/
-│   └── logo.svg                # Project logo
-│
+│   └── logo.svg
 ├── src/
-│   ├── lib.rs                  # Crate root — public API re-exports
-│   ├── db.rs                   # AgentDB — main connection struct
-│   ├── schema.rs               # Internal table bootstrap + versioning
-│   ├── error.rs                # AgentDbError enum (thiserror)
+│   ├── lib.rs              # public API re-exports
+│   ├── db.rs               # AgentDB — main connection struct
+│   ├── schema.rs           # internal table bootstrap + versioning
+│   ├── error.rs            # AgentDbError (thiserror)
+│   ├── filter.rs           # metadata filter engine ($gt, $in, $exists ...)
+│   ├── fts.rs              # full-text search (FTS5, BM25, Porter stemmer)
+│   ├── hybrid.rs           # hybrid graph + vector query engine
 │   ├── vectors/
-│   │   ├── mod.rs              # VectorStore public API
-│   │   ├── collection.rs       # Collection — upsert, search, delete, reindex
-│   │   └── hnsw.rs             # Pure Rust HNSW index + distance metrics
+│   │   ├── mod.rs
+│   │   ├── collection.rs   # upsert, batch upsert, search, delete, reindex
+│   │   └── hnsw.rs         # pure Rust HNSW + cosine/euclidean/dot
 │   └── memory/
-│       ├── mod.rs              # MemoryGraph public API
-│       └── graph.rs            # Nodes, edges, recursive traversal
-│
+│       ├── mod.rs
+│       └── graph.rs        # nodes, edges, recursive CTE traversal
 ├── examples/
-│   ├── agent_memory.rs         # Full demo — all three layers
-│   ├── rag_pipeline.rs         # Local RAG with vector search
-│   └── graph_traverse.rs       # Memory graph traversal walkthrough
-│
+│   ├── agent_memory.rs     # all three base layers demo
+│   ├── rag_pipeline.rs     # local RAG pipeline
+│   ├── graph_traverse.rs   # memory graph traversal
+│   └── v020_query_power.rs # batch, advanced filters, FTS, hybrid
 ├── tests/
-│   ├── test_relational.rs      # SQL layer tests
-│   ├── test_vectors.rs         # Vector upsert, search, reindex tests
-│   └── test_memory_graph.rs    # Graph node, edge, traversal tests
-│
+│   ├── test_relational.rs  # SQL layer (6 tests)
+│   ├── test_vectors.rs     # vector upsert, search, filter (12 tests)
+│   ├── test_memory_graph.rs # graph nodes, edges, traversal (11 tests)
+│   └── test_v020.rs        # filter engine, batch, hybrid (20 tests)
 └── benches/
-    ├── vector_search.rs        # Criterion: ANN search on 100k vectors
-    └── graph_traverse.rs       # Criterion: traversal on 10k node graph
+    ├── vector_search.rs    # upsert/search/reindex at 1k–10k–100k
+    └── graph_traverse.rs   # traversal at depth 1–4 on 1k-node graph
 ```
 
 ---
 
 ## Roadmap
 
-Full detail on each item is tracked in [GitHub Issues](https://github.com/hvrcharon1/agentdb/issues).
+Full detail tracked in [GitHub Issues](https://github.com/hvrcharon1/agentdb/issues).
 
-### v0.1.0 — Core ✅ (current)
-- [x] Internal schema bootstrap with versioning
-- [x] WAL mode, foreign keys, ACID writes
-- [x] Full relational SQL layer
-- [x] Pure Rust HNSW vector index (cosine, euclidean, dot product)
+### v0.1.0 — Core ✅
+- [x] Schema bootstrap, WAL mode, ACID writes
+- [x] Relational SQL layer
+- [x] Pure Rust HNSW (cosine, euclidean, dot product)
 - [x] Vector collection API — upsert, search, delete, reindex
 - [x] Memory graph — typed nodes, weighted edges, recursive traversal
-- [x] `agent_memory` example demonstrating all three layers
+- [x] Examples: agent\_memory, rag\_pipeline, graph\_traverse
+- [x] Test suite: 29 tests across 3 files
+- [x] Criterion benchmarks (vector + graph)
+- [x] GitHub Actions CI — lint, test, audit, coverage, release
 
-### v0.2.0 — Query Power
-- [ ] Advanced metadata filtering on vector search (`$gt`, `$lt`, `$in`)
-- [ ] Hybrid query — graph traversal + vector search with alpha blending
-- [ ] Full-text search integration (FTS5 virtual tables)
-- [ ] Batch upsert API for bulk vector ingestion
+### v0.2.0 — Query Power ✅
+- [x] Advanced metadata filtering — `$gt`, `$gte`, `$lt`, `$lte`, `$eq`, `$ne`, `$in`, `$nin`, `$exists`
+- [x] Hybrid query — graph traversal + ANN search with alpha blending
+- [x] Full-text search — FTS5 virtual tables, BM25 ranking, Porter stemmer, snippets
+- [x] Batch upsert — single-transaction bulk insert with full rollback on error
+- [x] Example: v020\_query\_power
+- [x] Test suite: 20 new tests (filter engine, batch, hybrid)
+- [x] CI fixes — resolved self-referencing imports, missing VectorStore, fmt issues
 
 ### v0.3.0 — Developer Experience
-- [ ] C FFI flat API + auto-generated `agentdb.h` header via cbindgen
-- [ ] Criterion benchmarks — 100k vector search, 10k node traversal
-- [ ] CLI: `agentdb inspect`, `agentdb stats`, `agentdb export`, `agentdb shell`
-- [ ] Schema migration runner for future schema upgrades
+- [ ] C FFI flat API + auto-generated `agentdb.h` via cbindgen
+- [ ] CLI: `agentdb inspect`, `agentdb stats`, `agentdb export`, `agentdb shell`, `agentdb reindex`
+- [ ] Schema migration runner
+- [ ] `BENCHMARKS.md` with baseline numbers
 
 ### v0.4.0 — Language Bindings
-- [ ] Node.js bindings via napi-rs (TypeScript types included)
-- [ ] Python bindings via PyO3 + maturin (numpy array support)
-- [ ] WASM build for browser and edge runtimes
+- [ ] Node.js bindings via napi-rs (TypeScript types)
+- [ ] Python bindings via PyO3 + maturin (numpy support)
+- [ ] WASM build for browser and Cloudflare Workers
 
 ### v0.5.0 — Sync
 - [ ] AgentDB Sync — CRDT-based replication protocol
-- [ ] Conflict resolution strategies: last-write-wins, custom
-- [ ] CLI sync commands: push, pull, watch
+- [ ] Conflict resolution: last-write-wins + custom
+- [ ] CLI sync: push, pull, watch
 
 ### v1.0.0 — Production
 - [ ] Published to crates.io
@@ -615,8 +611,6 @@ AgentDB is in active early development. Contributions are welcome.
 4. **Run** `cargo test` and `cargo clippy` — both must pass
 5. **Open** a pull request with a clear description
 
-Please check [open issues](https://github.com/hvrcharon1/agentdb/issues) before starting work on a new feature — it may already be in progress.
-
 **Code standards:**
 - No `unwrap()` in library code — propagate errors with `?`
 - All public API items must have doc comments
@@ -629,11 +623,9 @@ Please check [open issues](https://github.com/hvrcharon1/agentdb/issues) before 
 
 AgentDB is released into the **public domain** by Datacules LLC.
 
-No attribution required. No license file inclusion required. No royalties. No notification. Use it in any project — open source, closed source, commercial, or personal.
+No attribution required. No license file required. No royalties. Use it in any project — open source, closed source, commercial, or personal.
 
-For jurisdictions where public domain is not legally recognized, a permissive fallback license granting identical rights is provided.
-
-For enterprises requiring written warranty, indemnification, or SLA guarantees, optional commercial licenses are available. Contact [legal@datacules.com](mailto:legal@datacules.com).
+For jurisdictions where public domain is not legally recognized, a permissive fallback license granting identical rights is provided. For enterprises requiring written warranty or indemnification, optional commercial licenses are available at [legal@datacules.com](mailto:legal@datacules.com).
 
 See [LICENSE](LICENSE) and [NOTICE](NOTICE) for full terms.
 
