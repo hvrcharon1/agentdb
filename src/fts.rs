@@ -1,9 +1,9 @@
-use rusqlite::{params, Connection};
+use rusqlite::params;
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
 
 use crate::error::{AgentDbError, Result};
-use crate::schema::now_ms;
+use rusqlite::Connection;
 
 /// A full-text search result
 #[derive(Debug, Clone)]
@@ -15,6 +15,7 @@ pub struct FtsResult {
     pub metadata: Option<Value>,
 }
 
+/// Manages FTS5 virtual tables per collection
 pub struct FullTextStore {
     conn: Arc<Mutex<Connection>>,
 }
@@ -24,7 +25,7 @@ impl FullTextStore {
         Self { conn }
     }
 
-    /// Ensure FTS5 virtual table exists for a given collection
+    /// Ensure the FTS5 virtual table exists for a collection
     pub fn ensure_fts_table(&self, collection_name: &str) -> Result<()> {
         let table = fts_table_name(collection_name);
         let conn = self.conn.lock().unwrap();
@@ -41,7 +42,7 @@ impl FullTextStore {
         Ok(())
     }
 
-    /// Index a text document into the FTS table for a collection
+    /// Index a text document for a given collection
     pub fn index_text(
         &self,
         collection_name: &str,
@@ -52,13 +53,14 @@ impl FullTextStore {
         self.ensure_fts_table(collection_name)?;
         let table = fts_table_name(collection_name);
         let conn = self.conn.lock().unwrap();
-        // Delete existing entry for this id first (upsert pattern)
         conn.execute(
             &format!("DELETE FROM {table} WHERE vec_id = ?1"),
             params![vec_id],
         )?;
         conn.execute(
-            &format!("INSERT INTO {table} (vec_id, collection_id, text) VALUES (?1, ?2, ?3)"),
+            &format!(
+                "INSERT INTO {table} (vec_id, collection_id, text) VALUES (?1, ?2, ?3)"
+            ),
             params![vec_id, collection_id, text],
         )?;
         Ok(())
@@ -74,7 +76,6 @@ impl FullTextStore {
         let table = fts_table_name(collection_name);
         let conn = self.conn.lock().unwrap();
 
-        // Check table exists
         let exists: bool = conn
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?1",
@@ -89,10 +90,14 @@ impl FullTextStore {
         }
 
         let sql = format!(
-            "SELECT f.vec_id, f.collection_id, snippet({table}, 2, '<b>', '</b>', '...', 10),
-                    bm25({table}) as rank, v.metadata
+            "SELECT f.vec_id,
+                    f.collection_id,
+                    snippet({table}, 2, '<b>', '</b>', '...', 10),
+                    bm25({table}) AS rank,
+                    v.metadata
              FROM {table} f
-             LEFT JOIN _adb_vectors v ON v.id = f.vec_id AND v.collection_id = f.collection_id
+             LEFT JOIN _adb_vectors v
+               ON v.id = f.vec_id AND v.collection_id = f.collection_id
              WHERE {table} MATCH ?1
              ORDER BY rank
              LIMIT ?2"
@@ -100,13 +105,13 @@ impl FullTextStore {
 
         let mut stmt = conn.prepare(&sql)?;
         let rows = stmt.query_map(params![query, top_k as i64], |row| {
-            let metadata_str: Option<String> = row.get(4)?;
+            let meta_str: Option<String> = row.get(4)?;
             Ok(FtsResult {
                 id: row.get(0)?,
                 collection_id: row.get(1)?,
                 snippet: row.get(2)?,
-                rank: row.get::<_, f64>(3)?,
-                metadata: metadata_str
+                rank: row.get(3)?,
+                metadata: meta_str
                     .as_deref()
                     .and_then(|s| serde_json::from_str(s).ok()),
             })
@@ -126,20 +131,21 @@ impl FullTextStore {
         Ok(())
     }
 
-    /// Rebuild FTS index optimize (merges index segments for faster search)
+    /// Merge FTS index segments for faster queries
     pub fn optimize(&self, collection_name: &str) -> Result<()> {
         let table = fts_table_name(collection_name);
         let conn = self.conn.lock().unwrap();
-        conn.execute_batch(&format!("INSERT INTO {table}({table}) VALUES('optimize');"))?;
+        conn.execute_batch(&format!(
+            "INSERT INTO {table}({table}) VALUES('optimize');"
+        ))?;
         Ok(())
     }
 }
 
-fn fts_table_name(collection_name: &str) -> String {
-    // Sanitize: only alphanumeric + underscore
-    let safe: String = collection_name
+fn fts_table_name(name: &str) -> String {
+    let safe: String = name
         .chars()
         .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
         .collect();
-    format!("_adb_fts_{}", safe)
+    format!("_adb_fts_{safe}")
 }
