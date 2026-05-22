@@ -2,25 +2,25 @@ use rusqlite::Connection;
 use std::sync::{Arc, Mutex};
 
 use crate::error::Result;
+use crate::fts::FullTextStore;
+use crate::hybrid::{HybridQuery, HybridResult, HybridStore};
 use crate::memory::MemoryGraph;
 use crate::schema;
 use crate::vectors::VectorStore;
 
-/// The main AgentDB connection — your single-file AI database.
+/// The main AgentDB connection.
 pub struct AgentDB {
     conn: Arc<Mutex<Connection>>,
 }
 
 impl AgentDB {
     /// Open or create an AgentDB database at the given path.
-    /// Use `":memory:"` for an in-memory database (useful for tests).
+    /// Use `":memory:"` for an in-memory database.
     pub fn open(path: &str) -> Result<Self> {
         let conn = Connection::open(path)?;
         schema::bootstrap(&conn)?;
         schema::check_version(&conn)?;
-        Ok(Self {
-            conn: Arc::new(Mutex::new(conn)),
-        })
+        Ok(Self { conn: Arc::new(Mutex::new(conn)) })
     }
 
     /// Access the vector store layer
@@ -33,18 +33,43 @@ impl AgentDB {
         MemoryGraph::new(Arc::clone(&self.conn))
     }
 
+    /// Access the full-text search layer
+    pub fn fts(&self) -> FullTextStore {
+        FullTextStore::new(Arc::clone(&self.conn))
+    }
+
+    /// Run a hybrid graph + vector query
+    pub fn hybrid_query(
+        &self,
+        q: HybridQuery,
+    ) -> Result<Vec<HybridResult>> {
+        let store = HybridStore::new(Arc::clone(&self.conn));
+        let col = self.vectors().collection(q.collection, {
+            // Peek at collection dim
+            let conn = self.conn.lock().unwrap();
+            conn.query_row(
+                "SELECT dim FROM _adb_collections WHERE name = ?1",
+                rusqlite::params![q.collection],
+                |r| r.get(0),
+            ).unwrap_or(0)
+        })?;
+        store.query(q, &col)
+    }
+
     /// Execute a raw SQL statement (no results)
     pub fn execute(&self, sql: &str) -> Result<usize> {
         let conn = self.conn.lock().unwrap();
-        let changed = conn.execute(sql, [])?;
-        Ok(changed)
+        Ok(conn.execute(sql, [])?)
     }
 
-    /// Execute a raw SQL statement with params
-    pub fn execute_params(&self, sql: &str, params: &[&dyn rusqlite::ToSql]) -> Result<usize> {
+    /// Execute a parameterized SQL statement
+    pub fn execute_params(
+        &self,
+        sql: &str,
+        params: &[&dyn rusqlite::ToSql],
+    ) -> Result<usize> {
         let conn = self.conn.lock().unwrap();
-        let changed = conn.execute(sql, params)?;
-        Ok(changed)
+        Ok(conn.execute(sql, params)?)
     }
 
     /// Query and return rows as JSON values
@@ -56,7 +81,6 @@ impl AgentDB {
             .iter()
             .map(|s| s.to_string())
             .collect();
-
         let rows = stmt.query_map([], |row| {
             let mut map = serde_json::Map::new();
             for (i, name) in col_names.iter().enumerate() {
@@ -65,14 +89,12 @@ impl AgentDB {
             }
             Ok(serde_json::Value::Object(map))
         })?;
-
         rows.map(|r| r.map_err(crate::error::AgentDbError::Sqlite))
             .collect()
     }
 
-    /// Flush and close the database gracefully
+    /// Flush dirty vector indexes and close gracefully
     pub fn close(self) -> Result<()> {
-        // Reindex any dirty vector collections before closing
         let collections = self.vectors().list_collections()?;
         for (name, dim, _) in collections {
             let col = self.vectors().collection(&name, dim)?;
@@ -80,7 +102,7 @@ impl AgentDB {
             let is_dirty: i64 = conn
                 .query_row(
                     "SELECT COALESCE(
-                        (SELECT is_dirty FROM _adb_hnsw_index 
+                        (SELECT is_dirty FROM _adb_hnsw_index
                          WHERE collection_id = (
                            SELECT id FROM _adb_collections WHERE name = ?1
                          )), 0)",
@@ -96,20 +118,20 @@ impl AgentDB {
         Ok(())
     }
 
-    /// Return basic database stats
+    /// Return database-wide statistics
     pub fn stats(&self) -> Result<DbStats> {
         let conn = self.conn.lock().unwrap();
         let collections: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM _adb_collections", [], |r| r.get(0)
+            "SELECT COUNT(*) FROM _adb_collections", [], |r| r.get(0),
         )?;
         let vectors: i64 = conn.query_row(
-            "SELECT COALESCE(SUM(count), 0) FROM _adb_collections", [], |r| r.get(0)
+            "SELECT COALESCE(SUM(count), 0) FROM _adb_collections", [], |r| r.get(0),
         )?;
         let nodes: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM _adb_nodes", [], |r| r.get(0)
+            "SELECT COUNT(*) FROM _adb_nodes", [], |r| r.get(0),
         )?;
         let edges: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM _adb_edges", [], |r| r.get(0)
+            "SELECT COUNT(*) FROM _adb_edges", [], |r| r.get(0),
         )?;
         Ok(DbStats { collections, vectors, nodes, edges })
     }
@@ -127,14 +149,11 @@ fn rusqlite_value_to_json(val: rusqlite::types::Value) -> serde_json::Value {
     match val {
         rusqlite::types::Value::Null => serde_json::Value::Null,
         rusqlite::types::Value::Integer(i) => serde_json::Value::Number(i.into()),
-        rusqlite::types::Value::Real(f) => {
-            serde_json::Number::from_f64(f)
-                .map(serde_json::Value::Number)
-                .unwrap_or(serde_json::Value::Null)
-        }
+        rusqlite::types::Value::Real(f) => serde_json::Number::from_f64(f)
+            .map(serde_json::Value::Number)
+            .unwrap_or(serde_json::Value::Null),
         rusqlite::types::Value::Text(s) => serde_json::Value::String(s),
-        rusqlite::types::Value::Blob(b) => {
-            serde_json::Value::String(format!("<blob {} bytes>", b.len()))
-        }
+        rusqlite::types::Value::Blob(b) =>
+            serde_json::Value::String(format!("<blob {} bytes>", b.len())),
     }
 }
