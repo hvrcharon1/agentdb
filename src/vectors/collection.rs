@@ -1,15 +1,13 @@
-use rusqlite::params;
-use serde_json::Value;
-use std::sync::{Arc, Mutex};
-use uuid::Uuid;
-
 use crate::error::{AgentDbError, Result};
 use crate::filter;
 use crate::schema::now_ms;
 use crate::vectors::hnsw::{DistanceMetric, HnswIndex};
-use rusqlite::Connection;
+use rusqlite::{params, Connection};
+use serde_json::Value;
+use std::sync::{Arc, Mutex};
+use uuid::Uuid;
 
-/// A single vector entry to store
+/// A single vector entry
 #[derive(Debug, Clone)]
 pub struct VectorEntry {
     pub id: String,
@@ -17,7 +15,7 @@ pub struct VectorEntry {
     pub metadata: Option<Value>,
 }
 
-/// A single result from vector search
+/// A single vector search result
 #[derive(Debug, Clone)]
 pub struct SearchResult {
     pub id: String,
@@ -25,7 +23,7 @@ pub struct SearchResult {
     pub metadata: Option<Value>,
 }
 
-/// Options for a vector search
+/// Options controlling a vector search
 #[derive(Debug, Clone)]
 pub struct SearchOptions {
     pub top_k: usize,
@@ -43,7 +41,7 @@ impl Default for SearchOptions {
     }
 }
 
-/// A single entry for batch upsert
+/// An entry for batch upsert
 #[derive(Debug, Clone)]
 pub struct BatchEntry {
     pub id: String,
@@ -51,7 +49,7 @@ pub struct BatchEntry {
     pub metadata: Option<Value>,
 }
 
-/// A named vector collection inside AgentDB
+/// A named vector collection
 pub struct Collection {
     pub id: String,
     pub name: String,
@@ -79,7 +77,7 @@ impl Collection {
         }
     }
 
-    /// Insert or update a single vector entry
+    /// Insert or update a single vector
     pub fn upsert(&self, entry: VectorEntry) -> Result<()> {
         if entry.vector.len() != self.dim {
             return Err(AgentDbError::DimensionMismatch {
@@ -88,7 +86,7 @@ impl Collection {
             });
         }
         let blob: Vec<u8> = entry.vector.iter().flat_map(|f| f.to_le_bytes()).collect();
-        let metadata_str = entry.metadata.as_ref().map(|m| m.to_string());
+        let meta = entry.metadata.as_ref().map(|m| m.to_string());
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "INSERT INTO _adb_vectors (id, collection_id, vector, metadata, created_at)
@@ -96,7 +94,7 @@ impl Collection {
              ON CONFLICT(id, collection_id) DO UPDATE SET
                vector   = excluded.vector,
                metadata = excluded.metadata",
-            params![entry.id, self.id, blob, metadata_str, now_ms()],
+            params![entry.id, self.id, blob, meta, now_ms()],
         )?;
         conn.execute(
             "INSERT INTO _adb_hnsw_index (collection_id, index_blob, built_at, is_dirty)
@@ -112,7 +110,7 @@ impl Collection {
         Ok(())
     }
 
-    /// Insert or update multiple vector entries in a single transaction
+    /// Insert or update multiple vectors in a single transaction
     pub fn upsert_batch(&self, entries: Vec<BatchEntry>) -> Result<usize> {
         if entries.is_empty() {
             return Ok(0);
@@ -125,14 +123,13 @@ impl Collection {
                 });
             }
         }
-        let count = entries.len();
+        let n = entries.len();
         let conn = self.conn.lock().unwrap();
         conn.execute_batch("BEGIN")?;
         let result: Result<()> = (|| {
-            for entry in &entries {
-                let blob: Vec<u8> =
-                    entry.vector.iter().flat_map(|f| f.to_le_bytes()).collect();
-                let metadata_str = entry.metadata.as_ref().map(|m| m.to_string());
+            for e in &entries {
+                let blob: Vec<u8> = e.vector.iter().flat_map(|f| f.to_le_bytes()).collect();
+                let meta = e.metadata.as_ref().map(|m| m.to_string());
                 conn.execute(
                     "INSERT INTO _adb_vectors
                          (id, collection_id, vector, metadata, created_at)
@@ -140,7 +137,7 @@ impl Collection {
                      ON CONFLICT(id, collection_id) DO UPDATE SET
                        vector   = excluded.vector,
                        metadata = excluded.metadata",
-                    params![entry.id, self.id, blob, metadata_str, now_ms()],
+                    params![e.id, self.id, blob, meta, now_ms()],
                 )?;
             }
             conn.execute(
@@ -151,7 +148,7 @@ impl Collection {
             )?;
             conn.execute(
                 "UPDATE _adb_collections SET count = count + ?1 WHERE id = ?2",
-                params![count as i64, self.id],
+                params![n as i64, self.id],
             )?;
             Ok(())
         })();
@@ -159,7 +156,7 @@ impl Collection {
             Ok(()) => {
                 conn.execute_batch("COMMIT")?;
                 *self.index.lock().unwrap() = None;
-                Ok(count)
+                Ok(n)
             }
             Err(e) => {
                 let _ = conn.execute_batch("ROLLBACK");
@@ -168,7 +165,7 @@ impl Collection {
         }
     }
 
-    /// Approximate nearest-neighbor search with optional metadata filtering
+    /// ANN search with optional advanced metadata filtering
     pub fn search(&self, query: &[f32], opts: SearchOptions) -> Result<Vec<SearchResult>> {
         if query.len() != self.dim {
             return Err(AgentDbError::DimensionMismatch {
@@ -177,8 +174,8 @@ impl Collection {
             });
         }
         self.ensure_index()?;
-        let index_guard = self.index.lock().unwrap();
-        let index = index_guard.as_ref().unwrap();
+        let guard = self.index.lock().unwrap();
+        let index = guard.as_ref().unwrap();
         let fetch_k = if opts.filter.is_some() {
             (opts.top_k * 10).max(50)
         } else {
@@ -186,35 +183,31 @@ impl Collection {
         };
         let raw = index.search(query, fetch_k);
         let conn = self.conn.lock().unwrap();
-        let mut results = Vec::new();
+        let mut out = Vec::new();
         for (id, score) in raw {
-            let metadata_str: Option<String> = conn
+            let meta_str: Option<String> = conn
                 .query_row(
                     "SELECT metadata FROM _adb_vectors
                      WHERE id = ?1 AND collection_id = ?2",
                     params![id, self.id],
-                    |row| row.get(0),
+                    |r| r.get(0),
                 )
                 .ok()
                 .flatten();
-            let metadata_val: Option<Value> =
-                metadata_str.as_deref().and_then(|s| serde_json::from_str(s).ok());
+            let meta: Option<Value> =
+                meta_str.as_deref().and_then(|s| serde_json::from_str(s).ok());
             if let Some(ref f) = opts.filter {
-                match &metadata_val {
-                    Some(meta) if filter::matches(meta, f) => {}
+                match &meta {
+                    Some(m) if filter::matches(m, f) => {}
                     _ => continue,
                 }
             }
-            results.push(SearchResult {
-                id,
-                score,
-                metadata: metadata_val,
-            });
-            if results.len() >= opts.top_k {
+            out.push(SearchResult { id, score, metadata: meta });
+            if out.len() >= opts.top_k {
                 break;
             }
         }
-        Ok(results)
+        Ok(out)
     }
 
     /// Delete a vector by ID
@@ -232,11 +225,11 @@ impl Collection {
         Ok(())
     }
 
-    /// Force rebuild the HNSW index from stored vectors
+    /// Rebuild the HNSW index from stored vectors
     pub fn reindex(&self) -> Result<()> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt =
-            conn.prepare("SELECT id, vector FROM _adb_vectors WHERE collection_id = ?1")?;
+        let mut stmt = conn
+            .prepare("SELECT id, vector FROM _adb_vectors WHERE collection_id = ?1")?;
         let mut index = HnswIndex::new(16, 200, self.metric.clone());
         let rows = stmt.query_map(params![self.id], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
@@ -274,16 +267,15 @@ impl Collection {
     /// Number of vectors in this collection
     pub fn count(&self) -> Result<i64> {
         let conn = self.conn.lock().unwrap();
-        let n: i64 = conn.query_row(
+        Ok(conn.query_row(
             "SELECT count FROM _adb_collections WHERE id = ?1",
             params![self.id],
-            |row| row.get(0),
-        )?;
-        Ok(n)
+            |r| r.get(0),
+        )?)
     }
 }
 
-/// Manages all vector collections in the database
+/// Manages all vector collections
 pub struct VectorStore {
     conn: Arc<Mutex<Connection>>,
 }
@@ -293,12 +285,10 @@ impl VectorStore {
         Self { conn }
     }
 
-    /// Get or create a collection with cosine distance
     pub fn collection(&self, name: &str, dim: usize) -> Result<Collection> {
         self.collection_with_metric(name, dim, DistanceMetric::Cosine)
     }
 
-    /// Get or create a collection with an explicit distance metric
     pub fn collection_with_metric(
         &self,
         name: &str,
@@ -313,28 +303,22 @@ impl VectorStore {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .ok();
-        if let Some((id, existing_dim, metric_str)) = existing {
-            if existing_dim != dim {
+        if let Some((id, edim, mstr)) = existing {
+            if edim != dim {
                 return Err(AgentDbError::DimensionMismatch {
-                    expected: existing_dim,
+                    expected: edim,
                     got: dim,
                 });
             }
-            let m = match metric_str.as_str() {
+            let m = match mstr.as_str() {
                 "euclidean" => DistanceMetric::Euclidean,
                 "dot" => DistanceMetric::DotProduct,
                 _ => DistanceMetric::Cosine,
             };
-            return Ok(Collection::new(
-                id,
-                name.to_string(),
-                dim,
-                m,
-                Arc::clone(&self.conn),
-            ));
+            return Ok(Collection::new(id, name.to_string(), dim, m, Arc::clone(&self.conn)));
         }
         let id = Uuid::new_v4().to_string();
-        let metric_str = match &metric {
+        let mstr = match &metric {
             DistanceMetric::Cosine => "cosine",
             DistanceMetric::Euclidean => "euclidean",
             DistanceMetric::DotProduct => "dot",
@@ -342,18 +326,11 @@ impl VectorStore {
         conn.execute(
             "INSERT INTO _adb_collections (id, name, dim, metric, count, created_at)
              VALUES (?1, ?2, ?3, ?4, 0, ?5)",
-            params![id, name, dim, metric_str, now_ms()],
+            params![id, name, dim, mstr, now_ms()],
         )?;
-        Ok(Collection::new(
-            id,
-            name.to_string(),
-            dim,
-            metric,
-            Arc::clone(&self.conn),
-        ))
+        Ok(Collection::new(id, name.to_string(), dim, metric, Arc::clone(&self.conn)))
     }
 
-    /// List all collections: (name, dim, count)
     pub fn list_collections(&self) -> Result<Vec<(String, usize, i64)>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt =
@@ -368,13 +345,9 @@ impl VectorStore {
         rows.map(|r| r.map_err(AgentDbError::Sqlite)).collect()
     }
 
-    /// Drop a collection and all its vectors
     pub fn drop_collection(&self, name: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
-        conn.execute(
-            "DELETE FROM _adb_collections WHERE name = ?1",
-            params![name],
-        )?;
+        conn.execute("DELETE FROM _adb_collections WHERE name = ?1", params![name])?;
         Ok(())
     }
 }

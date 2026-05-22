@@ -1,0 +1,2 @@
+# Deny all clippy warnings in CI
+# Place this at the crate root so `cargo clippy` picks it up

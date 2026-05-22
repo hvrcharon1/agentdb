@@ -1,10 +1,11 @@
-use rusqlite::Connection;
 use crate::error::Result;
+use rusqlite::Connection;
 
 pub const SCHEMA_VERSION: &str = "1";
 
 pub fn bootstrap(conn: &Connection) -> Result<()> {
-    conn.execute_batch("
+    conn.execute_batch(
+        "
         PRAGMA journal_mode=WAL;
         PRAGMA foreign_keys=ON;
         PRAGMA synchronous=NORMAL;
@@ -30,7 +31,8 @@ pub fn bootstrap(conn: &Connection) -> Result<()> {
             metadata      TEXT,
             created_at    INTEGER NOT NULL,
             PRIMARY KEY (id, collection_id),
-            FOREIGN KEY (collection_id) REFERENCES _adb_collections(id) ON DELETE CASCADE
+            FOREIGN KEY (collection_id)
+                REFERENCES _adb_collections(id) ON DELETE CASCADE
         );
 
         CREATE TABLE IF NOT EXISTS _adb_hnsw_index (
@@ -62,19 +64,17 @@ pub fn bootstrap(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_edges_src ON _adb_edges(src);
         CREATE INDEX IF NOT EXISTS idx_edges_dst ON _adb_edges(dst);
         CREATE INDEX IF NOT EXISTS idx_vectors_col ON _adb_vectors(collection_id);
-    ")?;
+        ",
+    )?;
 
-    // Insert schema version if not present
     conn.execute(
         "INSERT OR IGNORE INTO _adb_meta (key, value) VALUES ('schema_version', ?1)",
         rusqlite::params![SCHEMA_VERSION],
     )?;
-
     conn.execute(
         "INSERT OR IGNORE INTO _adb_meta (key, value) VALUES ('created_at', ?1)",
         rusqlite::params![now_ms()],
     )?;
-
     Ok(())
 }
 
@@ -86,11 +86,10 @@ pub fn check_version(conn: &Connection) -> Result<()> {
             |row| row.get(0),
         )
         .ok();
-
-    match version {
+    match version.as_deref() {
         Some(v) if v == SCHEMA_VERSION => Ok(()),
         Some(_) => Err(crate::error::AgentDbError::SchemaMigration),
-        None => Ok(()), // fresh DB, bootstrap will set it
+        None => Ok(()),
     }
 }
 
