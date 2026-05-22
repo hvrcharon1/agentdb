@@ -1,11 +1,11 @@
 [package]
 name = "agentdb"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-description = "Single-file embedded database for AI agents. SQL + Vector Search + Memory Graphs."
+description = "Single-file embedded database for AI agents. SQL + Vector Search + Full-Text Search + Hybrid Queries + Memory Graphs."
 license = "MIT"
 repository = "https://github.com/hvrcharon1/agentdb"
-keywords = ["database", "vector-search", "ai", "agents", "sqlite"]
+keywords = ["database", "vector-search", "ai", "agents", "embedded"]
 categories = ["database", "embedded"]
 
 [lib]
@@ -23,6 +23,10 @@ path = "examples/rag_pipeline.rs"
 [[example]]
 name = "graph_traverse"
 path = "examples/graph_traverse.rs"
+
+[[example]]
+name = "v020_query_power"
+path = "examples/v020_query_power.rs"
 
 [dependencies]
 rusqlite = { version = "0.31", features = ["bundled"] }

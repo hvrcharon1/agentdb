@@ -2,12 +2,8 @@ use serde_json::Value;
 
 /// Evaluate a metadata filter against a JSON document.
 ///
-/// Supports:
-/// - Exact match: `{ "key": value }`
-/// - `$eq`, `$ne`
-/// - `$gt`, `$gte`, `$lt`, `$lte` (numeric)
-/// - `$in`, `$nin` (array membership)
-/// - `$exists` (field presence)
+/// Supports exact match and operators:
+/// `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$exists`
 pub fn matches(metadata: &Value, filter: &Value) -> bool {
     let (meta_obj, filter_obj) = match (metadata, filter) {
         (Value::Object(m), Value::Object(f)) => (m, f),
@@ -59,9 +55,10 @@ where
     F: Fn(f64, f64) -> bool,
 {
     match (field, operand) {
-        (Some(Value::Number(a)), Value::Number(b)) => {
-            matches!((a.as_f64(), b.as_f64()), (Some(av), Some(bv)) if cmp(av, bv))
-        }
+        (Some(Value::Number(a)), Value::Number(b)) => match (a.as_f64(), b.as_f64()) {
+            (Some(av), Some(bv)) => cmp(av, bv),
+            _ => false,
+        },
         _ => false,
     }
 }

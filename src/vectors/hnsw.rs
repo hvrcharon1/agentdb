@@ -1,8 +1,8 @@
 use crate::error::{AgentDbError, Result};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 
 /// Distance metric used for vector similarity
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -13,7 +13,7 @@ pub enum DistanceMetric {
 }
 
 fn cosine_distance(a: &[f32], b: &[f32]) -> f32 {
-    let dot: f32 = a.iter().zip(b).map(|(x, y)| x * y).sum();
+    let dot: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
     let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
     let norm_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
     if norm_a == 0.0 || norm_b == 0.0 {
@@ -24,14 +24,14 @@ fn cosine_distance(a: &[f32], b: &[f32]) -> f32 {
 
 fn euclidean_distance(a: &[f32], b: &[f32]) -> f32 {
     a.iter()
-        .zip(b)
+        .zip(b.iter())
         .map(|(x, y)| (x - y).powi(2))
         .sum::<f32>()
         .sqrt()
 }
 
 fn dot_product_distance(a: &[f32], b: &[f32]) -> f32 {
-    let dot: f32 = a.iter().zip(b).map(|(x, y)| x * y).sum();
+    let dot: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
     1.0 - dot
 }
 
@@ -51,7 +51,6 @@ pub struct HnswIndex {
     vectors: Vec<Vec<f32>>,
     id_map: HashMap<String, usize>,
     rev_map: Vec<String>,
-    /// layers[level][node_idx] = neighbour indices
     layers: Vec<HashMap<usize, Vec<usize>>>,
     entry_point: Option<usize>,
     metric: DistanceMetric,
@@ -124,7 +123,6 @@ impl HnswIndex {
         }
     }
 
-    /// Greedy search within a single layer, using an existing node index as query.
     fn search_layer_for(
         &self,
         query_idx: usize,
@@ -132,11 +130,10 @@ impl HnswIndex {
         k: usize,
         level: usize,
     ) -> Vec<(usize, f32)> {
-        let query = &self.vectors[query_idx];
-        self.search_layer_vec(query, entry, k, level)
+        let query = self.vectors[query_idx].clone();
+        self.search_layer_vec(&query, entry, k, level)
     }
 
-    /// Greedy search within a single layer using a raw query vector.
     fn search_layer_vec(
         &self,
         query: &[f32],
@@ -145,9 +142,7 @@ impl HnswIndex {
         level: usize,
     ) -> Vec<(usize, f32)> {
         let mut visited: HashSet<usize> = HashSet::new();
-        // (distance_bits, idx) — min-heap via Reverse
         let mut candidates: BinaryHeap<Reverse<(u32, usize)>> = BinaryHeap::new();
-        // (distance_bits, idx) — max-heap for result set
         let mut result: BinaryHeap<(u32, usize)> = BinaryHeap::new();
 
         let d0 = dist(query, &self.vectors[entry], &self.metric);
@@ -156,7 +151,6 @@ impl HnswIndex {
         visited.insert(entry);
 
         while let Some(Reverse((d_bits, curr))) = candidates.pop() {
-            // Prune: if closest candidate is worse than worst result, stop
             if let Some(&(worst_bits, _)) = result.peek() {
                 if d_bits > worst_bits && result.len() >= k {
                     break;
@@ -170,7 +164,6 @@ impl HnswIndex {
                             let nd_bits = nd.to_bits();
                             candidates.push(Reverse((nd_bits, nb)));
                             result.push((nd_bits, nb));
-                            // Keep result bounded
                             while result.len() > k * 2 {
                                 result.pop();
                             }
@@ -199,7 +192,6 @@ impl HnswIndex {
             return vec![];
         }
 
-        // Greedy descent through upper layers
         for l in (1..num_layers).rev() {
             let mut improved = true;
             while improved {
@@ -220,7 +212,6 @@ impl HnswIndex {
             }
         }
 
-        // Full ef-search at layer 0
         let ef = k.max(self.ef_construction);
         let raw = self.search_layer_vec(query, ep, ef, 0);
 

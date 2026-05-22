@@ -1,4 +1,4 @@
-//! # AgentDB
+//! # AgentDB v0.2.0
 //!
 //! A single-file embedded database for AI agents.
 //! SQL + Vector Search + Full-Text Search + Hybrid Queries + Memory Graphs.
