@@ -3,8 +3,6 @@ use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criteri
 
 fn build_graph(db: &AgentDB, node_count: usize, edge_factor: usize) {
     let graph = db.memory();
-
-    // Add nodes
     for i in 0..node_count {
         graph
             .add_node(
@@ -14,8 +12,6 @@ fn build_graph(db: &AgentDB, node_count: usize, edge_factor: usize) {
             )
             .unwrap();
     }
-
-    // Add edges: each node connects to `edge_factor` successors
     for i in 0..node_count {
         for k in 1..=edge_factor {
             let dst = (i + k) % node_count;
@@ -35,7 +31,6 @@ fn build_graph(db: &AgentDB, node_count: usize, edge_factor: usize) {
 
 fn bench_add_nodes(c: &mut Criterion) {
     let mut group = c.benchmark_group("graph_add_nodes");
-
     for count in [100usize, 1_000, 5_000] {
         group.bench_with_input(
             BenchmarkId::new("add_n_nodes", count),
@@ -45,9 +40,7 @@ fn bench_add_nodes(c: &mut Criterion) {
                     let db = AgentDB::open(":memory:").unwrap();
                     let graph = db.memory();
                     for i in 0..count {
-                        graph
-                            .add_node(&format!("n{}", i), "concept", None)
-                            .unwrap();
+                        graph.add_node(&format!("n{}", i), "concept", None).unwrap();
                     }
                     black_box(graph.stats().unwrap());
                 });
@@ -59,16 +52,13 @@ fn bench_add_nodes(c: &mut Criterion) {
 
 fn bench_traversal_depth(c: &mut Criterion) {
     let mut group = c.benchmark_group("graph_traversal");
-
     for depth in [1usize, 2, 3, 4] {
         group.bench_with_input(
             BenchmarkId::new("traverse_depth", depth),
             &depth,
             |b, &depth| {
-                // Build graph once outside timed loop
                 let db = AgentDB::open(":memory:").unwrap();
                 build_graph(&db, 1_000, 4);
-
                 b.iter(|| {
                     let graph = db.memory();
                     let results = graph
@@ -91,11 +81,9 @@ fn bench_traversal_depth(c: &mut Criterion) {
 
 fn bench_traversal_with_filter(c: &mut Criterion) {
     let mut group = c.benchmark_group("graph_traversal_filtered");
-
     group.bench_function("traverse_weight_filter", |b| {
         let db = AgentDB::open(":memory:").unwrap();
         build_graph(&db, 1_000, 4);
-
         b.iter(|| {
             let graph = db.memory();
             let results = graph
@@ -111,11 +99,9 @@ fn bench_traversal_with_filter(c: &mut Criterion) {
             black_box(results);
         });
     });
-
     group.bench_function("traverse_relation_filter", |b| {
         let db = AgentDB::open(":memory:").unwrap();
         build_graph(&db, 1_000, 4);
-
         b.iter(|| {
             let graph = db.memory();
             let results = graph
@@ -131,7 +117,6 @@ fn bench_traversal_with_filter(c: &mut Criterion) {
             black_box(results);
         });
     });
-
     group.finish();
 }
 

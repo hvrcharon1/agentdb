@@ -9,40 +9,33 @@ fn make_vec(seed: f32, dim: usize) -> Vec<f32> {
 
 fn bench_upsert(c: &mut Criterion) {
     let mut group = c.benchmark_group("vector_upsert");
-
     for count in [100usize, 1_000, 10_000] {
-        group.bench_with_input(
-            BenchmarkId::new("upsert_n", count),
-            &count,
-            |b, &count| {
-                b.iter(|| {
-                    let db = AgentDB::open(":memory:").unwrap();
-                    let col = db.vectors().collection("bench", 128).unwrap();
-                    for i in 0..count {
-                        col.upsert(VectorEntry {
-                            id: format!("v{}", i),
-                            vector: make_vec(i as f32, 128),
-                            metadata: None,
-                        })
-                        .unwrap();
-                    }
-                    black_box(col.count().unwrap());
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("upsert_n", count), &count, |b, &count| {
+            b.iter(|| {
+                let db = AgentDB::open(":memory:").unwrap();
+                let col = db.vectors().collection("bench", 128).unwrap();
+                for i in 0..count {
+                    col.upsert(VectorEntry {
+                        id: format!("v{}", i),
+                        vector: make_vec(i as f32, 128),
+                        metadata: None,
+                    })
+                    .unwrap();
+                }
+                black_box(col.count().unwrap());
+            });
+        });
     }
     group.finish();
 }
 
 fn bench_search(c: &mut Criterion) {
     let mut group = c.benchmark_group("vector_search");
-
     for count in [1_000usize, 10_000, 100_000] {
         group.bench_with_input(
             BenchmarkId::new("ann_search_n", count),
             &count,
             |b, &count| {
-                // Setup: build collection once outside the timed loop
                 let db = AgentDB::open(":memory:").unwrap();
                 let col = db.vectors().collection("bench", 128).unwrap();
                 for i in 0..count {
@@ -54,9 +47,7 @@ fn bench_search(c: &mut Criterion) {
                     .unwrap();
                 }
                 col.reindex().unwrap();
-
                 let query = make_vec(42.0, 128);
-
                 b.iter(|| {
                     let results = col
                         .search(
@@ -78,28 +69,22 @@ fn bench_search(c: &mut Criterion) {
 
 fn bench_reindex(c: &mut Criterion) {
     let mut group = c.benchmark_group("vector_reindex");
-
     for count in [1_000usize, 10_000] {
-        group.bench_with_input(
-            BenchmarkId::new("reindex_n", count),
-            &count,
-            |b, &count| {
-                let db = AgentDB::open(":memory:").unwrap();
-                let col = db.vectors().collection("bench", 128).unwrap();
-                for i in 0..count {
-                    col.upsert(VectorEntry {
-                        id: format!("v{}", i),
-                        vector: make_vec(i as f32, 128),
-                        metadata: None,
-                    })
-                    .unwrap();
-                }
-
-                b.iter(|| {
-                    black_box(col.reindex().unwrap());
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("reindex_n", count), &count, |b, &count| {
+            let db = AgentDB::open(":memory:").unwrap();
+            let col = db.vectors().collection("bench", 128).unwrap();
+            for i in 0..count {
+                col.upsert(VectorEntry {
+                    id: format!("v{}", i),
+                    vector: make_vec(i as f32, 128),
+                    metadata: None,
+                })
+                .unwrap();
+            }
+            b.iter(|| {
+                black_box(col.reindex().unwrap());
+            });
+        });
     }
     group.finish();
 }
