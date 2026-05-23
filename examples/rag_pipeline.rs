@@ -1,22 +1,7 @@
-//! RAG Pipeline Example
-//!
-//! Demonstrates using AgentDB as the backbone of a local
-//! Retrieval-Augmented Generation (RAG) pipeline.
-//!
-//! Flow:
-//!   1. Ingest documents into the vector store
-//!   2. Receive a user query
-//!   3. Embed the query and retrieve the top-k relevant chunks
-//!   4. Print the retrieved context (in a real app, pass to LLM)
-//!
-//! Run with: cargo run --example rag_pipeline
-
 use agentdb::{AgentDB, DistanceMetric, SearchOptions, VectorEntry};
 use serde_json::json;
 
-/// Simulate an embedding model (replace with real OpenAI / local model call)
 fn fake_embed(text: &str) -> Vec<f32> {
-    // Deterministic fake embedding based on text length and first char
     let seed = text.len() as f32 / 100.0;
     let first = text.chars().next().unwrap_or('a') as u8 as f32 / 255.0;
     vec![
@@ -32,24 +17,50 @@ fn fake_embed(text: &str) -> Vec<f32> {
 }
 
 fn main() -> agentdb::Result<()> {
-    let db = AgentDB::open(":memory:")?;
+    let db = AgentDB::open(":memory:")?
+;
 
     println!("=== AgentDB RAG Pipeline Demo ===\n");
 
-    // ── Step 1: Ingest documents ─────────────────────────────────────────
     println!("1. Ingesting document chunks into vector store...");
 
-    let col = db.vectors().collection_with_metric("docs", 8, DistanceMetric::Cosine)?;
+    let col = db
+        .vectors()
+        .collection_with_metric("docs", 8, DistanceMetric::Cosine)?;
 
     let documents = vec![
-        ("chunk_001", "Rust is a systems programming language focused on safety and performance."),
-        ("chunk_002", "The borrow checker prevents data races and memory errors at compile time."),
-        ("chunk_003", "Cargo is Rust's package manager and build system."),
-        ("chunk_004", "AgentDB stores vectors, graphs, and relational data in one file."),
-        ("chunk_005", "HNSW is an algorithm for approximate nearest neighbor search."),
-        ("chunk_006", "Embeddings are dense vector representations of text or other data."),
-        ("chunk_007", "RAG combines retrieval with generation for more accurate LLM responses."),
-        ("chunk_008", "Memory graphs help AI agents recall and relate past concepts."),
+        (
+            "chunk_001",
+            "Rust is a systems programming language focused on safety and performance.",
+        ),
+        (
+            "chunk_002",
+            "The borrow checker prevents data races and memory errors at compile time.",
+        ),
+        (
+            "chunk_003",
+            "Cargo is Rust's package manager and build system.",
+        ),
+        (
+            "chunk_004",
+            "AgentDB stores vectors, graphs, and relational data in one file.",
+        ),
+        (
+            "chunk_005",
+            "HNSW is an algorithm for approximate nearest neighbor search.",
+        ),
+        (
+            "chunk_006",
+            "Embeddings are dense vector representations of text or other data.",
+        ),
+        (
+            "chunk_007",
+            "RAG combines retrieval with generation for more accurate LLM responses.",
+        ),
+        (
+            "chunk_008",
+            "Memory graphs help AI agents recall and relate past concepts.",
+        ),
     ];
 
     for (id, text) in &documents {
@@ -67,11 +78,9 @@ fn main() -> agentdb::Result<()> {
     println!("   Ingested {} document chunks", documents.len());
     println!("   Collection size: {} vectors", col.count()?);
 
-    // ── Step 2: User query ───────────────────────────────────────────────
     let query = "How does AgentDB handle vector search?";
     println!("\n2. User query: \"{}\"", query);
 
-    // ── Step 3: Embed + retrieve ─────────────────────────────────────────
     println!("\n3. Retrieving top-3 relevant chunks...");
 
     let query_vec = fake_embed(query);
@@ -84,9 +93,8 @@ fn main() -> agentdb::Result<()> {
         },
     )?;
 
-    // ── Step 4: Print retrieved context ──────────────────────────────────
     println!("\n4. Retrieved context (pass to LLM):");
-    println!("{}", "─".repeat(60));
+    println!("{}", "\u2500".repeat(60));
 
     for (i, result) in results.iter().enumerate() {
         let text = result
@@ -103,10 +111,9 @@ fn main() -> agentdb::Result<()> {
         );
     }
 
-    println!("{}", "─".repeat(60));
-    println!("\n✓ RAG retrieval complete — feed context above into your LLM.");
+    println!("{}", "\u2500".repeat(60));
+    println!("\n\u2713 RAG retrieval complete \u2014 feed context above into your LLM.");
 
-    // ── Bonus: filter by source ──────────────────────────────────────────
     println!("\n5. Filtered search (source = docs_v1):");
     let filtered = col.search(
         &query_vec,
