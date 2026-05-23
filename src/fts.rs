@@ -1,9 +1,8 @@
+use crate::error::{AgentDbError, Result};
 use rusqlite::params;
+use rusqlite::Connection;
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
-
-use crate::error::{AgentDbError, Result};
-use rusqlite::Connection;
 
 /// A full-text search result
 #[derive(Debug, Clone)]
@@ -58,9 +57,7 @@ impl FullTextStore {
             params![vec_id],
         )?;
         conn.execute(
-            &format!(
-                "INSERT INTO {table} (vec_id, collection_id, text) VALUES (?1, ?2, ?3)"
-            ),
+            &format!("INSERT INTO {table} (vec_id, collection_id, text) VALUES (?1, ?2, ?3)"),
             params![vec_id, collection_id, text],
         )?;
         Ok(())
@@ -135,9 +132,7 @@ impl FullTextStore {
     pub fn optimize(&self, collection_name: &str) -> Result<()> {
         let table = fts_table_name(collection_name);
         let conn = self.conn.lock().unwrap();
-        conn.execute_batch(&format!(
-            "INSERT INTO {table}({table}) VALUES('optimize');"
-        ))?;
+        conn.execute_batch(&format!("INSERT INTO {table}({table}) VALUES('optimize');"))?;
         Ok(())
     }
 }
@@ -145,7 +140,13 @@ impl FullTextStore {
 fn fts_table_name(name: &str) -> String {
     let safe: String = name
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     format!("_adb_fts_{safe}")
 }

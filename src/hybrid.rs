@@ -1,12 +1,12 @@
-use rusqlite::params;
-use serde_json::Value;
-use std::sync::{Arc, Mutex};
-
-use crate::error::{AgentDbError, Result};
+use crate::error::Result;
 use crate::memory::MemoryGraph;
+use crate::memory::TraversalOptions;
 use crate::vectors::collection::{Collection, SearchOptions, SearchResult};
 use crate::vectors::hnsw::DistanceMetric;
 use rusqlite::Connection;
+use serde_json::Value;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 /// A single result from a hybrid graph + vector query
 #[derive(Debug, Clone)]
@@ -41,7 +41,6 @@ impl HybridStore {
     }
 
     pub fn query(&self, q: HybridQuery, col: &Collection) -> Result<Vec<HybridResult>> {
-        use crate::memory::TraversalOptions;
         // Step 1: graph traversal
         let graph = MemoryGraph::new(Arc::clone(&self.conn));
         let traversal = graph
@@ -55,8 +54,7 @@ impl HybridStore {
             )
             .unwrap_or_default();
 
-        let mut graph_weights: std::collections::HashMap<String, f64> =
-            std::collections::HashMap::new();
+        let mut graph_weights: HashMap<String, f64> = HashMap::new();
         for t in &traversal {
             let e = graph_weights.entry(t.node.id.clone()).or_insert(0.0);
             if t.weight > *e {
@@ -64,7 +62,7 @@ impl HybridStore {
             }
         }
 
-        // Step 2: vector search — fetch extra candidates when filter is active
+        // Step 2: vector search
         let fetch_k = (q.top_k * 20).max(100);
         let vec_results: Vec<SearchResult> = col.search(
             q.embedding,
@@ -79,9 +77,15 @@ impl HybridStore {
             return Ok(vec![]);
         }
 
-        // Step 3: normalize vector scores (distance → similarity)
-        let max_s = vec_results.iter().map(|r| r.score).fold(f32::NEG_INFINITY, f32::max);
-        let min_s = vec_results.iter().map(|r| r.score).fold(f32::INFINITY, f32::min);
+        // Step 3: normalize vector scores (distance -> similarity)
+        let max_s = vec_results
+            .iter()
+            .map(|r| r.score)
+            .fold(f32::NEG_INFINITY, f32::max);
+        let min_s = vec_results
+            .iter()
+            .map(|r| r.score)
+            .fold(f32::INFINITY, f32::min);
         let range = (max_s - min_s).max(1e-6);
 
         // Step 4: blend and rank

@@ -194,15 +194,20 @@ impl Collection {
                 )
                 .ok()
                 .flatten();
-            let meta: Option<Value> =
-                meta_str.as_deref().and_then(|s| serde_json::from_str(s).ok());
+            let meta: Option<Value> = meta_str
+                .as_deref()
+                .and_then(|s| serde_json::from_str(s).ok());
             if let Some(ref f) = opts.filter {
                 match &meta {
                     Some(m) if filter::matches(m, f) => {}
                     _ => continue,
                 }
             }
-            out.push(SearchResult { id, score, metadata: meta });
+            out.push(SearchResult {
+                id,
+                score,
+                metadata: meta,
+            });
             if out.len() >= opts.top_k {
                 break;
             }
@@ -228,8 +233,8 @@ impl Collection {
     /// Rebuild the HNSW index from stored vectors
     pub fn reindex(&self) -> Result<()> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn
-            .prepare("SELECT id, vector FROM _adb_vectors WHERE collection_id = ?1")?;
+        let mut stmt =
+            conn.prepare("SELECT id, vector FROM _adb_vectors WHERE collection_id = ?1")?;
         let mut index = HnswIndex::new(16, 200, self.metric.clone());
         let rows = stmt.query_map(params![self.id], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
@@ -315,7 +320,13 @@ impl VectorStore {
                 "dot" => DistanceMetric::DotProduct,
                 _ => DistanceMetric::Cosine,
             };
-            return Ok(Collection::new(id, name.to_string(), dim, m, Arc::clone(&self.conn)));
+            return Ok(Collection::new(
+                id,
+                name.to_string(),
+                dim,
+                m,
+                Arc::clone(&self.conn),
+            ));
         }
         let id = Uuid::new_v4().to_string();
         let mstr = match &metric {
@@ -328,7 +339,13 @@ impl VectorStore {
              VALUES (?1, ?2, ?3, ?4, 0, ?5)",
             params![id, name, dim, mstr, now_ms()],
         )?;
-        Ok(Collection::new(id, name.to_string(), dim, metric, Arc::clone(&self.conn)))
+        Ok(Collection::new(
+            id,
+            name.to_string(),
+            dim,
+            metric,
+            Arc::clone(&self.conn),
+        ))
     }
 
     pub fn list_collections(&self) -> Result<Vec<(String, usize, i64)>> {
@@ -347,7 +364,10 @@ impl VectorStore {
 
     pub fn drop_collection(&self, name: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
-        conn.execute("DELETE FROM _adb_collections WHERE name = ?1", params![name])?;
+        conn.execute(
+            "DELETE FROM _adb_collections WHERE name = ?1",
+            params![name],
+        )?;
         Ok(())
     }
 }

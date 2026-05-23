@@ -1,12 +1,11 @@
-use rusqlite::Connection;
-use std::sync::{Arc, Mutex};
-
 use crate::error::Result;
 use crate::fts::FullTextStore;
 use crate::hybrid::{HybridQuery, HybridResult, HybridStore};
 use crate::memory::MemoryGraph;
 use crate::schema;
 use crate::vectors::VectorStore;
+use rusqlite::Connection;
+use std::sync::{Arc, Mutex};
 
 /// The main AgentDB connection — your single-file AI database.
 pub struct AgentDB {
@@ -62,11 +61,7 @@ impl AgentDB {
     }
 
     /// Execute a parameterized SQL statement
-    pub fn execute_params(
-        &self,
-        sql: &str,
-        params: &[&dyn rusqlite::ToSql],
-    ) -> Result<usize> {
+    pub fn execute_params(&self, sql: &str, params: &[&dyn rusqlite::ToSql]) -> Result<usize> {
         let conn = self.conn.lock().unwrap();
         Ok(conn.execute(sql, params)?)
     }
@@ -75,11 +70,7 @@ impl AgentDB {
     pub fn query_json(&self, sql: &str) -> Result<Vec<serde_json::Value>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(sql)?;
-        let col_names: Vec<String> = stmt
-            .column_names()
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
+        let col_names: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
         let rows = stmt.query_map([], |row| {
             let mut map = serde_json::Map::new();
             for (i, name) in col_names.iter().enumerate() {
@@ -127,11 +118,14 @@ impl AgentDB {
             [],
             |r| r.get(0),
         )?;
-        let nodes: i64 =
-            conn.query_row("SELECT COUNT(*) FROM _adb_nodes", [], |r| r.get(0))?;
-        let edges: i64 =
-            conn.query_row("SELECT COUNT(*) FROM _adb_edges", [], |r| r.get(0))?;
-        Ok(DbStats { collections, vectors, nodes, edges })
+        let nodes: i64 = conn.query_row("SELECT COUNT(*) FROM _adb_nodes", [], |r| r.get(0))?;
+        let edges: i64 = conn.query_row("SELECT COUNT(*) FROM _adb_edges", [], |r| r.get(0))?;
+        Ok(DbStats {
+            collections,
+            vectors,
+            nodes,
+            edges,
+        })
     }
 }
 
