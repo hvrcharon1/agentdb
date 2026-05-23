@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use agentdb::{AgentDB, DistanceMetric, SearchOptions, VectorEntry};
+    use agentdb::{AgentDB, BatchEntry, DistanceMetric, SearchOptions, VectorEntry};
     use serde_json::json;
 
     fn open() -> AgentDB {
@@ -28,12 +28,14 @@ mod tests {
             id: "v1".into(),
             vector: vec![0.1, 0.2, 0.3, 0.4],
             metadata: None,
-        }).unwrap();
+        })
+        .unwrap();
         col.upsert(VectorEntry {
             id: "v2".into(),
             vector: vec![0.9, 0.8, 0.7, 0.6],
             metadata: None,
-        }).unwrap();
+        })
+        .unwrap();
         assert_eq!(col.count().unwrap(), 2);
     }
 
@@ -43,7 +45,7 @@ mod tests {
         let col = db.vectors().collection("col", 4).unwrap();
         let result = col.upsert(VectorEntry {
             id: "bad".into(),
-            vector: vec![0.1, 0.2], // wrong dim
+            vector: vec![0.1, 0.2],
             metadata: None,
         });
         assert!(result.is_err());
@@ -55,20 +57,24 @@ mod tests {
     fn test_search_returns_top_k() {
         let db = open();
         let col = db.vectors().collection("mem", 4).unwrap();
-
         for i in 0..10u32 {
             col.upsert(VectorEntry {
                 id: format!("v{}", i),
                 vector: vec![i as f32 / 10.0, 0.0, 0.0, 0.0],
                 metadata: None,
-            }).unwrap();
+            })
+            .unwrap();
         }
-
-        let results = col.search(
-            &[0.9, 0.0, 0.0, 0.0],
-            SearchOptions { top_k: 3, metric: DistanceMetric::Cosine, filter: None },
-        ).unwrap();
-
+        let results = col
+            .search(
+                &[0.9, 0.0, 0.0, 0.0],
+                SearchOptions {
+                    top_k: 3,
+                    metric: DistanceMetric::Cosine,
+                    filter: None,
+                },
+            )
+            .unwrap();
         assert_eq!(results.len(), 3);
     }
 
@@ -76,16 +82,34 @@ mod tests {
     fn test_search_top1_is_closest() {
         let db = open();
         let col = db.vectors().collection("col", 4).unwrap();
-
-        col.upsert(VectorEntry { id: "far".into(),   vector: vec![0.0, 0.0, 0.0, 1.0], metadata: None }).unwrap();
-        col.upsert(VectorEntry { id: "close".into(), vector: vec![1.0, 0.0, 0.0, 0.0], metadata: None }).unwrap();
-        col.upsert(VectorEntry { id: "mid".into(),   vector: vec![0.5, 0.5, 0.0, 0.0], metadata: None }).unwrap();
-
-        let results = col.search(
-            &[1.0, 0.0, 0.0, 0.0],
-            SearchOptions { top_k: 1, metric: DistanceMetric::Cosine, filter: None },
-        ).unwrap();
-
+        col.upsert(VectorEntry {
+            id: "far".into(),
+            vector: vec![0.0, 0.0, 0.0, 1.0],
+            metadata: None,
+        })
+        .unwrap();
+        col.upsert(VectorEntry {
+            id: "close".into(),
+            vector: vec![1.0, 0.0, 0.0, 0.0],
+            metadata: None,
+        })
+        .unwrap();
+        col.upsert(VectorEntry {
+            id: "mid".into(),
+            vector: vec![0.5, 0.5, 0.0, 0.0],
+            metadata: None,
+        })
+        .unwrap();
+        let results = col
+            .search(
+                &[1.0, 0.0, 0.0, 0.0],
+                SearchOptions {
+                    top_k: 1,
+                    metric: DistanceMetric::Cosine,
+                    filter: None,
+                },
+            )
+            .unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, "close");
     }
@@ -94,26 +118,28 @@ mod tests {
     fn test_upsert_updates_existing() {
         let db = open();
         let col = db.vectors().collection("col", 4).unwrap();
-
         col.upsert(VectorEntry {
             id: "v1".into(),
             vector: vec![0.1, 0.0, 0.0, 0.0],
             metadata: Some(json!({ "version": 1 })),
-        }).unwrap();
-
-        // Upsert same ID with new vector
+        })
+        .unwrap();
         col.upsert(VectorEntry {
             id: "v1".into(),
             vector: vec![0.9, 0.0, 0.0, 0.0],
             metadata: Some(json!({ "version": 2 })),
-        }).unwrap();
-
-        // Count should still be 1 (upsert, not duplicate insert)
-        // Note: count increments on upsert regardless; search should work
-        let results = col.search(
-            &[0.9, 0.0, 0.0, 0.0],
-            SearchOptions { top_k: 1, metric: DistanceMetric::Cosine, filter: None },
-        ).unwrap();
+        })
+        .unwrap();
+        let results = col
+            .search(
+                &[0.9, 0.0, 0.0, 0.0],
+                SearchOptions {
+                    top_k: 1,
+                    metric: DistanceMetric::Cosine,
+                    filter: None,
+                },
+            )
+            .unwrap();
         assert_eq!(results[0].id, "v1");
     }
 
@@ -121,15 +147,30 @@ mod tests {
     fn test_delete_vector() {
         let db = open();
         let col = db.vectors().collection("col", 4).unwrap();
-        col.upsert(VectorEntry { id: "v1".into(), vector: vec![1.0, 0.0, 0.0, 0.0], metadata: None }).unwrap();
-        col.upsert(VectorEntry { id: "v2".into(), vector: vec![0.0, 1.0, 0.0, 0.0], metadata: None }).unwrap();
+        col.upsert(VectorEntry {
+            id: "v1".into(),
+            vector: vec![1.0, 0.0, 0.0, 0.0],
+            metadata: None,
+        })
+        .unwrap();
+        col.upsert(VectorEntry {
+            id: "v2".into(),
+            vector: vec![0.0, 1.0, 0.0, 0.0],
+            metadata: None,
+        })
+        .unwrap();
         col.delete("v1").unwrap();
-        // After deletion, search should not return v1
         col.reindex().unwrap();
-        let results = col.search(
-            &[1.0, 0.0, 0.0, 0.0],
-            SearchOptions { top_k: 5, metric: DistanceMetric::Cosine, filter: None },
-        ).unwrap();
+        let results = col
+            .search(
+                &[1.0, 0.0, 0.0, 0.0],
+                SearchOptions {
+                    top_k: 5,
+                    metric: DistanceMetric::Cosine,
+                    filter: None,
+                },
+            )
+            .unwrap();
         assert!(results.iter().all(|r| r.id != "v1"));
     }
 
@@ -141,13 +182,18 @@ mod tests {
             id: "v1".into(),
             vector: vec![1.0, 0.0, 0.0, 0.0],
             metadata: Some(json!({ "text": "hello", "role": "user" })),
-        }).unwrap();
-
-        let results = col.search(
-            &[1.0, 0.0, 0.0, 0.0],
-            SearchOptions { top_k: 1, metric: DistanceMetric::Cosine, filter: None },
-        ).unwrap();
-
+        })
+        .unwrap();
+        let results = col
+            .search(
+                &[1.0, 0.0, 0.0, 0.0],
+                SearchOptions {
+                    top_k: 1,
+                    metric: DistanceMetric::Cosine,
+                    filter: None,
+                },
+            )
+            .unwrap();
         assert!(results[0].metadata.is_some());
         assert_eq!(results[0].metadata.as_ref().unwrap()["role"], "user");
     }
@@ -160,22 +206,24 @@ mod tests {
             id: "user_msg".into(),
             vector: vec![1.0, 0.0, 0.0, 0.0],
             metadata: Some(json!({ "role": "user" })),
-        }).unwrap();
+        })
+        .unwrap();
         col.upsert(VectorEntry {
             id: "agent_msg".into(),
             vector: vec![0.99, 0.0, 0.0, 0.0],
             metadata: Some(json!({ "role": "agent" })),
-        }).unwrap();
-
-        let results = col.search(
-            &[1.0, 0.0, 0.0, 0.0],
-            SearchOptions {
-                top_k: 5,
-                metric: DistanceMetric::Cosine,
-                filter: Some(json!({ "role": "user" })),
-            },
-        ).unwrap();
-
+        })
+        .unwrap();
+        let results = col
+            .search(
+                &[1.0, 0.0, 0.0, 0.0],
+                SearchOptions {
+                    top_k: 5,
+                    metric: DistanceMetric::Cosine,
+                    filter: Some(json!({ "role": "user" })),
+                },
+            )
+            .unwrap();
         assert!(results.iter().all(|r| r.id == "user_msg"));
     }
 
@@ -203,7 +251,6 @@ mod tests {
     fn test_reindex_on_empty_collection() {
         let db = open();
         let col = db.vectors().collection("empty", 4).unwrap();
-        // Reindex on empty collection should not panic
         col.reindex().unwrap();
         assert_eq!(col.count().unwrap(), 0);
     }
@@ -212,10 +259,16 @@ mod tests {
     fn test_search_empty_collection_returns_empty() {
         let db = open();
         let col = db.vectors().collection("empty", 4).unwrap();
-        let results = col.search(
-            &[1.0, 0.0, 0.0, 0.0],
-            SearchOptions { top_k: 5, metric: DistanceMetric::Cosine, filter: None },
-        ).unwrap();
+        let results = col
+            .search(
+                &[1.0, 0.0, 0.0, 0.0],
+                SearchOptions {
+                    top_k: 5,
+                    metric: DistanceMetric::Cosine,
+                    filter: None,
+                },
+            )
+            .unwrap();
         assert!(results.is_empty());
     }
 
@@ -224,15 +277,29 @@ mod tests {
         let db = open();
         let col_a = db.vectors().collection("a", 4).unwrap();
         let col_b = db.vectors().collection("b", 4).unwrap();
-
-        col_a.upsert(VectorEntry { id: "a1".into(), vector: make_vec(0.5, 4), metadata: None }).unwrap();
-        col_b.upsert(VectorEntry { id: "b1".into(), vector: make_vec(0.5, 4), metadata: None }).unwrap();
-
+        col_a
+            .upsert(VectorEntry {
+                id: "a1".into(),
+                vector: make_vec(0.5, 4),
+                metadata: None,
+            })
+            .unwrap();
+        col_b
+            .upsert(VectorEntry {
+                id: "b1".into(),
+                vector: make_vec(0.5, 4),
+                metadata: None,
+            })
+            .unwrap();
         assert_eq!(col_a.count().unwrap(), 1);
         assert_eq!(col_b.count().unwrap(), 1);
-
-        // Search col_a should not return b1
         let results = col_a.search(&make_vec(0.5, 4), Default::default()).unwrap();
         assert!(results.iter().all(|r| r.id != "b1"));
+    }
+
+    #[test]
+    fn test_batch_import_unused() {
+        // Ensure BatchEntry is importable (used in test_v020)
+        let _: Option<agentdb::BatchEntry> = None;
     }
 }
