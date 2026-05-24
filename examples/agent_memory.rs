@@ -2,8 +2,8 @@ use agentdb::{AgentDB, TraversalOptions, VectorEntry};
 use serde_json::json;
 
 fn main() -> agentdb::Result<()> {
-    let db = AgentDB::open(":memory:")?
-;
+    let db = AgentDB::open(":memory:");
+    let db = db?;
 
     println!("=== AgentDB \u2014 Agent Memory Demo ===\n");
 
