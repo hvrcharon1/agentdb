@@ -2,8 +2,8 @@ use agentdb::{AgentDB, TraversalOptions};
 use serde_json::json;
 
 fn main() -> agentdb::Result<()> {
-    let db = AgentDB::open(":memory:")?
-;
+    let db = AgentDB::open(":memory:");
+    let db = db?;
     let graph = db.memory();
 
     println!("=== AgentDB Memory Graph Traversal Demo ===\n");

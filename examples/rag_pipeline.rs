@@ -17,8 +17,8 @@ fn fake_embed(text: &str) -> Vec<f32> {
 }
 
 fn main() -> agentdb::Result<()> {
-    let db = AgentDB::open(":memory:")?
-;
+    let db = AgentDB::open(":memory:");
+    let db = db?;
 
     println!("=== AgentDB RAG Pipeline Demo ===\n");
 

@@ -8,8 +8,8 @@ fn embed(seed: f32, dim: usize) -> Vec<f32> {
 }
 
 fn main() -> agentdb::Result<()> {
-    let db = AgentDB::open(":memory:")?
-;
+    let db = AgentDB::open(":memory:");
+    let db = db?;
     println!("=== AgentDB v0.2.0 \u2014 Query Power Demo ===\n");
 
     // 1. BATCH UPSERT
