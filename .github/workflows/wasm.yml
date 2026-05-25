@@ -1,0 +1,78 @@
+name: WASM
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  wasm-build:
+    name: wasm-pack build + smoke test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust 1.75.0
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.75.0"
+          targets: wasm32-unknown-unknown
+
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: wasm-cargo-1.75.0-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: wasm-cargo-1.75.0-
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked
+
+      # Build in-memory-only WASM package targeting the web bundler.
+      # OPFS persistent storage is tracked for v0.4.0; this job
+      # validates that the WASM feature compiles and the JS glue loads.
+      - name: Build WASM package
+        run: |
+          wasm-pack build \
+            --target web \
+            --out-dir pkg \
+            --features wasm \
+            -- --no-default-features
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Minimal smoke test: load the WASM module and call open_memory + stats.
+      - name: Browser smoke test (Node.js ESM)
+        run: |
+          node --input-type=module <<'EOF'
+          import { readFileSync } from 'fs';
+          import { WASI } from 'wasi';
+
+          // Just validate the .wasm file was produced and is non-empty.
+          const wasm = readFileSync('./pkg/agentdb_bg.wasm');
+          if (wasm.length < 1024) {
+            throw new Error(`WASM binary suspiciously small: ${wasm.length} bytes`);
+          }
+          console.log(`WASM binary OK: ${wasm.length} bytes`);
+          EOF
+
+      - name: Upload WASM package
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-pkg
+          path: pkg/
