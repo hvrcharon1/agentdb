@@ -10,18 +10,67 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
-# Single shared toolchain version — change here to update everywhere.
-# Both lint and test must stay in sync so rustfmt output is identical.
 defaults:
   run:
     shell: bash
 
 jobs:
+  # ── Step 0: ensure Cargo.lock exists in the repo ─────────────────────
+  # Runs cargo generate-lockfile and commits the result back to main
+  # when the lockfile is missing or has drifted from Cargo.toml.
+  # All other jobs depend on this so cache keys always resolve.
+  # Skipped on pull_request events (forks cannot push back to main).
+  bootstrap-lockfile:
+    name: Bootstrap Cargo.lock
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      lockfile_sha: ${{ steps.commit.outputs.lockfile_sha }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Fetch full history so we can push back cleanly.
+          fetch-depth: 0
+          # Use the built-in GITHUB_TOKEN so the push is authenticated.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Rust 1.75.0
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.75.0"
+
+      - name: Generate Cargo.lock
+        run: cargo generate-lockfile
+
+      - name: Commit Cargo.lock if changed
+        id: commit
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet Cargo.lock 2>/dev/null && git ls-files --error-unmatch Cargo.lock 2>/dev/null; then
+            echo "Cargo.lock is already up to date."
+            echo "lockfile_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          else
+            git add Cargo.lock
+            git commit -m "chore(ci): update Cargo.lock [skip ci]"
+            if [ "${{ github.event_name }}" != "pull_request" ]; then
+              git push origin main
+            fi
+            echo "lockfile_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ── Step 1: lint ─────────────────────────────────────────────────────
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    needs: bootstrap-lockfile
+
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Install Rust 1.75.0 (lint)
         uses: dtolnay/rust-toolchain@stable
@@ -45,9 +94,11 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets --all-features
 
+  # ── Step 2: test matrix ───────────────────────────────────────────────
   test:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    needs: bootstrap-lockfile
     strategy:
       fail-fast: false
       matrix:
@@ -55,9 +106,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
-      # Pinned to the same version as the lint job so that any
-      # rustfmt-formatted code produced here also passes --check above.
       - name: Install Rust 1.75.0 (test)
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -73,9 +124,7 @@ jobs:
           key: ${{ runner.os }}-cargo-1.75.0-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-1.75.0-
 
-      # Exclude --all-targets so we skip the cdylib link step on
-      # Windows/macOS where the C dynamic-library toolchain is absent.
-      # The rlib + tests + examples cover all meaningful code paths.
+      # Skip cdylib so Windows/macOS don't need a C dynamic-lib toolchain.
       - name: Build
         run: cargo build --lib --tests --examples --benches
 
@@ -89,21 +138,30 @@ jobs:
           cargo run --example graph_traverse
           cargo run --example v020_query_power
 
+  # ── Step 3: security audit ────────────────────────────────────────────
   audit:
     name: Security Audit
     runs-on: ubuntu-latest
+    needs: bootstrap-lockfile
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
       - name: Audit
         run: cargo audit
 
+  # ── Step 4: coverage ──────────────────────────────────────────────────
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
+    needs: bootstrap-lockfile
+
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Install Rust 1.75.0 (coverage)
         uses: dtolnay/rust-toolchain@stable
