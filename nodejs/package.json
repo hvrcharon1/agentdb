@@ -1,0 +1,36 @@
+{
+  "name": "agentdb",
+  "version": "0.2.0",
+  "description": "Single-file embedded database for AI agents. SQL + Vector Search + Full-Text Search + Hybrid Queries + Memory Graphs.",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "keywords": ["database", "vector-search", "ai", "agents", "embeddings", "rag", "memory"],
+  "author": "Datacules LLC <hello@datacules.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hvrcharon1/agentdb.git"
+  },
+  "homepage": "https://github.com/hvrcharon1/agentdb",
+  "files": ["index.js", "index.d.ts", "*.node"],
+  "scripts": {
+    "build":   "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "prepublishOnly": "napi build --platform --release"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.0"
+  },
+  "napi": {
+    "name": "agentdb",
+    "triples": {
+      "defaults": true,
+      "additional": [
+        "x86_64-unknown-linux-musl",
+        "aarch64-unknown-linux-gnu",
+        "aarch64-apple-darwin"
+      ]
+    }
+  },
+  "engines": { "node": ">= 18" }
+}

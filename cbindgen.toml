@@ -1,0 +1,62 @@
+# cbindgen configuration for generating agentdb.h
+#
+# Usage:
+#   cargo install cbindgen
+#   cbindgen --config cbindgen.toml --output agentdb.h
+#
+# Or via CI (see .github/workflows/ffi-header.yml)
+
+language = "C"
+
+[parse]
+parse_deps = false
+
+[export]
+include = [
+    "agentdb_open",
+    "agentdb_close",
+    "agentdb_last_error",
+    "agentdb_free_string",
+    "agentdb_execute",
+    "agentdb_query_json",
+    "agentdb_vector_upsert",
+    "agentdb_vector_search",
+    "agentdb_graph_add_node",
+    "agentdb_graph_add_edge",
+    "agentdb_graph_neighbors",
+    "agentdb_fts_index",
+    "agentdb_fts_search",
+    "agentdb_hybrid_query",
+    "agentdb_stats",
+]
+
+[layout]
+nested_type_naming = "inner"
+
+[defines]
+"feature:ffi" = "AGENTDB_FFI"
+
+[documentation]
+style = "doxy"
+generate = true
+
+[header]
+preamble = """
+/**
+ * AgentDB — C API
+ *
+ * Single-file embedded database for AI agents.
+ * SQL + Vector Search + Full-Text Search + Hybrid Queries + Memory Graphs.
+ *
+ * Memory contract:
+ *   - All strings returned by agentdb_* functions are heap-allocated.
+ *     Free them with agentdb_free_string(), never with free() or delete.
+ *   - Input const char* pointers are borrowed for the duration of the call.
+ *   - AgentDbHandle* is opaque. Close with agentdb_close().
+ *
+ * https://github.com/hvrcharon1/agentdb
+ */
+"""
+
+[trailer]
+epilogue = ""

@@ -2,16 +2,33 @@
 name = "agentdb"
 version = "0.2.0"
 edition = "2021"
+rust-version = "1.75"
+authors = ["Datacules LLC <hello@datacules.com>"]
 description = "Single-file embedded database for AI agents. SQL + Vector Search + Full-Text Search + Hybrid Queries + Memory Graphs."
 license = "MIT"
 repository = "https://github.com/hvrcharon1/agentdb"
+homepage = "https://github.com/hvrcharon1/agentdb"
+documentation = "https://docs.rs/agentdb"
+readme = "README.md"
 keywords = ["database", "vector-search", "ai", "agents", "embedded"]
-categories = ["database", "embedded"]
+categories = ["database", "embedded", "science", "data-structures"]
+exclude = ["python/", "nodejs/", "target/", ".github/"]
 
+# ── Library ────────────────────────────────────────────────────────────
 [lib]
 name = "agentdb"
-crate-type = ["cdylib", "rlib"]
+# cdylib is only needed when building the C FFI or Python/Node bindings.
+# Keep it out of the default rlib so `cargo add agentdb` users never need
+# a C linker on Windows/macOS.
+crate-type = ["rlib"]
 
+# ── CLI binary ─────────────────────────────────────────────────────────
+[[bin]]
+name = "agentdb"
+path = "src/bin/agentdb.rs"
+required-features = []
+
+# ── Examples ───────────────────────────────────────────────────────────
 [[example]]
 name = "agent_memory"
 path = "examples/agent_memory.rs"
@@ -28,24 +45,7 @@ path = "examples/graph_traverse.rs"
 name = "v020_query_power"
 path = "examples/v020_query_power.rs"
 
-[dependencies]
-rusqlite = { version = "0.31", features = ["bundled"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-bincode = "1"
-thiserror = "1"
-uuid = { version = "1", features = ["v4"] }
-rand = "0.8"
-tokio = { version = "1", features = ["full"], optional = true }
-
-[dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
-tempfile = "3"
-
-[features]
-default = []
-async = ["tokio"]
-
+# ── Benchmarks ─────────────────────────────────────────────────────────
 [[bench]]
 name = "vector_search"
 harness = false
@@ -54,7 +54,57 @@ harness = false
 name = "graph_traverse"
 harness = false
 
+# ── Dependencies ───────────────────────────────────────────────────────
+[dependencies]
+rusqlite  = { version = "0.31", features = ["bundled"] }
+serde     = { version = "1",    features = ["derive"] }
+serde_json = "1"
+bincode   = "1"
+thiserror = "1"
+uuid      = { version = "1", features = ["v4"] }
+rand      = "0.8"
+
+# Optional: async runtime
+tokio = { version = "1", features = ["full"], optional = true }
+
+# Optional: Python bindings (PyO3)
+pyo3 = { version = "0.21", features = ["extension-module"], optional = true }
+
+# Optional: WASM target
+wasm-bindgen = { version = "0.2", optional = true }
+
+# CLI argument parsing (always available for the bin target)
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+tempfile  = "3"
+
+# ── Features ───────────────────────────────────────────────────────────
+[features]
+default = []
+
+# Async runtime support
+async = ["tokio"]
+
+# C FFI + Python/Node shared-library build.
+# Enables cdylib output — requires a C linker and the matching toolchain.
+ffi = []
+
+# Python bindings via PyO3 + maturin.
+python = ["pyo3", "ffi"]
+
+# WASM build via wasm-pack.
+wasm = ["wasm-bindgen"]
+
+# ── Build profiles ─────────────────────────────────────────────────────
 [profile.release]
-opt-level = 3
-lto = true
+opt-level     = 3
+lto           = true
 codegen-units = 1
+strip         = true
+
+[profile.release-dbg]
+inherits  = "release"
+strip     = false
+debug     = 1

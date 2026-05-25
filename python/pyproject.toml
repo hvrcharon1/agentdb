@@ -1,0 +1,33 @@
+[build-system]
+requires      = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name        = "agentdb"
+version     = "0.2.0"
+description = "Single-file embedded database for AI agents. SQL + Vector Search + Full-Text Search + Hybrid Queries + Memory Graphs."
+readme      = "../README.md"
+license     = { text = "MIT" }
+requires-python = ">=3.9"
+keywords    = ["database", "vector-search", "ai", "agents", "embeddings", "rag"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+"Homepage"    = "https://github.com/hvrcharon1/agentdb"
+"Repository"  = "https://github.com/hvrcharon1/agentdb"
+"Bug Tracker" = "https://github.com/hvrcharon1/agentdb/issues"
+
+[tool.maturin]
+python-source  = "python"
+features       = ["pyo3/extension-module"]
+module-name    = "agentdb._agentdb"
+strip          = true

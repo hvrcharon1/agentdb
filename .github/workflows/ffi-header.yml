@@ -1,0 +1,45 @@
+name: Generate C header
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/ffi.rs'
+      - 'cbindgen.toml'
+  workflow_dispatch:
+
+jobs:
+  generate-header:
+    name: cbindgen agentdb.h
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Rust 1.75.0
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.75.0"
+
+      - name: Install cbindgen
+        run: cargo install cbindgen --locked
+
+      - name: Generate agentdb.h
+        run: cbindgen --config cbindgen.toml --output agentdb.h
+
+      - name: Commit agentdb.h if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add agentdb.h
+          if git diff --cached --quiet; then
+            echo "agentdb.h is already up to date."
+          else
+            git commit -m "chore(ffi): regenerate agentdb.h from src/ffi.rs [skip ci]"
+            git push origin main
+          fi
