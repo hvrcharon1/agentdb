@@ -2,6 +2,5 @@
 *.agentdb
 *.agentdb-shm
 *.agentdb-wal
-Cargo.lock
 .env
 dist/
