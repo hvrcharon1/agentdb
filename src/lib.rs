@@ -1,4 +1,4 @@
-//! # AgentDB v0.2.0
+//! # AgentDB v0.3.0
 //!
 //! A single-file embedded database for AI agents.
 //!

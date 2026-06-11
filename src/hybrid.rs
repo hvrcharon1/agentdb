@@ -8,29 +8,43 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-/// A single result from a hybrid graph + vector query
+/// A single result from a hybrid graph + vector query.
 #[derive(Debug, Clone)]
 pub struct HybridResult {
+    /// ID of the matched entity.
     pub id: String,
+    /// Raw cosine distance from the vector ANN search (lower = more similar).
     pub vector_score: f32,
+    /// Maximum edge weight along any graph path from the anchor to this node.
+    /// `0.0` if the node is not reachable from the anchor.
     pub graph_weight: f64,
+    /// Final blended rank score: `alpha × vec_similarity + (1 − alpha) × graph_weight`.
+    /// Higher is better.
     pub rank_score: f64,
+    /// Metadata stored alongside the vector, if any.
     pub metadata: Option<Value>,
 }
 
-/// Options for a hybrid query
+/// Parameters for a hybrid graph + vector query.
 pub struct HybridQuery<'a> {
+    /// The memory-graph node to start traversal from.
     pub anchor_node: &'a str,
+    /// Query embedding to rank against the vector collection.
     pub embedding: &'a [f32],
+    /// Name of the vector collection to search.
     pub collection: &'a str,
+    /// Maximum graph traversal depth from `anchor_node`.
     pub graph_depth: usize,
+    /// Maximum number of results to return after blending.
     pub top_k: usize,
-    /// 0.0 = pure graph, 1.0 = pure vector
+    /// Interpolation factor between vector similarity and graph proximity.
+    /// `0.0` = pure graph weight, `1.0` = pure vector similarity.
     pub alpha: f64,
+    /// Optional metadata filter applied before vector scoring.
     pub filter: Option<Value>,
 }
 
-/// Runs hybrid graph + vector queries
+/// Executes hybrid graph + vector queries.
 pub struct HybridStore {
     conn: Arc<Mutex<Connection>>,
 }
@@ -40,6 +54,18 @@ impl HybridStore {
         Self { conn }
     }
 
+    /// Run a hybrid graph + vector query.
+    ///
+    /// The algorithm proceeds in three stages:
+    ///
+    /// 1. **Graph traversal** — walks the memory graph from `q.anchor_node` up to
+    ///    `q.graph_depth` hops, recording the maximum edge weight seen for each
+    ///    reachable node.
+    /// 2. **Vector search** — retrieves the top `q.top_k × 20` approximate nearest
+    ///    neighbours from the named collection.
+    /// 3. **Score blending** — for each candidate, computes
+    ///    `rank = q.alpha × vec_similarity + (1 − q.alpha) × graph_weight`,
+    ///    then returns the top `q.top_k` results sorted by rank descending.
     pub fn query(&self, q: HybridQuery, col: &Collection) -> Result<Vec<HybridResult>> {
         // Step 1: graph traversal
         let graph = MemoryGraph::new(Arc::clone(&self.conn));
