@@ -28,6 +28,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **BENCHMARKS.md**: baseline Criterion results for 100k-vector ANN, graph traversal, hybrid query, and FTS on GitHub Actions runners.
 - **CONTRIBUTING.md**: development setup, PR process, code standards.
 - **SECURITY.md**: vulnerability reporting process and supported versions.
+- **MIGRATION.md**: migration guide covering all versions from v0.1.0 through v0.3.0.
 - **Issue templates** (`.github/ISSUE_TEMPLATE/`): bug report and feature request forms.
 - **Pull request template** (`.github/PULL_REQUEST_TEMPLATE.md`).
 - **Dependabot config** (`.github/dependabot.yml`): weekly updates for Cargo, npm, pip, and GitHub Actions.
@@ -47,7 +48,24 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `Cargo.toml`: version bumped to `0.3.0`; license corrected to `Unlicense` (matching LICENSE file and README); `documentation` field removed until crates.io publish establishes the docs.rs page.
 - `python/pyproject.toml`: version `0.3.0`; license corrected to The Unlicense.
 - `nodejs/package.json`: version `0.3.0`; license corrected to `Unlicense`; `test` script added.
-- `README.md`: version badge updated to v0.3.0; CI and Codecov badges added; cargo.toml snippet updated to `agentdb = "0.3"`.
+- `README.md`: version badge updated to v0.3.0; CI and Codecov badges added; cargo.toml snippet updated to `agentdb = "0.3"`; license badge corrected from `Public Domain` to `Unlicense`.
+
+### Fixed
+- **Node.js `Collection.search()` API mismatch**: The napi binding previously accepted
+  separate `(topK, filter)` scalar parameters, contradicting the `index.d.ts` declaration
+  of `search(query, options?: SearchOptions)`. Calls using the documented options-object form
+  (e.g. `col.search(vec, { topK: 5 })`) were silently broken at the napi layer. The binding
+  now correctly accepts `Option<SearchOptions>` matching the declared TypeScript interface.
+- **Node.js `AgentDB.hybridQuery()` API mismatch**: Same issue. Previously took three scalar
+  args `(graphDepth, topK, alpha)`; now accepts `Option<HybridOptions>` matching `index.d.ts`.
+- **`DistanceMetric` silently ignored in Node.js binding**: The `metric` field was exported
+  in `index.d.ts` but the napi binding always used `DistanceMetric::Cosine` regardless of
+  the value passed by the caller. Now correctly maps `'cosine'` → `Cosine`,
+  `'euclidean'` → `Euclidean`, `'dot'` → `DotProduct`.
+- **CI coverage job missing OIDC permission**: The `coverage` job in `ci.yml` lacked
+  `permissions: id-token: write`, which is required for `codecov-action@v4` tokenless
+  OIDC upload on public repositories. Coverage uploads were silently failing, preventing
+  the Codecov badge from displaying live numbers. Permission added.
 
 ---
 

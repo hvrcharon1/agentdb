@@ -25,13 +25,43 @@
 #![allow(dead_code)]
 
 use agentdb::{
-    AgentDB as RustDB, BatchEntry, DistanceMetric, HybridQuery, SearchOptions, TraversalOptions,
-    VectorEntry,
+    AgentDB as RustDB, BatchEntry, DistanceMetric, HybridQuery,
+    SearchOptions as RustSearchOptions, TraversalOptions, VectorEntry,
 };
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
-use serde_json::Value;
 use std::sync::{Arc, Mutex};
+
+// ── SearchOptions ─────────────────────────────────────────────────────
+
+/// Options controlling a vector ANN search.
+///
+/// All fields are optional; omitted fields use sensible defaults.
+#[napi(object)]
+pub struct SearchOptions {
+    /// Maximum number of results to return. Defaults to `10`.
+    pub top_k: Option<u32>,
+    /// JSON metadata filter predicate (MongoDB-style operators: `$eq`, `$gt`, `$in`, …).
+    pub filter: Option<serde_json::Value>,
+    /// Distance metric: `'cosine'` (default), `'euclidean'`, or `'dot'`.
+    pub metric: Option<String>,
+}
+
+// ── HybridOptions ─────────────────────────────────────────────────────
+
+/// Options controlling a hybrid graph + vector query.
+///
+/// All fields are optional; omitted fields use sensible defaults.
+#[napi(object)]
+pub struct HybridOptions {
+    /// Maximum graph traversal depth from the anchor node. Defaults to `2`.
+    pub graph_depth: Option<u32>,
+    /// Number of results to return. Defaults to `10`.
+    pub top_k: Option<u32>,
+    /// Alpha blending factor: `0.0` = pure graph weight, `1.0` = pure vector score.
+    /// Defaults to `0.6`.
+    pub alpha: Option<f64>,
+}
 
 // ── SearchResult ──────────────────────────────────────────────────────
 
@@ -87,6 +117,20 @@ pub struct DbStats {
     pub edges:       i64,
 }
 
+// ── helpers ───────────────────────────────────────────────────────────
+
+/// Parse a JS metric string into a Rust `DistanceMetric` enum variant.
+///
+/// Accepted values: `'cosine'` (default), `'euclidean'`, `'dot'`.
+/// Any unrecognized value silently falls back to cosine.
+fn parse_metric(s: Option<&str>) -> DistanceMetric {
+    match s {
+        Some("euclidean") => DistanceMetric::Euclidean,
+        Some("dot")       => DistanceMetric::DotProduct,
+        _                 => DistanceMetric::Cosine,
+    }
+}
+
 // ── Collection ────────────────────────────────────────────────────────
 
 #[napi]
@@ -116,7 +160,10 @@ impl Collection {
         let batch: std::result::Result<Vec<BatchEntry>, _> = entries
             .iter()
             .map(|e| {
-                let id = e["id"].as_str().ok_or_else(|| Error::from_reason("missing 'id'"))?.to_string();
+                let id = e["id"]
+                    .as_str()
+                    .ok_or_else(|| Error::from_reason("missing 'id'"))?
+                    .to_string();
                 let vector: Vec<f32> = e["vector"]
                     .as_array()
                     .ok_or_else(|| Error::from_reason("missing 'vector'"))?
@@ -133,28 +180,39 @@ impl Collection {
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 
-    /// ANN search. Returns an array of SearchResult objects.
+    /// Approximate nearest-neighbor search with optional distance metric and metadata filter.
+    ///
+    /// ```js
+    /// // Basic search (defaults: topK=10, metric='cosine')
+    /// const results = col.search([0.9, 0.1, 0.0, 0.0]);
+    ///
+    /// // With options
+    /// const results = col.search(vec, { topK: 5 });
+    /// const results = col.search(vec, { topK: 5, metric: 'euclidean' });
+    /// const results = col.search(vec, { topK: 10, filter: { score: { $gt: 7 } } });
+    /// const results = col.search(vec, { topK: 5, metric: 'dot', filter: { tag: 'agent' } });
+    /// ```
     #[napi]
     pub fn search(
         &self,
         query: Vec<f64>,
-        top_k: Option<u32>,
-        filter: Option<serde_json::Value>,
+        options: Option<SearchOptions>,
     ) -> Result<Vec<SearchResult>> {
+        let top_k  = options.as_ref().and_then(|o| o.top_k).unwrap_or(10) as usize;
+        let filter = options.as_ref().and_then(|o| o.filter.clone());
+        let metric = parse_metric(options.as_ref().and_then(|o| o.metric.as_deref()));
+
         let q: Vec<f32> = query.iter().map(|&v| v as f32).collect();
         self.inner
-            .search(
-                &q,
-                SearchOptions {
-                    top_k:  top_k.unwrap_or(10) as usize,
-                    metric: DistanceMetric::Cosine,
-                    filter,
-                },
-            )
+            .search(&q, RustSearchOptions { top_k, metric, filter })
             .map(|results| {
                 results
                     .into_iter()
-                    .map(|r| SearchResult { id: r.id, score: r.score as f64, metadata: r.metadata })
+                    .map(|r| SearchResult {
+                        id:       r.id,
+                        score:    r.score as f64,
+                        metadata: r.metadata,
+                    })
                     .collect()
             })
             .map_err(|e| Error::from_reason(e.to_string()))
@@ -166,7 +224,7 @@ impl Collection {
         self.inner.count().map_err(|e| Error::from_reason(e.to_string()))
     }
 
-    /// Rebuild the HNSW index.
+    /// Rebuild the HNSW index from persisted vector data.
     #[napi]
     pub fn reindex(&self) -> Result<()> {
         self.inner.reindex().map_err(|e| Error::from_reason(e.to_string()))
@@ -182,7 +240,8 @@ pub struct AgentDB {
 
 #[napi]
 impl AgentDB {
-    /// Open or create an AgentDB database.
+    /// Open or create an AgentDB database at the given path.
+    /// Pass `':memory:'` for a transient in-memory database.
     #[napi(factory)]
     pub fn open(path: String) -> Result<Self> {
         RustDB::open(&path)
@@ -190,7 +249,7 @@ impl AgentDB {
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 
-    /// Execute a raw SQL statement. Returns rows affected.
+    /// Execute a raw SQL statement. Returns the number of rows affected.
     #[napi]
     pub fn execute(&self, sql: String) -> Result<u32> {
         self.db
@@ -201,7 +260,7 @@ impl AgentDB {
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 
-    /// Query and return rows as an array of plain objects.
+    /// Query and return rows as an array of plain JavaScript objects.
     #[napi]
     pub fn query(&self, sql: String) -> Result<Vec<serde_json::Value>> {
         self.db
@@ -211,7 +270,7 @@ impl AgentDB {
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 
-    /// Get or create a vector collection.
+    /// Get or create a named vector collection with the given dimensionality.
     #[napi]
     pub fn collection(&self, name: String, dim: u32) -> Result<Collection> {
         self.db
@@ -239,7 +298,7 @@ impl AgentDB {
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 
-    /// Add or update a directed weighted edge.
+    /// Add or update a directed weighted edge in the memory graph.
     #[napi]
     pub fn add_edge(
         &self,
@@ -256,7 +315,7 @@ impl AgentDB {
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 
-    /// Traverse the memory graph from a node.
+    /// Traverse the memory graph from a node, returning neighbors up to `maxDepth` hops.
     #[napi]
     pub fn neighbors(
         &self,
@@ -306,7 +365,7 @@ impl AgentDB {
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 
-    /// Full-text search.
+    /// Full-text search over a named collection.
     #[napi]
     pub fn fts_search(
         &self,
@@ -328,27 +387,42 @@ impl AgentDB {
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 
-    /// Hybrid graph + vector query.
+    /// Hybrid graph + vector query: traverses the graph from `anchorNode`, then blends
+    /// graph reachability weights with ANN vector scores using alpha.
+    ///
+    /// ```js
+    /// // Defaults: graphDepth=2, topK=10, alpha=0.6
+    /// const hits = db.hybridQuery('user:1', embedding, 'thoughts');
+    ///
+    /// // With options
+    /// const hits = db.hybridQuery('user:1', embedding, 'thoughts', {
+    ///   topK: 5,
+    ///   graphDepth: 3,
+    ///   alpha: 0.7,   // weight vector similarity more heavily
+    /// });
+    /// ```
     #[napi]
     pub fn hybrid_query(
         &self,
         anchor_node: String,
         embedding: Vec<f64>,
         collection: String,
-        graph_depth: Option<u32>,
-        top_k: Option<u32>,
-        alpha: Option<f64>,
+        options: Option<HybridOptions>,
     ) -> Result<Vec<HybridResult>> {
         let emb: Vec<f32> = embedding.iter().map(|&v| v as f32).collect();
+        let graph_depth = options.as_ref().and_then(|o| o.graph_depth).unwrap_or(2) as usize;
+        let top_k       = options.as_ref().and_then(|o| o.top_k).unwrap_or(10) as usize;
+        let alpha       = options.as_ref().and_then(|o| o.alpha).unwrap_or(0.6);
+
         let db = self.db.lock().unwrap();
         let q = HybridQuery {
             anchor_node: &anchor_node,
             embedding:   &emb,
             collection:  &collection,
-            graph_depth: graph_depth.unwrap_or(2) as usize,
-            top_k:       top_k.unwrap_or(10) as usize,
-            alpha:       alpha.unwrap_or(0.6),
-            filter:      None,
+            graph_depth,
+            top_k,
+            alpha,
+            filter: None,
         };
         db.hybrid_query(q)
             .map(|results| {
