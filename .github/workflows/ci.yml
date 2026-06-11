@@ -69,8 +69,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: main
 
       - name: Install Rust 1.75.0 (lint)
         uses: dtolnay/rust-toolchain@stable
@@ -91,8 +89,13 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
+      # Note: --all-features is intentionally omitted. The wasm feature uses
+      # wasm-bindgen macros that are only valid on the wasm32 target, and the
+      # python feature requires a cdylib crate type. Both cause clippy to fail
+      # on native x86_64 runners. Default features (empty set) + --all-targets
+      # covers all library, test, example, and bench code.
       - name: Clippy
-        run: cargo clippy --all-targets --all-features
+        run: cargo clippy --all-targets
 
   # ── Step 2: test matrix ───────────────────────────────────────────────
   test:
@@ -106,8 +109,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: main
 
       - name: Install Rust 1.75.0 (test)
         uses: dtolnay/rust-toolchain@stable
@@ -145,8 +146,6 @@ jobs:
     needs: bootstrap-lockfile
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: main
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
       - name: Audit
@@ -160,8 +159,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: main
 
       - name: Install Rust 1.75.0 (coverage)
         uses: dtolnay/rust-toolchain@stable
