@@ -6,7 +6,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [Unreleased] — Universal Availability
+## [Unreleased]
+
+---
+
+## [0.3.0] — 2026-06-11 — Universal Availability
 
 ### Added
 - **C FFI** (`src/ffi.rs`): flat `extern "C"` API covering open/close, SQL execute/query, vector upsert/search, graph add\_node/add\_edge/neighbors, FTS index/search, hybrid query, stats. Every function sets a thread-local last-error readable via `agentdb_last_error()`.
@@ -19,6 +23,14 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`python` feature flag**: enables PyO3 + ffi.
 - **`wasm` feature flag**: enables wasm-bindgen.
 - **`clap` dependency**: CLI argument parsing (only pulled in for the binary target).
+- **Python quick-start example** (`python/examples/agent_memory.py`): covers SQL, vector upsert/search, graph, FTS, hybrid query.
+- **Node.js/TypeScript quick-start example** (`nodejs/examples/agent_memory.ts`): full API walkthrough in TypeScript.
+- **BENCHMARKS.md**: baseline Criterion results for 100k-vector ANN, graph traversal, hybrid query, and FTS on GitHub Actions runners.
+- **CONTRIBUTING.md**: development setup, PR process, code standards.
+- **SECURITY.md**: vulnerability reporting process and supported versions.
+- **Issue templates** (`.github/ISSUE_TEMPLATE/`): bug report and feature request forms.
+- **Pull request template** (`.github/PULL_REQUEST_TEMPLATE.md`).
+- **Dependabot config** (`.github/dependabot.yml`): weekly updates for Cargo, npm, pip, and GitHub Actions.
 
 ### CI Workflows added
 - `publish.yml`: publish to crates.io on `vX.Y.Z` tag.
@@ -32,9 +44,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `tests/test_cli.rs`: 7 tests driving the compiled `agentdb` binary as a subprocess.
 
 ### Changed
-- `Cargo.toml`: `crate-type` changed from `["cdylib", "rlib"]` to `["rlib"]`; `cdylib` now only emitted when `ffi` feature is enabled. Added `documentation`, `homepage`, `rust-version`, `authors`, `exclude`. Added `clap`, optional `pyo3`, optional `wasm-bindgen` dependencies.
-- `src/lib.rs`: conditionally compiles `ffi` and `wasm` modules; expanded rustdoc with feature-flag table.
-- `release.yml`: uses `Cargo.lock`-aware cache key now that lockfile is committed.
+- `Cargo.toml`: version bumped to `0.3.0`; license corrected to `Unlicense` (matching LICENSE file and README); `documentation` field removed until crates.io publish establishes the docs.rs page.
+- `python/pyproject.toml`: version `0.3.0`; license corrected to The Unlicense.
+- `nodejs/package.json`: version `0.3.0`; license corrected to `Unlicense`; `test` script added.
+- `README.md`: version badge updated to v0.3.0; CI and Codecov badges added; cargo.toml snippet updated to `agentdb = "0.3"`.
 
 ---
 
@@ -75,3 +88,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Benchmarks**: `vector_search` and `graph_traverse` via Criterion.
 - **GitHub Actions CI**: lint (rustfmt + clippy), test matrix (ubuntu/macos/windows), security audit, coverage (tarpaulin → Codecov), release binaries on tag, Criterion benchmarks.
 - `assets/logo.svg`, `README.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `LICENSE` (public domain), `NOTICE`.
+
+---
+
+[Unreleased]: https://github.com/hvrcharon1/agentdb/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/hvrcharon1/agentdb/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/hvrcharon1/agentdb/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/hvrcharon1/agentdb/releases/tag/v0.1.0

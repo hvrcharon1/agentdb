@@ -9,11 +9,19 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/hvrcharon1/agentdb/actions/workflows/ci.yml">
+    <img src="https://github.com/hvrcharon1/agentdb/actions/workflows/ci.yml/badge.svg" alt="CI"/>
+  </a>
+  &nbsp;
+  <a href="https://codecov.io/gh/hvrcharon1/agentdb">
+    <img src="https://codecov.io/gh/hvrcharon1/agentdb/branch/main/graph/badge.svg" alt="Coverage"/>
+  </a>
+  &nbsp;
   <img src="https://img.shields.io/badge/license-Public%20Domain-brightgreen.svg" alt="License"/>
   &nbsp;
   <img src="https://img.shields.io/badge/language-Rust%202021-orange.svg" alt="Rust"/>
   &nbsp;
-  <img src="https://img.shields.io/badge/version-v0.2.0-blue.svg" alt="v0.2.0"/>
+  <img src="https://img.shields.io/badge/version-v0.3.0-blue.svg" alt="v0.3.0"/>
   &nbsp;
   <img src="https://img.shields.io/badge/by-Datacules%20LLC-lightgrey.svg" alt="Datacules LLC"/>
 </p>
@@ -29,7 +37,7 @@ AgentDB is available in five distribution channels. Pick the one that matches yo
 ```toml
 # Cargo.toml
 [dependencies]
-agentdb = "0.2"
+agentdb = "0.3"
 ```
 
 ```rust
@@ -52,6 +60,8 @@ col.upsert("m1", embedding, metadata={"score": 9})
 results = col.search(query_vec, top_k=5)
 ```
 
+Verify install: `python -c "import agentdb; print(agentdb.__version__)"`
+
 Wheels available for CPython 3.9+, PyPy, manylinux, macOS (x64 + arm64), Windows.
 
 ### Node.js — `npm install`
@@ -68,6 +78,8 @@ const col = db.collection('thoughts', 1536);
 col.upsert('m1', embedding, { score: 9 });
 const results = col.search(queryVec, { topK: 5 });
 ```
+
+Verify install: `node -e "const {AgentDB}=require('agentdb'); console.log('ok')"`
 
 Pre-built native addons for Linux x64/arm64, macOS x64/arm64, Windows x64.
 Full TypeScript type definitions included.
@@ -116,7 +128,7 @@ agentdb reindex    agent.agentdb          # rebuild all dirty HNSW indexes
 agentdb collections agent.agentdb         # list all vector collections
 ```
 
-### WASM — browser + Cloudflare Workers *(in-memory, v0.3.0)*
+### WASM — browser + Cloudflare Workers
 
 ```bash
 cargo install wasm-pack
@@ -286,6 +298,8 @@ cargo run --example graph_traverse
 cargo run --example v020_query_power
 ```
 
+See also: [`python/examples/agent_memory.py`](python/examples/agent_memory.py) and [`nodejs/examples/agent_memory.ts`](nodejs/examples/agent_memory.ts).
+
 ---
 
 ## API Reference
@@ -391,19 +405,28 @@ agentdb/
 ├── CHANGELOG.md
 ├── ROADMAP.md
 ├── ARCHITECTURE.md
+├── BENCHMARKS.md
+├── CONTRIBUTING.md
+├── SECURITY.md
 ├── LICENSE
 ├── NOTICE
 ├── cbindgen.toml          ← C header generation config
 ├── rustfmt.toml
-├── .github/workflows/
-│   ├── ci.yml             ← lint, test, audit, coverage
-│   ├── bench.yml          ← Criterion benchmarks
-│   ├── release.yml        ← build binaries + GitHub Release on tag
-│   ├── publish.yml        ← crates.io publish on tag
-│   ├── python-publish.yml ← PyPI wheels on tag
-│   ├── nodejs-publish.yml ← npm publish on tag
-│   ├── ffi-header.yml     ← auto-generate agentdb.h on ffi.rs change
-│   └── wasm.yml           ← wasm-pack build + smoke test on push
+├── .github/
+│   ├── workflows/
+│   │   ├── ci.yml             ← lint, test, audit, coverage
+│   │   ├── bench.yml          ← Criterion benchmarks
+│   │   ├── release.yml        ← build binaries + GitHub Release on tag
+│   │   ├── publish.yml        ← crates.io publish on tag
+│   │   ├── python-publish.yml ← PyPI wheels on tag
+│   │   ├── nodejs-publish.yml ← npm publish on tag
+│   │   ├── ffi-header.yml     ← auto-generate agentdb.h on ffi.rs change
+│   │   └── wasm.yml           ← wasm-pack build + smoke test on push
+│   ├── ISSUE_TEMPLATE/
+│   │   ├── bug_report.yml
+│   │   └── feature_request.yml
+│   ├── PULL_REQUEST_TEMPLATE.md
+│   └── dependabot.yml
 ├── src/
 │   ├── lib.rs
 │   ├── db.rs
@@ -425,16 +448,20 @@ agentdb/
 │       └── graph.rs
 ├── python/
 │   ├── Cargo.toml
-│   ├── pyproject.toml     ← maturin config
-│   ├── src/lib.rs         ← PyO3 bindings
-│   └── python/__init__.py ← Python package entry point
+│   ├── pyproject.toml
+│   ├── src/lib.rs
+│   ├── python/__init__.py
+│   └── examples/
+│       └── agent_memory.py
 ├── nodejs/
 │   ├── Cargo.toml
-│   ├── build.rs           ← napi-build required
+│   ├── build.rs
 │   ├── package.json
-│   ├── index.js           ← platform-aware .node loader
-│   ├── index.d.ts         ← TypeScript types
-│   └── src/lib.rs         ← napi-rs bindings
+│   ├── index.js
+│   ├── index.d.ts
+│   ├── src/lib.rs
+│   └── examples/
+│       └── agent_memory.ts
 ├── examples/
 │   ├── agent_memory.rs
 │   ├── rag_pipeline.rs
@@ -471,13 +498,16 @@ Full detail in [ROADMAP.md](ROADMAP.md) and [CHANGELOG.md](CHANGELOG.md).
 
 ## Contributing
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, PR process, and code standards.
+
+Quick summary:
 1. **Fork** the repository
 2. **Create** a feature branch: `git checkout -b feat/your-feature`
 3. **Write tests** for your changes
 4. **Run** `cargo test` and `cargo clippy` — both must pass
 5. **Open** a pull request with a clear description
 
-**Code standards:** no `unwrap()` in library code; all public API items need doc comments; new features require at least one integration test; run `cargo fmt` before committing.
+To report a security vulnerability, see [SECURITY.md](SECURITY.md).
 
 ---
 
