@@ -17,7 +17,7 @@
     <img src="https://codecov.io/gh/hvrcharon1/agentdb/branch/main/graph/badge.svg" alt="Coverage"/>
   </a>
   &nbsp;
-  <img src="https://img.shields.io/badge/license-Public%20Domain-brightgreen.svg" alt="License"/>
+  <img src="https://img.shields.io/badge/license-Unlicense-brightgreen.svg" alt="License"/>
   &nbsp;
   <img src="https://img.shields.io/badge/language-Rust%202021-orange.svg" alt="Rust"/>
   &nbsp;
@@ -426,6 +426,7 @@ agentdb/
 │   │   ├── bug_report.yml
 │   │   └── feature_request.yml
 │   ├── PULL_REQUEST_TEMPLATE.md
+│   ├── codecov.yml
 │   └── dependabot.yml
 ├── src/
 │   ├── lib.rs
@@ -460,6 +461,8 @@ agentdb/
 │   ├── index.js
 │   ├── index.d.ts
 │   ├── src/lib.rs
+│   ├── test/
+│   │   └── smoke.js
 │   └── examples/
 │       └── agent_memory.ts
 ├── examples/

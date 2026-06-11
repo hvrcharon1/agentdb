@@ -27,6 +27,15 @@
  * ```
  */
 
+/**
+ * Distance metric used when searching a vector collection.
+ *
+ * - `'cosine'`     — cosine similarity (default; best for normalized embeddings)
+ * - `'euclidean'`  — Euclidean / L2 distance (lower is closer)
+ * - `'dot'`        — dot product (highest is closest; requires unit vectors)
+ */
+export type DistanceMetric = 'cosine' | 'euclidean' | 'dot';
+
 export interface SearchResult {
   id:       string;
   score:    number;
@@ -64,6 +73,8 @@ export interface DbStats {
 export interface SearchOptions {
   topK?:   number;
   filter?: Record<string, unknown>;
+  /** Distance metric to use for this search. Defaults to `'cosine'`. */
+  metric?: DistanceMetric;
 }
 
 export interface HybridOptions {
