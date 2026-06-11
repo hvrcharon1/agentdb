@@ -129,12 +129,16 @@ impl AgentDB {
     }
 }
 
-/// Database-wide statistics
+/// Database-wide statistics returned by [`AgentDB::stats`].
 #[derive(Debug)]
 pub struct DbStats {
+    /// Number of named vector collections.
     pub collections: i64,
+    /// Total number of vectors across all collections.
     pub vectors: i64,
+    /// Number of nodes in the memory graph.
     pub nodes: i64,
+    /// Number of directed edges in the memory graph.
     pub edges: i64,
 }
 

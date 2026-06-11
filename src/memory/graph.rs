@@ -5,38 +5,59 @@ use rusqlite::Connection;
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
 
+/// A typed node in the memory graph.
 #[derive(Debug, Clone)]
 pub struct Node {
+    /// Unique identifier for this node.
     pub id: String,
+    /// Semantic type label (e.g. `"session"`, `"thought"`, `"tool"`).
     pub kind: String,
+    /// Arbitrary JSON payload attached to the node.
     pub data: Option<Value>,
+    /// Unix-millisecond timestamp when the node was first created.
     pub created_at: i64,
+    /// Unix-millisecond timestamp of the most recent update.
     pub updated_at: i64,
 }
 
+/// A directed, weighted edge between two nodes in the memory graph.
 #[derive(Debug, Clone)]
 pub struct Edge {
+    /// ID of the source node.
     pub src: String,
+    /// ID of the destination node.
     pub dst: String,
+    /// Semantic relationship label (e.g. `"recalled"`, `"leads_to"`).
     pub relation: String,
+    /// Importance or strength of the relationship, conventionally in `[0.0, 1.0]`.
     pub weight: f64,
+    /// Unix-millisecond timestamp when the edge was created or last updated.
     pub created_at: i64,
 }
 
+/// Options controlling how the memory graph is traversed.
 #[derive(Debug, Clone, Default)]
 pub struct TraversalOptions {
+    /// If set, only follow edges whose relation label matches this string.
     pub relation: Option<String>,
+    /// Maximum number of hops from the anchor node.
     pub max_depth: usize,
+    /// Discard edges whose weight is below this threshold.
     pub min_weight: Option<f64>,
 }
 
+/// A single node returned by a graph traversal, with path metadata.
 #[derive(Debug, Clone)]
 pub struct TraversalResult {
+    /// The reached node.
     pub node: Node,
+    /// Number of hops from the anchor node.
     pub depth: usize,
+    /// Weight of the edge that connected this node to its parent in the traversal.
     pub weight: f64,
 }
 
+/// In-process memory graph backed by a SQLite WAL database.
 pub struct MemoryGraph {
     conn: Arc<Mutex<Connection>>,
 }
@@ -46,6 +67,8 @@ impl MemoryGraph {
         Self { conn }
     }
 
+    /// Add or update a node. If a node with this `id` already exists it is overwritten
+    /// in place (kind, data, and updated_at are refreshed; created_at is preserved).
     pub fn add_node(&self, id: &str, kind: &str, data: Option<Value>) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         let data_str = data.as_ref().map(|d| d.to_string());
@@ -62,6 +85,9 @@ impl MemoryGraph {
         Ok(())
     }
 
+    /// Retrieve a node by its ID.
+    ///
+    /// Returns [`AgentDbError::NodeNotFound`] if no node with that ID exists.
     pub fn get_node(&self, id: &str) -> Result<Node> {
         let conn = self.conn.lock().unwrap();
         conn.query_row(
@@ -83,12 +109,17 @@ impl MemoryGraph {
         .map_err(|_| AgentDbError::NodeNotFound(id.to_string()))
     }
 
+    /// Remove a node by its ID. Associated edges are also deleted via ON DELETE CASCADE.
     pub fn delete_node(&self, id: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         conn.execute("DELETE FROM _adb_nodes WHERE id = ?1", params![id])?;
         Ok(())
     }
 
+    /// Add or update a directed edge `src → dst` with the given `relation` label and `weight`.
+    ///
+    /// Both `src` and `dst` must already exist; returns [`AgentDbError::NodeNotFound`] otherwise.
+    /// If an edge with the same `(src, dst, relation)` triple already exists its weight is updated.
     pub fn add_edge(&self, src: &str, dst: &str, relation: &str, weight: f64) -> Result<()> {
         self.get_node(src)?;
         self.get_node(dst)?;
@@ -104,6 +135,9 @@ impl MemoryGraph {
         Ok(())
     }
 
+    /// Remove the edge `src → dst` with the given `relation`.
+    ///
+    /// Returns [`AgentDbError::EdgeNotFound`] if no such edge exists.
     pub fn delete_edge(&self, src: &str, dst: &str, relation: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         let changed = conn.execute(
@@ -119,6 +153,11 @@ impl MemoryGraph {
         Ok(())
     }
 
+    /// Traverse the graph from `node_id` and return all reachable nodes within the
+    /// constraints defined by `opts`.
+    ///
+    /// Uses a recursive Common Table Expression (CTE) for efficient SQLite-side
+    /// traversal. Results are ordered by ascending depth, then descending edge weight.
     pub fn neighbors(&self, node_id: &str, opts: TraversalOptions) -> Result<Vec<TraversalResult>> {
         let conn = self.conn.lock().unwrap();
         let max_depth = opts.max_depth.max(1) as i64;
@@ -177,6 +216,7 @@ impl MemoryGraph {
         Ok(results)
     }
 
+    /// Return all nodes whose `kind` field matches the given string.
     pub fn nodes_by_kind(&self, kind: &str) -> Result<Vec<Node>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
@@ -197,6 +237,7 @@ impl MemoryGraph {
         rows.map(|r| r.map_err(AgentDbError::Sqlite)).collect()
     }
 
+    /// Return the total node and edge counts as `(nodes, edges)`.
     pub fn stats(&self) -> Result<(i64, i64)> {
         let conn = self.conn.lock().unwrap();
         let nodes: i64 = conn.query_row("SELECT COUNT(*) FROM _adb_nodes", [], |r| r.get(0))?;
