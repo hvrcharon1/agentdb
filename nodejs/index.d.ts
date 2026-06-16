@@ -5,7 +5,7 @@
  *
  * @example
  * ```ts
- * import { AgentDB } from 'agentdb';
+ * import { AgentDB } from '@datacules/agentdb';
  *
  * const db = AgentDB.open(':memory:');
  *
@@ -15,7 +15,7 @@
  * // Vectors
  * const col = db.collection('thoughts', 4);
  * col.upsert('t1', [0.9, 0.1, 0.0, 0.0], { score: 9 });
- * const results = await col.search([0.9, 0.1, 0.0, 0.0], { topK: 5 });
+ * const results = col.search([0.9, 0.1, 0.0, 0.0], { topK: 5 });
  *
  * // Memory graph
  * db.addNode('s1', 'session');
@@ -91,7 +91,7 @@ export class Collection {
   /** Upsert multiple vectors in a single transaction. */
   upsertBatch(entries: Array<{ id: string; vector: number[]; metadata?: Record<string, unknown> | null }>): number;
 
-  /** Approximate nearest-neighbor search. */
+  /** Approximate nearest-neighbor search (synchronous). */
   search(query: number[], options?: SearchOptions): SearchResult[];
 
   /** Number of vectors in this collection. */
@@ -130,7 +130,7 @@ export class AgentDB {
   /** Full-text search over a collection. */
   ftsSearch(collection: string, query: string, topK: number): FtsResult[];
 
-  /** Run a hybrid graph + vector query. */
+  /** Run a hybrid graph + vector query (synchronous). */
   hybridQuery(anchorNode: string, embedding: number[], collection: string, options?: HybridOptions): HybridResult[];
 
   /** Return database-wide statistics. */

@@ -23,7 +23,8 @@ function loadNative() {
   // 1. Try the pre-built platform-specific file (npm install path).
   if (filename) {
     try { return require(`./${filename}`); } catch (_) {}
-    try { return require(`@agentdb/${key}`); } catch (_) {}
+    // Scoped platform package published by napi-rs CLI alongside @datacules/agentdb
+    try { return require(`@datacules/agentdb-${key}`); } catch (_) {}
   }
 
   // 2. Fall back to a local debug build (cargo build / napi build --debug).
@@ -32,7 +33,7 @@ function loadNative() {
   throw new Error(
     `AgentDB: no native addon found for ${key}.\n` +
     `Run \`npm run build\` in the nodejs/ directory to compile from source,\n` +
-    `or install a pre-built package from npm.`
+    `or install a pre-built package from npm: npm install @datacules/agentdb`
   );
 }
 

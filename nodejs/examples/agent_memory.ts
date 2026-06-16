@@ -16,7 +16,7 @@
  *   4. Statistics
  */
 
-import { AgentDB } from 'agentdb';
+import { AgentDB } from '@datacules/agentdb';
 
 // Open an in-memory database (replace ':memory:' with a file path for persistence)
 const db = AgentDB.open(':memory:');

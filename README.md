@@ -21,7 +21,7 @@
   &nbsp;
   <img src="https://img.shields.io/badge/language-Rust%202021-orange.svg" alt="Rust"/>
   &nbsp;
-  <img src="https://img.shields.io/badge/version-v0.3.0-blue.svg" alt="v0.3.0"/>
+  <img src="https://img.shields.io/badge/version-v0.3.1-blue.svg" alt="v0.3.1"/>
   &nbsp;
   <img src="https://img.shields.io/badge/by-Datacules%20LLC-lightgrey.svg" alt="Datacules LLC"/>
 </p>
@@ -45,6 +45,10 @@ use agentdb::AgentDB;
 let db = AgentDB::open("agent.agentdb")?;
 ```
 
+> **Note:** The `agentdb` crate name on crates.io is currently held by an unrelated project.
+> A name-dispute request is in progress. Once resolved, `cargo add agentdb` will install this
+> package. In the meantime, clone and use a path dependency for Rust.
+
 ### Python — `pip install`
 
 ```bash
@@ -64,14 +68,17 @@ Verify install: `python -c "import agentdb; print(agentdb.__version__)"`
 
 Wheels available for CPython 3.9+, PyPy, manylinux, macOS (x64 + arm64), Windows.
 
+> **Note:** The `agentdb` name on PyPI is currently held by an unrelated project (openagent
+> redirect). A PyPI name-dispute request is in progress.
+
 ### Node.js — `npm install`
 
 ```bash
-npm install agentdb
+npm install @datacules/agentdb
 ```
 
 ```typescript
-import { AgentDB } from 'agentdb';
+import { AgentDB } from '@datacules/agentdb';
 
 const db = AgentDB.open(':memory:');
 const col = db.collection('thoughts', 1536);
@@ -79,7 +86,7 @@ col.upsert('m1', embedding, { score: 9 });
 const results = col.search(queryVec, { topK: 5 });
 ```
 
-Verify install: `node -e "const {AgentDB}=require('agentdb'); console.log('ok')"`
+Verify install: `node -e "const {AgentDB}=require('@datacules/agentdb'); console.log('ok')"`
 
 Pre-built native addons for Linux x64/arm64, macOS x64/arm64, Windows x64.
 Full TypeScript type definitions included.
@@ -113,8 +120,8 @@ Any language with C FFI (Go via cgo, Ruby via `ffi` gem, Swift, Kotlin/JNI) can 
 ### CLI — `cargo install` or download binary
 
 ```bash
-# Install from crates.io
-cargo install agentdb
+# Install from source (until crates.io name dispute is resolved)
+cargo install --git https://github.com/hvrcharon1/agentdb agentdb
 
 # Or download a pre-built binary from the GitHub Releases page.
 ```
@@ -391,7 +398,7 @@ CREATE VIRTUAL TABLE _adb_fts_{name} USING fts5(...);
 | CLI | ✅ | ✅ | ❌ | ✅ | ✅ |
 | WASM / browser | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Works on edge / mobile | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Public domain license | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Unlicense (public domain equivalent) | ✅ | ✅ | ❌ | ❌ | ❌ |
 
 ---
 
@@ -408,6 +415,7 @@ agentdb/
 ├── BENCHMARKS.md
 ├── CONTRIBUTING.md
 ├── SECURITY.md
+├── MIGRATION.md
 ├── LICENSE
 ├── NOTICE
 ├── cbindgen.toml          ← C header generation config
@@ -491,6 +499,7 @@ agentdb/
 | v0.1.0 Core | ✅ Done |
 | v0.2.0 Query Power | ✅ Done |
 | v0.3.0 Universal Availability | ✅ Done |
+| v0.3.1 Registry Fixes + Hotfixes | ✅ Done |
 | v0.4.0 WASM Persistence + Go/Ruby bindings | 🔜 Next |
 | v0.5.0 LangChain + LlamaIndex + MCP + Sync | Planned |
 | v1.0.0 Production + all registries published | Planned |
@@ -516,7 +525,8 @@ To report a security vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## License
 
-AgentDB is released into the **public domain** by Datacules LLC.
+AgentDB is released under the **Unlicense** by Datacules LLC (effectively public domain —
+you are free to use, modify, distribute, and sublicense without restriction).
 See [LICENSE](LICENSE) and [NOTICE](NOTICE) for full terms.
 
 ---

@@ -10,6 +10,43 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.3.1] — 2026-06-16 — Registry Fixes + Hotfixes
+
+### Changed
+- **npm package renamed** from `agentdb` to `@datacules/agentdb` to avoid conflict with the
+  pre-existing `agentdb` npm package (ruvnet/agentic-flow). Update your install and import:
+  ```bash
+  npm install @datacules/agentdb
+  ```
+  ```ts
+  import { AgentDB } from '@datacules/agentdb';
+  ```
+- `nodejs/Cargo.toml`: version bumped from stale `0.2.0` to `0.3.1`.
+- `nodejs/package.json`: `napi.package.name` set to `@datacules/agentdb` for scoped publish.
+
+### Fixed
+- **Node.js `Collection.search()` API mismatch**: The napi binding previously accepted
+  separate `(topK, filter)` scalar parameters, contradicting the `index.d.ts` declaration
+  of `search(query, options?: SearchOptions)`. Calls using the documented options-object
+  form (e.g. `col.search(vec, { topK: 5 })`) were silently broken at the napi layer.
+  The binding now correctly accepts `Option<SearchOptions>` matching the TypeScript interface.
+- **Node.js `AgentDB.hybridQuery()` API mismatch**: Same issue. Previously took three
+  scalar args `(graphDepth, topK, alpha)`; now accepts `Option<HybridOptions>` matching
+  `index.d.ts`.
+- **`DistanceMetric` silently ignored in Node.js binding**: The `metric` field was exported
+  in `index.d.ts` but the napi binding always used `DistanceMetric::Cosine` regardless.
+  Now maps `'cosine'` → `Cosine`, `'euclidean'` → `Euclidean`, `'dot'` → `DotProduct`.
+- **CI coverage job missing OIDC permission**: `coverage` job in `ci.yml` lacked
+  `permissions: id-token: write` for `codecov-action@v4` tokenless upload. Uploads were
+  silently failing, preventing the Codecov badge from rendering. Permission added.
+- **`nodejs/index.js` fallback scope**: Corrected `@agentdb/${key}` → `@datacules/agentdb-${key}`
+  to match the new scoped package name.
+- **`nodejs/index.d.ts` JSDoc**: Removed erroneous `await` from `Collection.search()` example;
+  the method is synchronous and returns `SearchResult[]` directly.
+- **`nodejs/examples/agent_memory.ts`**: Updated import from `'agentdb'` to `'@datacules/agentdb'`.
+
+---
+
 ## [0.3.0] — 2026-06-11 — Universal Availability
 
 ### Added
@@ -49,23 +86,6 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `python/pyproject.toml`: version `0.3.0`; license corrected to The Unlicense.
 - `nodejs/package.json`: version `0.3.0`; license corrected to `Unlicense`; `test` script added.
 - `README.md`: version badge updated to v0.3.0; CI and Codecov badges added; cargo.toml snippet updated to `agentdb = "0.3"`; license badge corrected from `Public Domain` to `Unlicense`.
-
-### Fixed
-- **Node.js `Collection.search()` API mismatch**: The napi binding previously accepted
-  separate `(topK, filter)` scalar parameters, contradicting the `index.d.ts` declaration
-  of `search(query, options?: SearchOptions)`. Calls using the documented options-object form
-  (e.g. `col.search(vec, { topK: 5 })`) were silently broken at the napi layer. The binding
-  now correctly accepts `Option<SearchOptions>` matching the declared TypeScript interface.
-- **Node.js `AgentDB.hybridQuery()` API mismatch**: Same issue. Previously took three scalar
-  args `(graphDepth, topK, alpha)`; now accepts `Option<HybridOptions>` matching `index.d.ts`.
-- **`DistanceMetric` silently ignored in Node.js binding**: The `metric` field was exported
-  in `index.d.ts` but the napi binding always used `DistanceMetric::Cosine` regardless of
-  the value passed by the caller. Now correctly maps `'cosine'` → `Cosine`,
-  `'euclidean'` → `Euclidean`, `'dot'` → `DotProduct`.
-- **CI coverage job missing OIDC permission**: The `coverage` job in `ci.yml` lacked
-  `permissions: id-token: write`, which is required for `codecov-action@v4` tokenless
-  OIDC upload on public repositories. Coverage uploads were silently failing, preventing
-  the Codecov badge from displaying live numbers. Permission added.
 
 ---
 
@@ -109,7 +129,8 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-[Unreleased]: https://github.com/hvrcharon1/agentdb/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/hvrcharon1/agentdb/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/hvrcharon1/agentdb/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/hvrcharon1/agentdb/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/hvrcharon1/agentdb/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/hvrcharon1/agentdb/releases/tag/v0.1.0

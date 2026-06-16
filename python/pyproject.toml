@@ -2,9 +2,14 @@
 requires      = ["maturin>=1.5,<2.0"]
 build-backend = "maturin"
 
+# NOTE: The PyPI name "agentdb" is currently occupied by the openagent project
+# (Team Dotagent). The package appears to have been abandoned and redirected.
+# A PyPI name-dispute request is recommended before the first publish.
+# See issues.md for tracking. Once resolved, `maturin publish` will work.
+
 [project]
 name        = "agentdb"
-version     = "0.3.0"
+version     = "0.3.1"
 description = "Single-file embedded database for AI agents. SQL + Vector Search + Full-Text Search + Hybrid Queries + Memory Graphs."
 readme      = "../README.md"
 license     = { text = "The Unlicense (Public Domain)" }
