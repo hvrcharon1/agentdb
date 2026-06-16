@@ -1,143 +1,157 @@
 # Contributing to AgentDB
 
-Thank you for your interest in contributing. This document covers development setup, PR process, and code standards.
+Thank you for taking the time to contribute! Every bug report, feature suggestion,
+documentation fix, and pull request helps make AgentDB better for the whole
+AI-agent ecosystem.
+
+## Table of Contents
+
+1. [Code of Conduct](#code-of-conduct)
+2. [Ways to Contribute](#ways-to-contribute)
+3. [Development Setup](#development-setup)
+4. [Making Changes](#making-changes)
+5. [Testing](#testing)
+6. [Commit Style](#commit-style)
+7. [Pull Request Process](#pull-request-process)
+
+---
+
+## Code of Conduct
+
+Be kind, constructive, and welcoming. Harassment, personal attacks, and
+discriminatory language are not tolerated in issues, pull requests, or any
+other project space.
+
+---
+
+## Ways to Contribute
+
+| Type | How |
+|------|-----|
+| 🐛 Bug reports | Open an issue using the **Bug Report** template |
+| 💡 Feature ideas | Open an issue using the **Feature Request** template |
+| 📖 Documentation | Fix typos, clarify examples, or expand API docs |
+| 🧪 Tests | Add coverage for edge cases or untested code paths |
+| ⚡ Performance | Improvements to the HNSW index, graph traversal, or FTS layer |
+| 🔌 Language SDKs | Fixes and extensions for the Python or Node.js bindings |
+
+---
 
 ## Development Setup
 
 ### Prerequisites
 
-- Rust 1.75.0 or later (MSRV; install via [rustup](https://rustup.rs))
-- `cargo` — included with Rust
+| Tool | Minimum version | Purpose |
+|------|----------------|---------|
+| Rust (stable) | 1.76 | Core library and FFI bindings |
+| Python | 3.9 | Python SDK (`maturin` / PyO3) |
+| Node.js | 18 | Node.js binding (`napi-rs`) |
+| `maturin` | latest | Build and develop the Python wheel |
+| `cargo-criterion` | optional | Run benchmarks with HTML reports |
 
-Optional toolchains for binding development:
-
-| Binding | Requires |
-|---|---|
-| Python | Python 3.9+, `pip install maturin` |
-| Node.js | Node.js ≥ 18, `npm install -g @napi-rs/cli` |
-| C FFI header | `cargo install cbindgen` |
-| WASM | `cargo install wasm-pack`, `rustup target add wasm32-unknown-unknown` |
-
-### Clone and build
+### Rust core
 
 ```bash
 git clone https://github.com/hvrcharon1/agentdb.git
 cd agentdb
-cargo build
-cargo test
+
+# Build and run all tests
+cargo test --all-features
+
+# Run benchmarks
+cargo bench
 ```
 
-### Running the examples
+### Python binding
 
 ```bash
-cargo run --example agent_memory
-cargo run --example rag_pipeline
-cargo run --example graph_traverse
-cargo run --example v020_query_power
+cd python
+pip install maturin
+maturin develop          # installs an editable wheel into your venv
+python -c "import agentdb; print(agentdb.__version__)"
 ```
 
-### Running lints
+### Node.js binding
 
 ```bash
-cargo fmt --all -- --check    # formatting check
-cargo clippy --all-targets    # lints (default features)
-```
-
-### Running coverage
-
-```bash
-cargo install cargo-tarpaulin
-cargo tarpaulin --out Html --output-dir coverage/
-open coverage/tarpaulin-report.html
+cd nodejs
+npm install
+npm run build
+node test/smoke.js
 ```
 
 ---
 
 ## Making Changes
 
-### Branch naming
-
-| Type | Prefix | Example |
-|---|---|---|
-| Feature | `feat/` | `feat/async-api` |
-| Bug fix | `fix/` | `fix/hnsw-memory-leak` |
-| Documentation | `docs/` | `docs/python-quickstart` |
-| Refactoring | `refactor/` | `refactor/fts-internals` |
-| CI / tooling | `ci/` | `ci/coverage-threshold` |
-
-### Commit messages
-
-Follow [Conventional Commits](https://www.conventionalcommits.org/):
-
-```
-feat(vectors): add euclidean distance metric
-fix(graph): fix CTE recursion depth limit on SQLite 3.39
-docs(python): add agent_memory.py quick-start example
-ci: remove hardcoded ref:main from CI lint job
-```
-
-### Pull request process
-
-1. **Fork** the repository and create your branch from `main`.
-2. **Write tests** for any new behaviour; regression tests for any bug fix.
-3. **Run CI checks locally** before pushing:
+1. **Fork** the repository, then create a focused branch:
    ```bash
-   cargo fmt --all -- --check
-   cargo clippy --all-targets
-   cargo test --lib --tests
+   git checkout -b feat/my-feature    # new functionality
+   git checkout -b fix/the-bug        # bug fix
+   git checkout -b docs/improve-readme
    ```
-4. **Open a pull request** against `main` with a clear title and description.
-5. Describe *what* changed and *why* in the PR body.
-6. At least one maintainer review is required before merge.
+2. Keep each PR to **one logical concern** — it is much easier to review and revert.
+3. Add or update tests for every behaviour change.
+4. Update the relevant documentation: rustdoc, `README.md`, and `CHANGELOG.md`
+   (under `[Unreleased]`).
 
 ---
 
-## Code Standards
+## Testing
 
-### Formatting
+```bash
+# Rust unit + integration tests
+cargo test --all-features
 
-All Rust code must be formatted with `cargo fmt` using the settings in `rustfmt.toml`. The CI lint job enforces this on every push and PR.
+# Rust benchmarks (opt-in)
+cargo bench
 
-### Clippy
+# Python — build the wheel then run examples
+cd python && maturin develop
+python python/examples/agent_memory.py
 
-All warnings from `cargo clippy --all-targets` must be addressed. Suppressing a lint with `#[allow(...)]` is permitted only with an explanatory comment.
+# Node.js smoke test
+cd nodejs
+npm run build
+node test/smoke.js
+```
 
-### Documentation
-
-Every public item (`pub struct`, `pub fn`, `pub enum`, `pub trait`) must have a `///` rustdoc comment with:
-
-- A one-sentence description.
-- Parameter and return value documentation for non-trivial functions.
-- A `/// # Examples` block for primary API methods.
-
-Run `cargo doc --open` locally to verify docs.rs output before pushing.
-
-### Tests
-
-- Unit tests live in a `#[cfg(test)] mod tests { … }` block in the same file.
-- Integration tests live in `tests/`.
-- Each new feature should add at least one integration test.
-- Bug fixes should add a regression test that fails before the fix and passes after.
-
-### Error handling
-
-- Always return `crate::error::Result<T>` from functions that can fail.
-- Never `unwrap()` or `expect()` in library code (only in tests or examples).
-- Add a new `AgentDbError` variant for genuinely new failure conditions.
-
-### SQL safety
-
-- Never concatenate user-supplied strings into SQL. Use parameterized queries (`?1`, `?2`, …) via `rusqlite::params!`.
-- All user-facing SQL inputs in the CLI (`agentdb sql`) and FFI (`agentdb_execute`) must go through parameterized execution.
+All CI checks must be green before a PR can be merged.
 
 ---
 
-## Security
+## Commit Style
 
-To report a security vulnerability, please see [SECURITY.md](SECURITY.md) — **do not** open a public GitHub issue.
+We follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+<type>(<scope>): <short summary in imperative mood>
+
+[optional body]
+
+[optional footer: Closes #<issue>]
+```
+
+**Types:** `feat` · `fix` · `docs` · `test` · `bench` · `refactor` · `ci` · `chore`
+
+**Scope examples:** `vectors` · `memory` · `fts` · `hybrid` · `python` · `nodejs` · `ffi`
+
+```
+feat(vectors): add dot-product distance metric
+fix(memory): guard against cycles in recursive CTE traversal
+docs(python): add agent_memory example
+bench(vectors): add 1536-d embedding throughput case
+```
 
 ---
 
-## License
+## Pull Request Process
 
-By contributing to AgentDB you agree that your contributions will be released into the public domain under the same terms as the project. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+1. Fill in the **Pull Request template** completely.
+2. Link the related issue with `Closes #<number>` in the PR body.
+3. Ensure all CI jobs are green before requesting review.
+4. At least **one maintainer approval** is required to merge.
+5. **Squash merge** is preferred to keep the history linear.
+6. After merging, delete your feature branch.
+
+Thank you for contributing to AgentDB! 🚀

@@ -1,36 +1,35 @@
 name: Bug Report
-description: Report a bug or unexpected behaviour in AgentDB
+description: File a bug report to help us improve AgentDB
 title: "[bug]: "
-labels: ["bug", "needs-triage"]
+labels: ["bug", "triage"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you for taking the time to file a bug report. Please fill in as much detail as possible.
-
-  - type: input
-    id: version
-    attributes:
-      label: AgentDB version
-      description: Output of `cargo pkgid agentdb` or your Cargo.toml version string
-      placeholder: "0.3.0"
-    validations:
-      required: true
+        Thank you for taking the time to fill out this bug report.
+        Please provide as much detail as possible so we can reproduce and fix the
+        issue quickly.
 
   - type: textarea
     id: description
     attributes:
       label: Describe the bug
       description: A clear and concise description of what the bug is.
+      placeholder: Tell us what you observed…
     validations:
       required: true
 
   - type: textarea
-    id: reproduce
+    id: reproduction
     attributes:
-      label: Steps to reproduce
-      description: Minimal code snippet or steps that reproduce the issue.
-      render: rust
+      label: Minimal reproduction
+      description: |
+        Provide the smallest possible code snippet that reproduces the issue.
+      placeholder: |
+        ```rust
+        let db = AgentDB::open(":memory:").unwrap();
+        // …
+        ```
     validations:
       required: true
 
@@ -38,6 +37,7 @@ body:
     id: expected
     attributes:
       label: Expected behaviour
+      description: What did you expect to happen?
     validations:
       required: true
 
@@ -45,23 +45,47 @@ body:
     id: actual
     attributes:
       label: Actual behaviour
-      description: Include the full error message / stack trace if applicable.
+      description: |
+        What actually happened? Include full error messages, panic traces, or
+        unexpected output.
     validations:
       required: true
 
   - type: input
-    id: rust-version
+    id: version
     attributes:
-      label: Rust version
-      description: Output of `rustc --version`
-      placeholder: "rustc 1.75.0 (82e1608df 2023-12-21)"
+      label: AgentDB version
+      placeholder: "e.g. 0.3.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: interface
+    attributes:
+      label: Language binding
+      description: Which interface are you using?
+      options:
+        - Rust (core library)
+        - Python (PyPI package)
+        - Node.js (npm package)
+        - C FFI
+        - WASM
+      multiple: true
     validations:
       required: true
 
   - type: input
     id: os
     attributes:
-      label: Operating system
-      placeholder: "Ubuntu 24.04 / macOS 14.4 / Windows 11"
+      label: Operating system and architecture
+      placeholder: "e.g. macOS 14 arm64, Ubuntu 24.04 x86_64, Windows 11 x64"
     validations:
       required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: |
+        Any other context that might help: screenshots, log output, Cargo.lock
+        snippet, Rust toolchain version (`rustc --version`), etc.

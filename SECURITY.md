@@ -2,76 +2,56 @@
 
 ## Supported Versions
 
-| Version | Supported |
-|---|---|
-| 0.3.x (latest) | ✅ Receives security patches |
+| Version | Status |
+|---------|--------|
+| 0.3.x | ✅ Actively maintained |
 | 0.2.x | ⚠️ Critical fixes only |
-| 0.1.x | ❌ End of life |
-
----
+| < 0.2 | ❌ No longer supported |
 
 ## Reporting a Vulnerability
 
 **Please do not open a public GitHub issue for security vulnerabilities.**
 
-Email **security@datacules.com** with:
+Report security issues privately through GitHub's built-in
+[Security Advisories](https://github.com/hvrcharon1/agentdb/security/advisories/new)
+feature. This allows maintainers to assess impact, prepare a patch, and coordinate
+disclosure before the details become public.
 
-1. A description of the vulnerability and its potential impact.
-2. Steps to reproduce (a proof-of-concept code snippet is welcome).
-3. The AgentDB version(s) affected.
-4. Any suggested fix, if you have one.
+### What to include
 
-### What to expect
+- A clear description of the vulnerability and its potential impact
+- Steps to reproduce or a minimal proof-of-concept
+- The AgentDB version(s) and language binding(s) affected
+- Any suggested mitigations or fixes
 
-- **Acknowledgement within 48 hours** of your report.
-- **Status update within 7 days** (confirmed / not reproduced / needs more info).
-- **Fix timeline**: critical (CVSS ≥ 9.0) within 14 days; high (CVSS 7.0–8.9) within 30 days; medium/low within 90 days.
-- **Credit**: reporters who wish to be credited will be acknowledged in the CHANGELOG and release notes when the fix ships.
+### Response timeline
 
-We follow a coordinated disclosure model. Please give us reasonable time to release a fix before publishing details publicly.
+| Milestone | Target |
+|-----------|--------|
+| Acknowledgement | Within 48 hours |
+| Severity assessment | Within 5 business days |
+| Patch / coordinated disclosure | Agreed with reporter |
 
----
+## Scope
 
-## Security Scope
+AgentDB is an embedded, single-file database library. The threat model covers:
 
-In scope:
+- **SQL injection** — unsanitised inputs to `execute` / `execute_params` or
+  equivalent bindings
+- **Path traversal** — crafted paths in the `open()` call allowing arbitrary file
+  reads or writes
+- **Denial of service** — malformed vectors, deeply nested graph structures, or
+  crafted FTS queries causing unbounded memory or CPU usage
+- **Supply-chain risks** — malicious transitive dependencies in the Cargo, PyPI,
+  or npm dependency trees
+- **FFI memory safety** — issues in the C FFI or WASM layer that allow memory
+  corruption from the host process
 
-- SQL injection via the FFI (`agentdb_execute`) or CLI (`agentdb sql`) if user input is passed without parameterization.
-- Memory safety issues in the Rust core, FFI layer, or WASM module.
-- Arbitrary code execution or privilege escalation.
-- Denial of service via malformed `.agentdb` files or crafted query inputs.
-- Information disclosure (reading memory or file data outside the intended database scope).
+**Out of scope:** Vulnerabilities in SQLite itself should be reported to the
+[SQLite security team](https://www.sqlite.org/security.html).
 
-Out of scope:
+## Disclosure Policy
 
-- Vulnerabilities in applications *built using* AgentDB (report those to the relevant project).
-- Issues requiring physical access to the machine running AgentDB.
-- Social engineering.
-
----
-
-## Hardening Guidance
-
-For production deployments:
-
-- **Parameterize all inputs.** Never pass user-supplied strings directly to `db.execute()` or FFI `agentdb_execute()`. Use `db.execute_params()` in Rust and the equivalent parameterized forms in Python and Node.js.
-- **Validate vector dimensions** client-side before upsert in addition to the API-level enforcement.
-- **Restrict file permissions** on `.agentdb` files to the minimum required (e.g., `chmod 600`).
-- **Run `cargo audit` periodically** to catch CVEs in transitive dependencies. AgentDB's CI does this automatically on every push to `main`.
-- **WASM**: the WASM module crosses the JS/Wasm boundary using JSON strings and typed arrays only — no raw memory pointers are exposed.
-
----
-
-## Dependency Security
-
-AgentDB runs `cargo audit` in CI on every push to `main`. The dependency surface is kept minimal:
-
-| Dependency | Purpose |
-|---|---|
-| `rusqlite` | SQLite bindings (bundled C, SQLite 3.x security track) |
-| `serde` / `serde_json` | Serialization |
-| `bincode` | HNSW index serialization |
-| `thiserror` | Error type derivation |
-| `uuid` | ID generation |
-| `rand` | HNSW random-level generation |
-| `clap` | CLI argument parsing |
+We follow a **90-day coordinated disclosure window**. After a patch is released
+we will publish a GitHub Security Advisory and credit the reporter (unless they
+prefer to remain anonymous).

@@ -1,28 +1,51 @@
 ## Summary
 
-<!-- What does this PR do? Why is it needed? -->
+<!-- Describe what this PR does and why. -->
 
-## Changes
+Closes #
 
-<!-- Bullet-point list of concrete changes made -->
+---
 
 ## Type of change
 
-- [ ] Bug fix (non-breaking change that fixes an issue)
-- [ ] New feature (non-breaking change that adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality not to work as expected)
-- [ ] Documentation update
-- [ ] CI / tooling
+- [ ] 🐛 Bug fix (non-breaking, fixes an existing issue)
+- [ ] ✨ New feature (non-breaking, adds functionality)
+- [ ] 💥 Breaking change (alters existing public API or behaviour)
+- [ ] 🔧 Refactor / internal improvement (no externally visible change)
+- [ ] 📖 Documentation update
+- [ ] 🧪 Test coverage improvement
+- [ ] ⚡ Performance improvement
+- [ ] 🔒 Security fix
+
+---
+
+## Key changes
+
+<!-- List the files or modules changed and what was changed in each. -->
+
+-
+-
+
+---
 
 ## Testing
 
-<!-- How did you test this change? -->
+<!-- Describe the tests you ran and how to reproduce them. -->
 
-- [ ] `cargo test --lib --tests` passes locally
-- [ ] `cargo clippy --all-targets` produces no new warnings
-- [ ] `cargo fmt --all -- --check` passes
-- [ ] New tests added for new behaviour
+```bash
+cargo test --all-features
+```
 
-## Related issues
+- [ ] All existing tests pass locally
+- [ ] New tests added for changed behaviour
+- [ ] Manual testing performed (steps described below)
 
-<!-- Closes #X, Fixes #Y -->
+---
+
+## Checklist
+
+- [ ] Code follows project style (`cargo fmt`, `cargo clippy -- -D warnings`)
+- [ ] Rustdoc / inline comments updated where relevant
+- [ ] `CHANGELOG.md` updated under `[Unreleased]`
+- [ ] CI is green on this branch
+- [ ] Breaking changes are called out in the PR description

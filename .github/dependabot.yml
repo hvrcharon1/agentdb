@@ -1,40 +1,49 @@
 version: 2
 updates:
+  # Rust / Cargo
   - package-ecosystem: cargo
     directory: "/"
     schedule:
       interval: weekly
+      day: monday
+    groups:
+      rust-deps:
+        patterns:
+          - "*"
     open-pull-requests-limit: 5
-    labels:
-      - dependencies
-    commit-message:
-      prefix: "chore(deps)"
 
+  # Node.js binding
   - package-ecosystem: npm
     directory: "/nodejs"
     schedule:
       interval: weekly
+      day: monday
+    groups:
+      nodejs-deps:
+        patterns:
+          - "*"
     open-pull-requests-limit: 3
-    labels:
-      - dependencies
-    commit-message:
-      prefix: "chore(deps)"
 
+  # Python binding
   - package-ecosystem: pip
     directory: "/python"
     schedule:
       interval: weekly
+      day: monday
+    groups:
+      python-deps:
+        patterns:
+          - "*"
     open-pull-requests-limit: 3
-    labels:
-      - dependencies
-    commit-message:
-      prefix: "chore(deps)"
 
+  # GitHub Actions
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
-    labels:
-      - dependencies
-    commit-message:
-      prefix: "chore(ci)"
+      day: monday
+    groups:
+      actions-deps:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 5

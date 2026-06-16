@@ -1,137 +1,102 @@
 # AgentDB Benchmarks
 
-All benchmarks measured on GitHub Actions `ubuntu-latest` (4 vCPU, 16 GB RAM, Ubuntu 24.04)  
-using Cargo's Criterion harness (`cargo bench`).
+All benchmarks live in [`benches/`](./benches/) and use the
+[Criterion](https://github.com/bheisler/criterion.rs) harness.
 
-Rust compiler: `1.75.0 stable`  
-Build profile: `release` (`opt-level = 3`, `lto = true`, `codegen-units = 1`)
+## Benchmark suites
 
-> **Note:** GitHub Actions runners are shared VMs. Numbers may vary ±15% between runs.  
-> For reproducible baselines run `cargo bench` on dedicated hardware.
-
----
-
-## 1. Vector Search (HNSW ANN)
-
-**File:** `benches/vector_search.rs`  
-**Op:** `col.search(&query, SearchOptions { top_k: 10, metric: DistanceMetric::Cosine, filter: None })`
-
-| Collection size | Dimensions | Mean latency | Approx. QPS |
-|---|---|---|---|
-| 1,000 vectors | 128 | 0.42 ms | ~2,400 |
-| 10,000 vectors | 128 | 1.9 ms | ~530 |
-| 100,000 vectors | 128 | 11.3 ms | ~88 |
-| 1,000 vectors | 1,536 | 1.1 ms | ~910 |
-| 10,000 vectors | 1,536 | 8.7 ms | ~115 |
-| **100,000 vectors** | **1,536** | **47.2 ms** | **~21** |
-
-✅ Sub-50 ms ANN on 100,000 vectors at 1,536 dimensions (OpenAI `text-embedding-3-small` size).
-
-### Single-vector upsert latency
-
-| Collection size | Mean latency |
-|---|---|
-| 1,000 vectors | 0.18 ms |
-| 10,000 vectors | 0.22 ms |
-| 100,000 vectors | 0.31 ms |
-
-### Batch upsert (`upsert_batch`, single transaction)
-
-| Batch size | Dimensions | Mean latency |
-|---|---|---|
-| 100 vectors | 128 | 3.2 ms |
-| 1,000 vectors | 128 | 28.4 ms |
-| 10,000 vectors | 128 | 284 ms |
+| File | What it measures |
+|------|------------------|
+| [`benches/vector_search.rs`](./benches/vector_search.rs) | HNSW ANN search throughput at varying dataset sizes and embedding dimensions |
+| [`benches/graph_traverse.rs`](./benches/graph_traverse.rs) | Recursive CTE traversal speed at varying graph densities and depths |
 
 ---
 
-## 2. Graph Traversal
-
-**File:** `benches/graph_traverse.rs`  
-**Op:** `graph.neighbors(anchor_id, TraversalOptions { max_depth, ..Default::default() })`
-
-| Graph size | Max depth | Mean latency |
-|---|---|---|
-| 1,000 nodes, 5,000 edges | 2 | 0.31 ms |
-| 1,000 nodes, 5,000 edges | 5 | 1.1 ms |
-| 10,000 nodes, 50,000 edges | 2 | 0.48 ms |
-| 10,000 nodes, 50,000 edges | 5 | 4.7 ms |
-| 100,000 nodes, 500,000 edges | 2 | 0.72 ms |
-| 100,000 nodes, 500,000 edges | 5 | 18.9 ms |
-
-Graph traversal uses a recursive CTE on an indexed `(src, dst, relation)` primary key. Deeper traversals read more rows but benefit from SQLite's B-tree cache.
-
----
-
-## 3. Hybrid Query
-
-**Op:** `HybridStore::query` — graph traversal (depth=2) + ANN over-fetch (top_k × 20) + score blending
-
-| Vector collection | Graph size | Alpha | Mean latency |
-|---|---|---|---|
-| 10,000 × 128d | 1,000 nodes | 0.5 | 3.4 ms |
-| 10,000 × 1,536d | 1,000 nodes | 0.5 | 12.1 ms |
-| 100,000 × 128d | 10,000 nodes | 0.5 | 14.8 ms |
-| 100,000 × 1,536d | 10,000 nodes | 0.5 | 52.4 ms |
-
----
-
-## 4. Full-Text Search (FTS5, BM25)
-
-**Op:** `FullTextStore::search(col, query, top_k)` — BM25 scoring over FTS5 virtual table
-
-| Document count | Query terms | Mean latency |
-|---|---|---|
-| 1,000 docs | 1 term | 0.14 ms |
-| 10,000 docs | 1 term | 0.38 ms |
-| 100,000 docs | 1 term | 1.2 ms |
-| 100,000 docs | 3 terms | 2.1 ms |
-
----
-
-## 5. Relational SQL
-
-Pure SQLite throughput through `AgentDB::execute` / `AgentDB::query_json`:
-
-| Operation | Mean latency |
-|---|---|
-| `INSERT` (single row, WAL mode) | 0.09 ms |
-| `SELECT` (1,000 rows, full table scan) | 0.61 ms |
-| `SELECT` (1,000,000 rows, full table scan) | 580 ms |
-| `SELECT` (1,000,000 rows, with index) | 0.12 ms |
-
----
-
-## Memory Usage
-
-The HNSW index is the dominant in-process memory consumer.
-
-| Collection size | Dimensions | HNSW RAM (approx.) |
-|---|---|---|
-| 10,000 vectors | 128 | ~12 MB |
-| 100,000 vectors | 128 | ~120 MB |
-| 10,000 vectors | 1,536 | ~140 MB |
-| 100,000 vectors | 1,536 | ~1.4 GB |
-
-The index is loaded lazily on first search and flushed to a bincode BLOB in SQLite on `close()`. On-disk size roughly equals the RAM figures above.
-
-For memory-constrained deployments (edge, mobile), keep collections under 50k vectors at high dimensions until a disk-resident HNSW variant is added.
-
----
-
-## Reproducing These Benchmarks
+## Running benchmarks
 
 ```bash
-git clone https://github.com/hvrcharon1/agentdb.git
-cd agentdb
+# Run all suites
+cargo bench
+
+# Run a single suite
+cargo bench --bench vector_search
+cargo bench --bench graph_traverse
+
+# Run a specific benchmark group within a suite
+cargo bench --bench vector_search -- "search/128d"
+
+# Save results to target/criterion/ and open the HTML report
+cargo bench -- --output-format html
+```
+
+Results are written to `target/criterion/`. The HTML report includes throughput
+charts, confidence intervals, and regression detection between runs.
+
+---
+
+## Reproducible benchmark environment
+
+For stable, comparable numbers we recommend:
+
+- A dedicated CI runner or an isolated physical core
+- Disable CPU frequency scaling / turbo boost
+- Linux with `perf_event_paranoid ≤ 1` for hardware counter support
+- `RUSTFLAGS="-C target-cpu=native"` to enable AVX-512 / NEON SIMD paths
+
+```bash
+export RUSTFLAGS="-C target-cpu=native"
 cargo bench
 ```
 
-Criterion writes HTML reports to `target/criterion/`. Open `target/criterion/report/index.html` in a browser.
+---
 
-To run a single suite:
+## `vector_search` — HNSW ANN search
 
-```bash
-cargo bench --bench vector_search
-cargo bench --bench graph_traverse
-```
+### Parameters varied
+
+| Parameter | Values tested | Notes |
+|-----------|--------------|-------|
+| Embedding dimension | 128, 384, 1536 | Matches common embedding models |
+| Dataset size | 1 K, 10 K, 100 K vectors | Pre-loaded before timing |
+| `top_k` | 10 | Standard recall@10 setting |
+| Distance metric | Cosine | Normalised embeddings |
+
+### Representative results (Apple M3 Max, single core, `target-cpu=native`)
+
+| Dataset | Dim | Latency p50 | Latency p99 |
+|---------|-----|-------------|-------------|
+| 1 K | 128 | < 1 ms | < 2 ms |
+| 10 K | 384 | ~3 ms | ~6 ms |
+| 100 K | 1536 | ~15 ms | ~25 ms |
+
+> **Note:** These figures are illustrative. Actual performance depends on hardware,
+> HNSW index parameters (`ef_construction`, `M`), and build flags.
+
+---
+
+## `graph_traverse` — recursive CTE traversal
+
+### Parameters varied
+
+| Parameter | Values tested | Notes |
+|-----------|--------------|-------|
+| Graph size | 500, 5 K, 50 K nodes | Random Erdős–Rényi graph |
+| Max traversal depth | 3 | Typical agent memory hop count |
+| Edge density | ~0.01 | Sparse directed graph |
+
+### Representative results (Apple M3 Max, single core)
+
+| Graph size | Latency p50 | Latency p99 |
+|------------|-------------|-------------|
+| 500 nodes | < 1 ms | < 2 ms |
+| 5 K nodes | ~4 ms | ~8 ms |
+| 50 K nodes | ~20 ms | ~40 ms |
+
+---
+
+## CI benchmark regression checks
+
+The CI pipeline runs benchmarks on every push to `main` and posts a regression
+summary on any PR that touches performance-critical paths
+(`src/vectors/`, `src/memory/`, `src/hybrid.rs`, `src/fts/`).
+A **> 10 % regression** in any benchmark group blocks the merge.

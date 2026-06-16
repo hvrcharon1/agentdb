@@ -1,26 +1,38 @@
 name: Feature Request
-description: Propose a new feature or enhancement
+description: Suggest a new feature or improvement for AgentDB
 title: "[feat]: "
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you for suggesting an improvement to AgentDB!
+        Thanks for suggesting an improvement to AgentDB! Please fill in the
+        sections below so we can evaluate and prioritise your request effectively.
 
   - type: textarea
     id: problem
     attributes:
-      label: Is your feature request related to a problem?
-      description: A clear and concise description of what the problem is.
-      placeholder: "When I try to do X, I find that..."
+      label: Problem statement
+      description: |
+        What problem does this feature solve? What are you trying to do that is
+        currently difficult or impossible with AgentDB?
+      placeholder: "When I try to …, I find that …"
     validations:
-      required: false
+      required: true
 
   - type: textarea
     id: solution
     attributes:
-      label: Describe the solution you'd like
+      label: Proposed solution
+      description: |
+        Describe the feature you would like to see. Include an example API
+        sketch if applicable.
+      placeholder: |
+        ```rust
+        // e.g. vector deletion
+        let col = db.vectors().collection("thoughts", 384)?;
+        col.delete("t1")?;
+        ```
     validations:
       required: true
 
@@ -28,13 +40,33 @@ body:
     id: alternatives
     attributes:
       label: Alternatives considered
-      description: Any alternative solutions or features you've considered.
+      description: |
+        Any alternative approaches or workarounds you have tried or considered.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Which part of AgentDB does this relate to?
+      options:
+        - Vector Store / HNSW
+        - Memory Graph
+        - Full-Text Search
+        - Hybrid Queries
+        - SQL Layer
+        - Python SDK
+        - Node.js SDK
+        - C FFI / WASM
+        - CI / Release tooling
+        - Documentation
+      multiple: true
     validations:
-      required: false
+      required: true
 
   - type: textarea
-    id: context
+    id: additional
     attributes:
       label: Additional context
-    validations:
-      required: false
+      description: |
+        Links to related work, research papers, or prior art that informed
+        this request.
