@@ -1,67 +1,94 @@
-"""Quick-start: agent memory management with AgentDB.
+"""
+agent_memory.py — AgentDB quick-start example (Python)
 
-Run with::
+Demonstrates:
+  • SQL layer         — create table, insert, query
+  • Vector store      — upsert embeddings and run ANN search
+  • Memory graph      — add nodes, directed edges, and traverse
+  • Database stats    — inspect counts across all layers
 
-    cd python
-    pip install -e .
-    python examples/agent_memory.py
+Run:
+    # 1. Build the wheel (one-time)
+    pip install maturin
+    cd python && maturin develop
 
-This script demonstrates the five AgentDB layers in 60 lines:
-  1. Relational SQL (CREATE TABLE / INSERT / SELECT)
-  2. Vector store (upsert + ANN search)
-  3. Memory graph (nodes, edges, traversal)
-  4. Statistics
+    # 2. Run this example
+    python python/examples/agent_memory.py
 """
 
+import random
 import agentdb
 
-# Open an in-memory database (replace ':memory:' with a file path for persistence)
-db = agentdb.AgentDB.open(":memory:")
 
-# ── 1. Relational SQL ─────────────────────────────────────────────────
-db.execute("CREATE TABLE sessions (id TEXT PRIMARY KEY, name TEXT)")
-db.execute("INSERT INTO sessions VALUES ('s1', 'Research Sprint')")
-db.execute("INSERT INTO sessions VALUES ('s2', 'Planning Session')")
+def main() -> None:
+    print(f"AgentDB {agentdb.__version__}\n")
 
-rows = db.query_json("SELECT * FROM sessions ORDER BY id")
-print("Sessions:")
-for row in rows:
-    print(f"  {row}")
+    # -------------------------------------------------------------------------
+    # 1. Open a database
+    #    Use ":memory:" for ephemeral in-process storage (no file created).
+    #    Pass a file path for persistent storage: AgentDB.open("agent.db")
+    # -------------------------------------------------------------------------
+    db = agentdb.AgentDB.open(":memory:")
 
-# ── 2. Vector store ───────────────────────────────────────────────────
-# Create (or open) a collection of 4-dimensional embeddings.
-col = db.vectors.collection("thoughts", dim=4)
+    # -------------------------------------------------------------------------
+    # 2. SQL layer — full SQLite engine available
+    # -------------------------------------------------------------------------
+    db.execute("CREATE TABLE sessions (id TEXT PRIMARY KEY, label TEXT)")
+    db.execute("INSERT INTO sessions VALUES ('s1', 'planning session')")
+    db.execute("INSERT INTO sessions VALUES ('s2', 'review session')")
+    print("SQL layer ready.")
 
-col.upsert("t1", [0.9, 0.1, 0.0, 0.0], metadata={"topic": "RL",  "score": 9})
-col.upsert("t2", [0.1, 0.9, 0.0, 0.0], metadata={"topic": "CV",  "score": 7})
-col.upsert("t3", [0.5, 0.5, 0.0, 0.0], metadata={"topic": "NLP", "score": 8})
+    # -------------------------------------------------------------------------
+    # 3. Vector store — HNSW ANN search
+    # -------------------------------------------------------------------------
+    DIM = 8
+    col = db.vectors.collection("thoughts", dim=DIM)
 
-query_vec = [0.85, 0.15, 0.0, 0.0]
-results = col.search(query_vec, top_k=2)
-print(f"\nNearest thoughts to {query_vec[:2]}...:")
-for r in results:
-    print(f"  id={r.id}  score={r.score:.4f}  meta={r.metadata}")
+    thoughts = {
+        "t1": "agent planning phase",
+        "t2": "memory consolidation",
+        "t3": "tool selection step",
+        "t4": "final review loop",
+    }
 
-# ── 3. Memory graph ───────────────────────────────────────────────────
-db.memory.add_node("s1", "session", data={"name": "Research Sprint"})
-db.memory.add_node("t1", "thought", data={"topic": "RL"})
-db.memory.add_node("t2", "thought", data={"topic": "CV"})
-db.memory.add_node("t3", "thought", data={"topic": "NLP"})
+    random.seed(42)
+    for tid, label in thoughts.items():
+        # In production these would be real model embeddings, e.g. from
+        # openai.embeddings.create() or sentence-transformers.
+        vec = [random.gauss(0, 1) for _ in range(DIM)]
+        col.upsert(tid, vec, metadata={"label": label})
 
-db.memory.add_edge("s1", "t1", "recalled", weight=0.9)
-db.memory.add_edge("s1", "t2", "recalled", weight=0.7)
-db.memory.add_edge("s1", "t3", "recalled", weight=0.5)
+    print(f"Inserted {col.count()} vectors into 'thoughts'")
 
-neighbors = db.memory.neighbors("s1", max_depth=1)
-print("\nThoughts recalled by session s1 (sorted by weight):")
-for n in sorted(neighbors, key=lambda x: x.weight, reverse=True):
-    print(f"  id={n.node.id}  kind={n.node.kind}  depth={n.depth}  weight={n.weight:.2f}")
+    # Nearest-neighbour search — find the 3 most similar thoughts
+    query_vec = [random.gauss(0, 1) for _ in range(DIM)]
+    results = col.search(query_vec, top_k=3)
+    print("\nVector search (top 3):")
+    for r in results:
+        print(f"  id={r.id}  score={r.score:.4f}  metadata={r.metadata}")
 
-# ── 4. Statistics ─────────────────────────────────────────────────────
-stats = db.stats()
-print(
-    f"\nDB stats: collections={stats.collections} "
-    f"vectors={stats.vectors} "
-    f"nodes={stats.nodes} "
-    f"edges={stats.edges}"
-)
+    # -------------------------------------------------------------------------
+    # 4. Memory graph — typed nodes + directed weighted edges
+    # -------------------------------------------------------------------------
+    db.memory.add_node("s1", "session")
+    db.memory.add_node("t1", "thought")
+    db.memory.add_node("t2", "thought")
+    db.memory.add_node("t3", "thought")
+
+    # Edges express semantic relationships between agent memories
+    db.memory.add_edge("s1", "t1", "recalled",  weight=0.9)
+    db.memory.add_edge("s1", "t2", "recalled",  weight=0.7)
+    db.memory.add_edge("t1", "t3", "leads_to",  weight=0.8)
+
+    print("\nMemory graph nodes and edges added.")
+
+    # -------------------------------------------------------------------------
+    # 5. Database statistics
+    # -------------------------------------------------------------------------
+    stats = db.stats()
+    print(f"\nDatabase stats: {stats}")
+    # Expected: {'collections': 1, 'vectors': 4, 'nodes': 4, 'edges': 3}
+
+
+if __name__ == "__main__":
+    main()
