@@ -23,7 +23,7 @@ jobs:
         run: |
           TAG_VERSION=${GITHUB_REF#refs/tags/v}
           CARGO_VERSION=$(cargo metadata --no-deps --format-version 1 | \
-            python3 -c "import sys,json; print(json.load(sys.stdin)['packages'][0]['version'])")
+            python3 -c "import sys,json; pkgs=json.load(sys.stdin)['packages']; print(next(p['version'] for p in pkgs if p['name']=='datacules-agentdb'))")
           echo "Tag: $TAG_VERSION  Cargo: $CARGO_VERSION"
           [ "$TAG_VERSION" = "$CARGO_VERSION" ] || (echo "Version mismatch!" && exit 1)
 

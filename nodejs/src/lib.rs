@@ -14,7 +14,7 @@
 //!
 //! Usage:
 //! ```js
-//! const { AgentDB } = require('agentdb');
+//! const { AgentDB } = require('@datacules/agentdb');
 //! const db = AgentDB.open(':memory:');
 //! db.execute('CREATE TABLE notes (id TEXT PRIMARY KEY)');
 //! const col = db.collection('thoughts', 4);

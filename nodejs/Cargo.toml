@@ -1,13 +1,13 @@
 [package]
-name    = "agentdb-node"
-version = "0.3.1"
+name    = "datacules-agentdb-node"
+version = "0.3.2"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-agentdb    = { path = ".." }
+agentdb = { package = "datacules-agentdb", path = ".." }
 napi       = { version = "2", features = ["napi8", "serde-json"] }
 napi-derive = "2"
 serde_json = "1"

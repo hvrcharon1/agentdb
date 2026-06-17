@@ -1,6 +1,6 @@
 [package]
-name    = "agentdb-python"
-version = "0.2.0"
+name    = "datacules-agentdb-python"
+version = "0.3.2"
 edition = "2021"
 
 [lib]
@@ -8,6 +8,6 @@ name      = "agentdb"
 crate-type = ["cdylib"]
 
 [dependencies]
-agentdb = { path = "..", features = ["python"] }
+agentdb = { package = "datacules-agentdb", path = "..", features = ["python"] }
 pyo3    = { version = "0.21", features = ["extension-module"] }
 serde_json = "1"

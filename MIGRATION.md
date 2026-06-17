@@ -4,6 +4,51 @@ This document covers API changes between AgentDB versions and how to update your
 
 ---
 
+## v0.3.1 → v0.3.2
+
+**Package renamed on crates.io and PyPI to avoid name conflicts.** No API changes.
+
+### Rust
+
+```toml
+# Before (v0.3.1 — never actually published to crates.io)
+[dependencies]
+agentdb = "0.3.1"
+
+# After (v0.3.2)
+[dependencies]
+datacules-agentdb = "0.3.2"
+```
+
+The library name is still `agentdb`, so your `use` statements don't change:
+```rust
+use agentdb::{AgentDB, SearchOptions, DistanceMetric};
+```
+
+### Python
+
+```bash
+# Before
+pip install agentdb
+
+# After
+pip install datacules-agentdb
+```
+
+The module name is still `agentdb`:
+```python
+import agentdb
+db = agentdb.AgentDB.open(":memory:")
+```
+
+### Node.js (unchanged)
+
+```bash
+npm install @datacules/agentdb
+```
+
+---
+
 ## v0.2.0 → v0.3.0
 
 **No breaking changes in the Rust API.** All v0.2.0 Rust code compiles and runs unchanged.
@@ -13,12 +58,12 @@ This document covers API changes between AgentDB versions and how to update your
 Five distribution channels are now available:
 
 ```toml
-# Rust (no change)
-agentdb = "0.3"
+# Rust
+datacules-agentdb = "0.3"
 ```
 ```bash
-pip install agentdb          # Python (PyPI) — NEW
-npm install agentdb          # Node.js (npm) — NEW
+pip install datacules-agentdb     # Python (PyPI)
+npm install @datacules/agentdb    # Node.js (npm)
 ```
 Plus: `agentdb.h` C header via `ffi-header.yml` CI artifact, and pre-built CLI
 binaries on GitHub Releases (Linux, macOS x86_64/arm64, Windows).
@@ -29,7 +74,7 @@ The v0.3.0 Node.js binding uses an **options object** for `search` and
 `hybridQuery`. This is the only stable public API for the npm package:
 
 ```ts
-import { AgentDB, DistanceMetric } from 'agentdb';
+import { AgentDB, DistanceMetric } from '@datacules/agentdb';
 
 const db  = AgentDB.open(':memory:');
 const col = db.collection('thoughts', 4);

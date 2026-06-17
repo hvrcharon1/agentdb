@@ -21,7 +21,7 @@
   &nbsp;
   <img src="https://img.shields.io/badge/language-Rust%202021-orange.svg" alt="Rust"/>
   &nbsp;
-  <img src="https://img.shields.io/badge/version-v0.3.1-blue.svg" alt="v0.3.1"/>
+  <img src="https://img.shields.io/badge/version-v0.3.2-blue.svg" alt="v0.3.2"/>
   &nbsp;
   <img src="https://img.shields.io/badge/by-Datacules%20LLC-lightgrey.svg" alt="Datacules LLC"/>
 </p>
@@ -34,10 +34,14 @@ AgentDB is available in five distribution channels. Pick the one that matches yo
 
 ### Rust — `cargo add`
 
+```bash
+cargo add datacules-agentdb
+```
+
 ```toml
 # Cargo.toml
 [dependencies]
-agentdb = "0.3"
+datacules-agentdb = "0.3"
 ```
 
 ```rust
@@ -45,14 +49,12 @@ use agentdb::AgentDB;
 let db = AgentDB::open("agent.agentdb")?;
 ```
 
-> **Note:** The `agentdb` crate name on crates.io is currently held by an unrelated project.
-> A name-dispute request is in progress. Once resolved, `cargo add agentdb` will install this
-> package. In the meantime, clone and use a path dependency for Rust.
+The library name is `agentdb`, so all `use agentdb::*` imports work as expected.
 
 ### Python — `pip install`
 
 ```bash
-pip install agentdb
+pip install datacules-agentdb
 ```
 
 ```python
@@ -67,9 +69,7 @@ results = col.search(query_vec, top_k=5)
 Verify install: `python -c "import agentdb; print(agentdb.__version__)"`
 
 Wheels available for CPython 3.9+, PyPy, manylinux, macOS (x64 + arm64), Windows.
-
-> **Note:** The `agentdb` name on PyPI is currently held by an unrelated project (openagent
-> redirect). A PyPI name-dispute request is in progress.
+The import name is `agentdb` (not `datacules_agentdb`).
 
 ### Node.js — `npm install`
 
@@ -120,8 +120,8 @@ Any language with C FFI (Go via cgo, Ruby via `ffi` gem, Swift, Kotlin/JNI) can 
 ### CLI — `cargo install` or download binary
 
 ```bash
-# Install from source (until crates.io name dispute is resolved)
-cargo install --git https://github.com/hvrcharon1/agentdb agentdb
+# Install from crates.io
+cargo install datacules-agentdb
 
 # Or download a pre-built binary from the GitHub Releases page.
 ```

@@ -10,6 +10,29 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.3.2] — 2026-06-18 — Registry Rename + Universal Install
+
+### Changed
+- **crates.io package renamed** from `agentdb` to `datacules-agentdb` to avoid conflict with
+  the pre-existing crate (cryptopatrick/agentdb). Install with:
+  ```bash
+  cargo add datacules-agentdb
+  ```
+  The library name remains `agentdb`, so all `use agentdb::*` imports are unchanged.
+- **PyPI package renamed** from `agentdb` to `datacules-agentdb` to avoid conflict with the
+  pre-existing package (Team Dotagent/openagent). Install with:
+  ```bash
+  pip install datacules-agentdb
+  ```
+  The module name remains `agentdb`, so `import agentdb` is unchanged.
+- npm remains `@datacules/agentdb` (already resolved in v0.3.1).
+- `python/Cargo.toml`: version bumped from stale `0.2.0` to `0.3.2`.
+- `python/__init__.py`: `__version__` corrected from `"0.3.0"` to `"0.3.2"`.
+- All manifests version-bumped to `0.3.2`.
+- Publish workflows updated for new package names.
+
+---
+
 ## [0.3.1] — 2026-06-16 — Registry Fixes + Hotfixes
 
 ### Changed
@@ -129,7 +152,8 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-[Unreleased]: https://github.com/hvrcharon1/agentdb/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/hvrcharon1/agentdb/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/hvrcharon1/agentdb/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/hvrcharon1/agentdb/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/hvrcharon1/agentdb/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/hvrcharon1/agentdb/compare/v0.1.0...v0.2.0
