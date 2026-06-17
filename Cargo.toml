@@ -1,5 +1,5 @@
 [package]
-name = "agentdb"
+name = "datacules-agentdb"
 version = "0.3.1"
 edition = "2021"
 rust-version = "1.75"
@@ -13,16 +13,11 @@ keywords = ["database", "vector-search", "ai", "agents", "embedded"]
 categories = ["database", "embedded", "science", "data-structures"]
 exclude = ["python/", "nodejs/", "target/", ".github/"]
 
-# NOTE: The crates.io name "agentdb" is currently occupied by an unrelated crate
-# (github.com/cryptopatrick/agentdb, v0.2.0). A name-dispute request has been
-# filed with the crates.io team. Once resolved, `cargo publish` will succeed
-# with this name. See issues.md for tracking.
-
 # ── Library ────────────────────────────────────────────────────────────
 [lib]
 name = "agentdb"
 # cdylib is only needed when building the C FFI or Python/Node bindings.
-# Keep it out of the default rlib so `cargo add agentdb` users never need
+# Keep it out of the default rlib so `cargo add datacules-agentdb` users never need
 # a C linker on Windows/macOS.
 crate-type = ["rlib"]
 
