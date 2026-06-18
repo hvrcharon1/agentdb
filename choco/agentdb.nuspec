@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>agentdb</id>
+    <version>0.3.2</version>
+    <title>AgentDB</title>
+    <authors>Datacules LLC</authors>
+    <owners>datacules</owners>
+    <projectUrl>https://github.com/hvrcharon1/agentdb</projectUrl>
+    <licenseUrl>https://github.com/hvrcharon1/agentdb/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/hvrcharon1/agentdb</projectSourceUrl>
+    <bugTrackerUrl>https://github.com/hvrcharon1/agentdb/issues</bugTrackerUrl>
+    <tags>database vector-search ai agents embeddings rag sqlite cli</tags>
+    <summary>Single-file embedded database for AI agents</summary>
+    <description>AgentDB is a single-file embedded database purpose-built for AI agents. It combines SQL, Vector Search (HNSW), Full-Text Search, Hybrid Queries, and Memory Graphs in one portable file. Zero external dependencies.</description>
+    <releaseNotes>https://github.com/hvrcharon1/agentdb/blob/main/CHANGELOG.md</releaseNotes>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

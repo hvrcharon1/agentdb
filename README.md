@@ -117,14 +117,19 @@ The flat C API covers open/close, SQL execute/query, vector upsert/search,
 graph add\_node/add\_edge/neighbors, FTS index/search, hybrid query, and stats.
 Any language with C FFI (Go via cgo, Ruby via `ffi` gem, Swift, Kotlin/JNI) can use it.
 
-### CLI — `cargo install` or download binary
+### CLI — one command on any OS
 
-```bash
-# Install from crates.io
-cargo install datacules-agentdb
-
-# Or download a pre-built binary from the GitHub Releases page.
-```
+| Method | Command |
+|--------|---------|
+| **Cargo** | `cargo install datacules-agentdb` |
+| **Homebrew** (macOS/Linux) | `brew install hvrcharon1/tap/agentdb` |
+| **Scoop** (Windows) | `scoop bucket add agentdb https://github.com/hvrcharon1/scoop-bucket && scoop install agentdb` |
+| **Chocolatey** (Windows) | `choco install agentdb` |
+| **Snap** (Linux) | `snap install agentdb` |
+| **WinGet** (Windows) | `winget install Datacules.AgentDB` |
+| **Nix** | `nix run github:hvrcharon1/agentdb` |
+| **Shell script** | `curl -fsSL https://raw.githubusercontent.com/hvrcharon1/agentdb/main/install.sh \| sh` |
+| **PowerShell** | `irm https://raw.githubusercontent.com/hvrcharon1/agentdb/main/install.ps1 \| iex` |
 
 ```bash
 agentdb stats      agent.agentdb          # print database statistics

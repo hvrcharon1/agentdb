@@ -1,0 +1,38 @@
+name: agentdb
+version: '0.3.2'
+summary: Single-file embedded database for AI agents
+description: |
+  AgentDB is a single-file embedded database purpose-built for AI agents.
+  It combines SQL, Vector Search (HNSW), Full-Text Search, Hybrid Queries,
+  and Memory Graphs in one portable file. Zero external dependencies.
+
+  Install and use:
+    agentdb stats mydb.agentdb
+    agentdb sql mydb.agentdb "SELECT * FROM sessions"
+    agentdb search mydb.agentdb embeddings 0.1 0.2 0.3
+
+grade: stable
+confinement: strict
+base: core22
+license: Unlicense
+
+architectures:
+  - build-on: amd64
+  - build-on: arm64
+
+parts:
+  agentdb:
+    plugin: rust
+    source: .
+    rust-channel: "1.75"
+    build-packages:
+      - gcc
+      - pkg-config
+    rust-features: []
+
+apps:
+  agentdb:
+    command: bin/agentdb
+    plugs:
+      - home
+      - removable-media

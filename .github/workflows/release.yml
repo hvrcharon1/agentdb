@@ -13,6 +13,8 @@ jobs:
   validate:
     name: Validate version
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -20,12 +22,14 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Check version matches tag
+        id: ver
         run: |
           TAG_VERSION=${GITHUB_REF#refs/tags/v}
           CARGO_VERSION=$(cargo metadata --no-deps --format-version 1 | \
             python3 -c "import sys,json; pkgs=json.load(sys.stdin)['packages']; print(next(p['version'] for p in pkgs if p['name']=='datacules-agentdb'))")
           echo "Tag: $TAG_VERSION  Cargo: $CARGO_VERSION"
           [ "$TAG_VERSION" = "$CARGO_VERSION" ] || (echo "Version mismatch!" && exit 1)
+          echo "version=$TAG_VERSION" >> "$GITHUB_OUTPUT"
 
   # ── Build release binaries ───────────────────────────────────────────
   build:
@@ -37,16 +41,25 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact: agentdb-linux-x86_64
+            artifact: agentdb-x86_64-unknown-linux-gnu
+            ext: tar.gz
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact: agentdb-aarch64-unknown-linux-gnu
+            ext: tar.gz
+            cross: true
           - os: macos-latest
             target: x86_64-apple-darwin
-            artifact: agentdb-macos-x86_64
+            artifact: agentdb-x86_64-apple-darwin
+            ext: tar.gz
           - os: macos-latest
             target: aarch64-apple-darwin
-            artifact: agentdb-macos-arm64
+            artifact: agentdb-aarch64-apple-darwin
+            ext: tar.gz
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact: agentdb-windows-x86_64
+            artifact: agentdb-x86_64-pc-windows-msvc
+            ext: zip
 
     steps:
       - uses: actions/checkout@v4
@@ -55,6 +68,13 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (aarch64-linux)
+        if: matrix.cross
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -68,19 +88,39 @@ jobs:
       - name: Build release
         run: cargo build --release --target ${{ matrix.target }}
 
+      - name: Package (Unix)
+        if: matrix.ext == 'tar.gz'
+        run: |
+          mkdir -p staging
+          cp target/${{ matrix.target }}/release/agentdb staging/
+          cp README.md LICENSE staging/ 2>/dev/null || true
+          cd staging
+          tar czf ../${{ matrix.artifact }}.tar.gz *
+
+      - name: Package (Windows)
+        if: matrix.ext == 'zip'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path staging
+          Copy-Item "target/${{ matrix.target }}/release/agentdb.exe" staging/
+          Copy-Item README.md, LICENSE staging/ -ErrorAction SilentlyContinue
+          Compress-Archive -Path staging/* -DestinationPath "${{ matrix.artifact }}.zip"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: target/${{ matrix.target }}/release/
+          path: ${{ matrix.artifact }}.${{ matrix.ext }}
 
   # ── Create GitHub Release ────────────────────────────────────────────
   release:
     name: GitHub Release
-    needs: build
+    needs: [validate, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      version: ${{ needs.validate.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -88,9 +128,53 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts/
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd artifacts
+          sha256sum *.tar.gz *.zip > checksums-sha256.txt
+          cat checksums-sha256.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: artifacts/**/*
+          files: |
+            artifacts/*.tar.gz
+            artifacts/*.zip
+            artifacts/checksums-sha256.txt
+
+  # ── Update Homebrew tap ──────────────────────────────────────────────
+  update-homebrew:
+    name: Update Homebrew formula
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for release assets
+        run: sleep 10
+
+      - name: Update Homebrew tap
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.TAP_GITHUB_TOKEN }}
+          repository: hvrcharon1/homebrew-tap
+          event-type: update-formula
+          client-payload: '{"version": "${{ needs.validate.outputs.version }}"}'
+
+  # ── Update Scoop bucket ─────────────────────────────────────────────
+  update-scoop:
+    name: Update Scoop manifest
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for release assets
+        run: sleep 10
+
+      - name: Update Scoop bucket
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.TAP_GITHUB_TOKEN }}
+          repository: hvrcharon1/scoop-bucket
+          event-type: update-manifest
+          client-payload: '{"version": "${{ needs.validate.outputs.version }}"}'
