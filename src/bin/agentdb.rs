@@ -409,7 +409,11 @@ fn cmd_shell(path: &str) -> agentdb::Result<()> {
                         "{}",
                         serde_json::to_string_pretty(&rows).unwrap_or_default()
                     );
-                    println!("({} row{})", rows.len(), if rows.len() == 1 { "" } else { "s" });
+                    println!(
+                        "({} row{})",
+                        rows.len(),
+                        if rows.len() == 1 { "" } else { "s" }
+                    );
                 }
                 Err(e) => eprintln!("error: {e}"),
             }

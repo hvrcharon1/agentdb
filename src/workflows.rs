@@ -65,12 +65,7 @@ impl WorkflowStore {
     }
 
     /// Create a new workflow in `pending` status.
-    pub fn create_workflow(
-        &self,
-        id: &str,
-        name: &str,
-        input: Option<Value>,
-    ) -> Result<()> {
+    pub fn create_workflow(&self, id: &str, name: &str, input: Option<Value>) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         let input_str = input.as_ref().map(|v| v.to_string());
         let now = now_ms();
@@ -86,12 +81,7 @@ impl WorkflowStore {
     ///
     /// The `step_index` is assigned automatically as one more than the current
     /// maximum index in the workflow (0-based). Returns the new step ID.
-    pub fn add_step(
-        &self,
-        workflow_id: &str,
-        name: &str,
-        input: Option<Value>,
-    ) -> Result<String> {
+    pub fn add_step(&self, workflow_id: &str, name: &str, input: Option<Value>) -> Result<String> {
         let step_id = Uuid::new_v4().to_string();
         let conn = self.conn.lock().unwrap();
         let input_str = input.as_ref().map(|v| v.to_string());
@@ -182,9 +172,7 @@ impl WorkflowStore {
                 params![id],
                 parse_workflow_row,
             )
-            .map_err(|_| {
-                AgentDbError::InvalidArgument(format!("workflow not found: {id}"))
-            })?
+            .map_err(|_| AgentDbError::InvalidArgument(format!("workflow not found: {id}")))?
         };
         let steps = self.steps_for_workflow(id)?;
         Ok(Workflow { steps, ..workflow })

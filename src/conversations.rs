@@ -159,10 +159,7 @@ impl ConversationStore {
     /// Delete a conversation and all its messages (via ON DELETE CASCADE).
     pub fn delete_conversation(&self, id: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
-        conn.execute(
-            "DELETE FROM _adb_conversations WHERE id = ?1",
-            params![id],
-        )?;
+        conn.execute("DELETE FROM _adb_conversations WHERE id = ?1", params![id])?;
         Ok(())
     }
 }
