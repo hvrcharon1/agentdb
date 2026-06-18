@@ -151,9 +151,9 @@ impl WasmAgentDB {
             .map(|s| {
                 serde_json::json!({
                     "collections": s.collections,
-                    "vectors":     s.vectors,
-                    "nodes":       s.nodes,
-                    "edges":       s.edges
+                    "vectors": s.vectors,
+                    "nodes": s.nodes,
+                    "edges": s.edges
                 })
                 .to_string()
             })

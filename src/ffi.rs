@@ -127,15 +127,24 @@ pub unsafe extern "C" fn agentdb_execute(handle: *mut AgentDbHandle, sql: *const
     clear_last_error();
     let h = match handle.as_ref() {
         Some(h) => h,
-        None => { set_last_error("agentdb_execute: null handle"); return -1; }
+        None => {
+            set_last_error("agentdb_execute: null handle");
+            return -1;
+        }
     };
     let sql_str = match CStr::from_ptr(sql).to_str() {
         Ok(s) => s,
-        Err(_) => { set_last_error("agentdb_execute: invalid SQL string"); return -1; }
+        Err(_) => {
+            set_last_error("agentdb_execute: invalid SQL string");
+            return -1;
+        }
     };
     match h.db.execute(sql_str) {
         Ok(n) => n as i64,
-        Err(e) => { set_last_error(e.to_string()); -1 }
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
     }
 }
 
@@ -151,18 +160,27 @@ pub unsafe extern "C" fn agentdb_query_json(
     clear_last_error();
     let h = match handle.as_ref() {
         Some(h) => h,
-        None => { set_last_error("agentdb_query_json: null handle"); return std::ptr::null_mut(); }
+        None => {
+            set_last_error("agentdb_query_json: null handle");
+            return std::ptr::null_mut();
+        }
     };
     let sql_str = match CStr::from_ptr(sql).to_str() {
         Ok(s) => s,
-        Err(_) => { set_last_error("agentdb_query_json: invalid SQL"); return std::ptr::null_mut(); }
+        Err(_) => {
+            set_last_error("agentdb_query_json: invalid SQL");
+            return std::ptr::null_mut();
+        }
     };
     match h.db.query_json(sql_str) {
         Ok(rows) => {
             let json = Value::Array(rows).to_string();
             CString::new(json).map(|s| s.into_raw()).unwrap_or(std::ptr::null_mut())
         }
-        Err(e) => { set_last_error(e.to_string()); std::ptr::null_mut() }
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
     }
 }
 
@@ -188,15 +206,24 @@ pub unsafe extern "C" fn agentdb_vector_upsert(
     clear_last_error();
     let h = match handle.as_ref() {
         Some(h) => h,
-        None => { set_last_error("null handle"); return -1; }
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
     };
     let col_name = match CStr::from_ptr(collection).to_str() {
         Ok(s) => s,
-        Err(_) => { set_last_error("invalid collection name"); return -1; }
+        Err(_) => {
+            set_last_error("invalid collection name");
+            return -1;
+        }
     };
     let id_str = match CStr::from_ptr(id).to_str() {
         Ok(s) => s,
-        Err(_) => { set_last_error("invalid id"); return -1; }
+        Err(_) => {
+            set_last_error("invalid id");
+            return -1;
+        }
     };
     let vec: Vec<f32> = std::slice::from_raw_parts(vector, dim).to_vec();
     let meta: Option<Value> = if metadata.is_null() {
@@ -209,11 +236,17 @@ pub unsafe extern "C" fn agentdb_vector_upsert(
     };
     let col = match h.db.vectors().collection(col_name, dim) {
         Ok(c) => c,
-        Err(e) => { set_last_error(e.to_string()); return -1; }
+        Err(e) => {
+            set_last_error(e.to_string());
+            return -1;
+        }
     };
     match col.upsert(VectorEntry { id: id_str.to_string(), vector: vec, metadata: meta }) {
         Ok(()) => 0,
-        Err(e) => { set_last_error(e.to_string()); -1 }
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
     }
 }
 
@@ -238,11 +271,17 @@ pub unsafe extern "C" fn agentdb_vector_search(
     clear_last_error();
     let h = match handle.as_ref() {
         Some(h) => h,
-        None => { set_last_error("null handle"); return std::ptr::null_mut(); }
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
     };
     let col_name = match CStr::from_ptr(collection).to_str() {
         Ok(s) => s,
-        Err(_) => { set_last_error("invalid collection name"); return std::ptr::null_mut(); }
+        Err(_) => {
+            set_last_error("invalid collection name");
+            return std::ptr::null_mut();
+        }
     };
     let q: Vec<f32> = std::slice::from_raw_parts(query, dim).to_vec();
     let filter: Option<Value> = if filter_json.is_null() {
@@ -255,18 +294,26 @@ pub unsafe extern "C" fn agentdb_vector_search(
     };
     let col = match h.db.vectors().collection(col_name, dim) {
         Ok(c) => c,
-        Err(e) => { set_last_error(e.to_string()); return std::ptr::null_mut(); }
+        Err(e) => {
+            set_last_error(e.to_string());
+            return std::ptr::null_mut();
+        }
     };
     match col.search(&q, SearchOptions { top_k, metric: DistanceMetric::Cosine, filter }) {
         Ok(results) => {
             let json: Vec<Value> = results
                 .iter()
-                .map(|r| serde_json::json!({ "id": r.id, "score": r.score, "metadata": r.metadata }))
+                .map(|r| {
+                    serde_json::json!({ "id": r.id, "score": r.score, "metadata": r.metadata })
+                })
                 .collect();
             let s = Value::Array(json).to_string();
             CString::new(s).map(|c| c.into_raw()).unwrap_or(std::ptr::null_mut())
         }
-        Err(e) => { set_last_error(e.to_string()); std::ptr::null_mut() }
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
     }
 }
 
@@ -289,10 +336,25 @@ pub unsafe extern "C" fn agentdb_graph_add_node(
     clear_last_error();
     let h = match handle.as_ref() {
         Some(h) => h,
-        None => { set_last_error("null handle"); return -1; }
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
     };
-    let id_str   = match CStr::from_ptr(id).to_str()   { Ok(s) => s, Err(_) => { set_last_error("invalid id");   return -1; } };
-    let kind_str = match CStr::from_ptr(kind).to_str() { Ok(s) => s, Err(_) => { set_last_error("invalid kind"); return -1; } };
+    let id_str = match CStr::from_ptr(id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid id");
+            return -1;
+        }
+    };
+    let kind_str = match CStr::from_ptr(kind).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid kind");
+            return -1;
+        }
+    };
     let data: Option<Value> = if data_json.is_null() {
         None
     } else {
@@ -300,7 +362,10 @@ pub unsafe extern "C" fn agentdb_graph_add_node(
     };
     match h.db.memory().add_node(id_str, kind_str, data) {
         Ok(()) => 0,
-        Err(e) => { set_last_error(e.to_string()); -1 }
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
     }
 }
 
@@ -318,14 +383,38 @@ pub unsafe extern "C" fn agentdb_graph_add_edge(
     clear_last_error();
     let h = match handle.as_ref() {
         Some(h) => h,
-        None => { set_last_error("null handle"); return -1; }
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
     };
-    let src_str      = match CStr::from_ptr(src).to_str()      { Ok(s) => s, Err(_) => { set_last_error("invalid src");      return -1; } };
-    let dst_str      = match CStr::from_ptr(dst).to_str()      { Ok(s) => s, Err(_) => { set_last_error("invalid dst");      return -1; } };
-    let relation_str = match CStr::from_ptr(relation).to_str() { Ok(s) => s, Err(_) => { set_last_error("invalid relation"); return -1; } };
+    let src_str = match CStr::from_ptr(src).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid src");
+            return -1;
+        }
+    };
+    let dst_str = match CStr::from_ptr(dst).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid dst");
+            return -1;
+        }
+    };
+    let relation_str = match CStr::from_ptr(relation).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid relation");
+            return -1;
+        }
+    };
     match h.db.memory().add_edge(src_str, dst_str, relation_str, weight) {
         Ok(()) => 0,
-        Err(e) => { set_last_error(e.to_string()); -1 }
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
     }
 }
 
@@ -345,14 +434,20 @@ pub unsafe extern "C" fn agentdb_graph_neighbors(
     clear_last_error();
     let h = match handle.as_ref() {
         Some(h) => h,
-        None => { set_last_error("null handle"); return std::ptr::null_mut(); }
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
     };
     let id_str = match CStr::from_ptr(node_id).to_str() {
         Ok(s) => s,
-        Err(_) => { set_last_error("invalid node_id"); return std::ptr::null_mut(); }
+        Err(_) => {
+            set_last_error("invalid node_id");
+            return std::ptr::null_mut();
+        }
     };
     let opts = crate::memory::TraversalOptions {
-        relation:   None,
+        relation: None,
         max_depth,
         min_weight: Some(min_weight),
     };
@@ -361,17 +456,20 @@ pub unsafe extern "C" fn agentdb_graph_neighbors(
             let json: Vec<Value> = results
                 .iter()
                 .map(|r| serde_json::json!({
-                    "id":    r.node.id,
-                    "kind":  r.node.kind,
+                    "id": r.node.id,
+                    "kind": r.node.kind,
                     "depth": r.depth,
                     "weight": r.weight,
-                    "data":  r.node.data
+                    "data": r.node.data
                 }))
                 .collect();
             let s = Value::Array(json).to_string();
             CString::new(s).map(|c| c.into_raw()).unwrap_or(std::ptr::null_mut())
         }
-        Err(e) => { set_last_error(e.to_string()); std::ptr::null_mut() }
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
     }
 }
 
@@ -391,15 +489,45 @@ pub unsafe extern "C" fn agentdb_fts_index(
     clear_last_error();
     let h = match handle.as_ref() {
         Some(h) => h,
-        None => { set_last_error("null handle"); return -1; }
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
     };
-    let col  = match CStr::from_ptr(collection).to_str()    { Ok(s) => s, Err(_) => { set_last_error("invalid collection");    return -1; } };
-    let vid  = match CStr::from_ptr(vec_id).to_str()        { Ok(s) => s, Err(_) => { set_last_error("invalid vec_id");        return -1; } };
-    let cid  = match CStr::from_ptr(collection_id).to_str() { Ok(s) => s, Err(_) => { set_last_error("invalid collection_id"); return -1; } };
-    let txt  = match CStr::from_ptr(text).to_str()          { Ok(s) => s, Err(_) => { set_last_error("invalid text");          return -1; } };
+    let col = match CStr::from_ptr(collection).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid collection");
+            return -1;
+        }
+    };
+    let vid = match CStr::from_ptr(vec_id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid vec_id");
+            return -1;
+        }
+    };
+    let cid = match CStr::from_ptr(collection_id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid collection_id");
+            return -1;
+        }
+    };
+    let txt = match CStr::from_ptr(text).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid text");
+            return -1;
+        }
+    };
     match h.db.fts().index_text(col, vid, cid, txt) {
         Ok(()) => 0,
-        Err(e) => { set_last_error(e.to_string()); -1 }
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
     }
 }
 
@@ -416,13 +544,24 @@ pub unsafe extern "C" fn agentdb_fts_search(
     clear_last_error();
     let h = match handle.as_ref() {
         Some(h) => h,
-        None => { set_last_error("null handle"); return std::ptr::null_mut(); }
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
     };
     let col = match CStr::from_ptr(collection).to_str() {
-        Ok(s) => s, Err(_) => { set_last_error("invalid collection"); return std::ptr::null_mut(); }
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid collection");
+            return std::ptr::null_mut();
+        }
     };
     let q = match CStr::from_ptr(query).to_str() {
-        Ok(s) => s, Err(_) => { set_last_error("invalid query"); return std::ptr::null_mut(); }
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid query");
+            return std::ptr::null_mut();
+        }
     };
     match h.db.fts().search(col, q, top_k) {
         Ok(results) => {
@@ -433,7 +572,10 @@ pub unsafe extern "C" fn agentdb_fts_search(
             let s = Value::Array(json).to_string();
             CString::new(s).map(|c| c.into_raw()).unwrap_or(std::ptr::null_mut())
         }
-        Err(e) => { set_last_error(e.to_string()); std::ptr::null_mut() }
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
     }
 }
 
@@ -464,19 +606,30 @@ pub unsafe extern "C" fn agentdb_hybrid_query(
     clear_last_error();
     let h = match handle.as_ref() {
         Some(h) => h,
-        None => { set_last_error("null handle"); return std::ptr::null_mut(); }
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
     };
     let anchor = match CStr::from_ptr(anchor_node).to_str() {
-        Ok(s) => s, Err(_) => { set_last_error("invalid anchor_node"); return std::ptr::null_mut(); }
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid anchor_node");
+            return std::ptr::null_mut();
+        }
     };
     let col = match CStr::from_ptr(collection).to_str() {
-        Ok(s) => s, Err(_) => { set_last_error("invalid collection"); return std::ptr::null_mut(); }
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid collection");
+            return std::ptr::null_mut();
+        }
     };
     let emb: Vec<f32> = std::slice::from_raw_parts(embedding, dim).to_vec();
     let q = HybridQuery {
         anchor_node: anchor,
-        embedding:   &emb,
-        collection:  col,
+        embedding: &emb,
+        collection: col,
         graph_depth,
         top_k,
         alpha,
@@ -487,8 +640,8 @@ pub unsafe extern "C" fn agentdb_hybrid_query(
             let json: Vec<Value> = results
                 .iter()
                 .map(|r| serde_json::json!({
-                    "id":           r.id,
-                    "rank_score":   r.rank_score,
+                    "id": r.id,
+                    "rank_score": r.rank_score,
                     "vector_score": r.vector_score,
                     "graph_weight": r.graph_weight
                 }))
@@ -496,7 +649,10 @@ pub unsafe extern "C" fn agentdb_hybrid_query(
             let s = Value::Array(json).to_string();
             CString::new(s).map(|c| c.into_raw()).unwrap_or(std::ptr::null_mut())
         }
-        Err(e) => { set_last_error(e.to_string()); std::ptr::null_mut() }
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
     }
 }
 
@@ -510,18 +666,24 @@ pub unsafe extern "C" fn agentdb_stats(handle: *mut AgentDbHandle) -> *mut c_cha
     clear_last_error();
     let h = match handle.as_ref() {
         Some(h) => h,
-        None => { set_last_error("null handle"); return std::ptr::null_mut(); }
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
     };
     match h.db.stats() {
         Ok(s) => {
             let json = serde_json::json!({
                 "collections": s.collections,
-                "vectors":     s.vectors,
-                "nodes":       s.nodes,
-                "edges":       s.edges
+                "vectors": s.vectors,
+                "nodes": s.nodes,
+                "edges": s.edges
             });
             CString::new(json.to_string()).map(|c| c.into_raw()).unwrap_or(std::ptr::null_mut())
         }
-        Err(e) => { set_last_error(e.to_string()); std::ptr::null_mut() }
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
     }
 }

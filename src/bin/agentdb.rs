@@ -36,9 +36,9 @@ use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(
-    name    = "agentdb",
+    name = "agentdb",
     version = env!("CARGO_PKG_VERSION"),
-    about   = "Inspect and manage AgentDB database files",
+    about = "Inspect and manage AgentDB database files",
     long_about = None,
 )]
 struct Cli {
@@ -118,7 +118,7 @@ fn run(cli: Cli) -> agentdb::Result<()> {
 
 fn cmd_stats(path: &str) -> agentdb::Result<()> {
     let db = AgentDB::open(path)?;
-    let s  = db.stats()?;
+    let s = db.stats()?;
     println!("path:        {path}");
     println!("collections: {}", s.collections);
     println!("vectors:     {}", s.vectors);
@@ -128,7 +128,7 @@ fn cmd_stats(path: &str) -> agentdb::Result<()> {
 }
 
 fn cmd_collections(path: &str) -> agentdb::Result<()> {
-    let db   = AgentDB::open(path)?;
+    let db = AgentDB::open(path)?;
     let cols = db.vectors().list_collections()?;
     if cols.is_empty() {
         println!("No collections found.");
@@ -143,7 +143,7 @@ fn cmd_collections(path: &str) -> agentdb::Result<()> {
 }
 
 fn cmd_sql(path: &str, query: &str) -> agentdb::Result<()> {
-    let db   = AgentDB::open(path)?;
+    let db = AgentDB::open(path)?;
     let rows = db.query_json(query)?;
     println!("{}", serde_json::to_string_pretty(&rows).unwrap_or_default());
     Ok(())
@@ -157,7 +157,7 @@ fn cmd_search(
 ) -> agentdb::Result<()> {
     use agentdb::{DistanceMetric, SearchOptions};
 
-    let db  = AgentDB::open(path)?;
+    let db = AgentDB::open(path)?;
     let dim = vector.len();
     let col = db.vectors().collection(collection, dim)?;
     let results = col.search(
@@ -172,7 +172,9 @@ fn cmd_search(
     println!("{:<30} {:>8}  metadata", "id", "score");
     println!("{}", "-".repeat(60));
     for r in &results {
-        let meta = r.metadata.as_ref()
+        let meta = r
+            .metadata
+            .as_ref()
             .map(|m| m.to_string())
             .unwrap_or_default();
         println!("{:<30} {:>8.4}  {}", r.id, r.score, meta);
@@ -181,7 +183,7 @@ fn cmd_search(
 }
 
 fn cmd_reindex(path: &str) -> agentdb::Result<()> {
-    let db   = AgentDB::open(path)?;
+    let db = AgentDB::open(path)?;
     let cols = db.vectors().list_collections()?;
     let mut rebuilt = 0usize;
     for (name, dim, _) in &cols {
