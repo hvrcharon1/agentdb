@@ -61,6 +61,8 @@ pub struct HybridOptions {
     /// Alpha blending factor: `0.0` = pure graph weight, `1.0` = pure vector score.
     /// Defaults to `0.6`.
     pub alpha: Option<f64>,
+    /// JSON metadata filter predicate (MongoDB-style operators: `$eq`, `$gt`, `$in`, …).
+    pub filter: Option<serde_json::Value>,
 }
 
 // ── SearchResult ──────────────────────────────────────────────────────
@@ -157,9 +159,9 @@ impl Collection {
     /// Upsert multiple vectors in a single transaction.
     #[napi]
     pub fn upsert_batch(&self, entries: Vec<serde_json::Value>) -> Result<u32> {
-        let batch: std::result::Result<Vec<BatchEntry>, _> = entries
+        let batch: std::result::Result<Vec<BatchEntry>, Error> = entries
             .iter()
-            .map(|e| {
+            .map(|e| -> std::result::Result<BatchEntry, Error> {
                 let id = e["id"]
                     .as_str()
                     .ok_or_else(|| Error::from_reason("missing 'id'"))?
@@ -415,6 +417,7 @@ impl AgentDB {
         let alpha       = options.as_ref().and_then(|o| o.alpha).unwrap_or(0.6);
 
         let db = self.db.lock().unwrap();
+        let filter = options.as_ref().and_then(|o| o.filter.clone());
         let q = HybridQuery {
             anchor_node: &anchor_node,
             embedding:   &emb,
@@ -422,7 +425,7 @@ impl AgentDB {
             graph_depth,
             top_k,
             alpha,
-            filter: None,
+            filter,
         };
         db.hybrid_query(q)
             .map(|results| {
