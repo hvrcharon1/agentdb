@@ -10,6 +10,20 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.3.4] — 2026-06-19 — CI Stability & Logo Refresh
+
+### Changed
+- **Logo redesign**: replaced complex gradient SVG with a clean flat design for better legibility at small sizes.
+- **MSRV lockfile stabilization**: re-pinned all transitive deps to Rust 1.75-compatible versions; removed bootstrap-lockfile CI job that was causing race conditions.
+- **Source formatting**: reformatted all sources with Rust 1.75.0 `rustfmt` to match CI MSRV expectations.
+- **`.gitattributes` added**: enforces LF line endings across all platforms; `.gitignore` cleaned up.
+
+### Fixed
+- 3 Clippy warnings resolved (unused imports, redundant clone, needless borrow).
+- `Cargo.lock` checksum corruption from bootstrap-lockfile job — now committed directly, no auto-generation.
+
+---
+
 ## [0.3.3] — 2026-06-18 — Universal Package Manager Distribution
 
 ### Added
@@ -172,7 +186,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-[Unreleased]: https://github.com/hvrcharon1/agentdb/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/hvrcharon1/agentdb/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/hvrcharon1/agentdb/compare/v0.3.3...v0.3.4
+[0.3.3]: https://github.com/hvrcharon1/agentdb/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/hvrcharon1/agentdb/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/hvrcharon1/agentdb/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/hvrcharon1/agentdb/compare/v0.2.0...v0.3.0
