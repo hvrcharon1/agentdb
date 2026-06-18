@@ -1,6 +1,10 @@
 /target
+nodejs/target
+nodejs/node_modules
+nodejs/Cargo.lock
 *.agentdb
 *.agentdb-shm
 *.agentdb-wal
 .env
 dist/
+*.docx

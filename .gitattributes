@@ -1,0 +1,24 @@
+# Force LF line endings for all text files so cargo fmt --check passes on all platforms.
+* text=auto eol=lf
+
+# Explicitly mark Rust source files as text with LF.
+*.rs text eol=lf
+*.toml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.ts text eol=lf
+*.js text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+*.ps1 text eol=lf
+
+# Binary files — no line-ending conversion.
+*.png binary
+*.jpg binary
+*.whl binary
+*.node binary
+*.dll binary
+*.so binary
+*.dylib binary
