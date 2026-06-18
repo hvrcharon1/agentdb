@@ -34,7 +34,6 @@ impl FullTextStore {
                vec_id,
                collection_id UNINDEXED,
                text,
-               content='',
                tokenize='porter ascii'
              );"
         ))?;
