@@ -1,46 +1,40 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 310 102" width="310" height="102">
-  <defs>
-    <style>
-      .wm { fill: #111827; }
-      .tl { fill: #94A3B8; }
-      @media (prefers-color-scheme: dark) {
-        .wm { fill: #E2E8F0; }
-        .tl { fill: #64748B; }
-      }
-    </style>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 108" width="400" height="108">
+<defs>
+<style>
+.wm{fill:#111827}
+.acc{fill:#1D4ED8}
+.tl{fill:#9CA3AF}
+@media(prefers-color-scheme:dark){
+.wm{fill:#E2E8F0}
+.acc{fill:#60A5FA}
+.tl{fill:#6B7280}
+}
+</style>
+</defs>
 
-  <!-- Badge: deep slate rounded square -->
-  <rect x="4" y="7" width="88" height="88" rx="16" fill="#0F172A"/>
+<circle cx="54" cy="54" r="47" fill="#0B1120"/>
 
-  <!-- Five data-layer bars — pyramid form:
-       widest at bottom (Relational SQL) → narrowest at top (Hybrid Queries)
-       All bars centered at x=48 inside the badge.
-       Stack height 57 px, vertically centered in 88 px badge. -->
+<circle cx="54" cy="23" r="5.5" fill="#2563EB"/>
+<circle cx="54" cy="23" r="9.5" fill="none" stroke="#2563EB" stroke-width="1.5" opacity="0.28"/>
 
-  <!-- Layer 5 — Hybrid Queries (top) -->
-  <rect x="36" y="23" width="24" height="9" rx="2" fill="#93C5FD"/>
-  <!-- Layer 4 — Full-Text Search -->
-  <rect x="30" y="35" width="36" height="9" rx="2" fill="#60A5FA"/>
-  <!-- Layer 3 — Memory Graph -->
-  <rect x="24" y="47" width="48" height="9" rx="2" fill="#3B82F6"/>
-  <!-- Layer 2 — Vector Search -->
-  <rect x="18" y="59" width="60" height="9" rx="2" fill="#2563EB"/>
-  <!-- Layer 1 — Relational SQL (bottom, widest = foundation) -->
-  <rect x="12" y="71" width="72" height="9" rx="2" fill="#1D4ED8"/>
+<line x1="54" y1="32.5" x2="54" y2="42" stroke="#2563EB" stroke-width="1.5" stroke-dasharray="2.5,2.5" opacity="0.50" fill="none"/>
 
-  <!-- Wordmark -->
-  <text x="108" y="60"
-    class="wm"
-    font-family="'Helvetica Neue', Helvetica, Arial, sans-serif"
-    font-size="34"
-    font-weight="700"
-    letter-spacing="-0.5">AgentDB</text>
+<rect x="18" y="43" width="72" height="8.5" rx="2.5" fill="#D1D5DB" opacity="0.78"/>
+<rect x="23" y="54" width="62" height="8.5" rx="2.5" fill="#D1D5DB" opacity="0.58"/>
+<rect x="28" y="65" width="52" height="8.5" rx="2.5" fill="#D1D5DB" opacity="0.40"/>
+<rect x="33" y="76" width="42" height="8.5" rx="2.5" fill="#D1D5DB" opacity="0.24"/>
+<rect x="38" y="87" width="32" height="8.5" rx="2.5" fill="#2563EB" opacity="0.65"/>
 
-  <!-- Tagline -->
-  <text x="109" y="78"
-    class="tl"
-    font-family="'Helvetica Neue', Helvetica, Arial, sans-serif"
-    font-size="10"
-    letter-spacing="2.2">EMBEDDED AI DATABASE</text>
+<text x="118" y="64"
+  font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+  font-size="34"
+  letter-spacing="-0.5">
+<tspan class="wm" font-weight="300">Agent</tspan><tspan class="acc" font-weight="700">DB</tspan>
+</text>
+
+<text x="119" y="80"
+  class="tl"
+  font-family="'Helvetica Neue',Helvetica,Arial,sans-serif"
+  font-size="9"
+  letter-spacing="2.2">THE EMBEDDED AI DATABASE</text>
 </svg>
