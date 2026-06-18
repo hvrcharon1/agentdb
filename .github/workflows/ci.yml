@@ -23,25 +23,21 @@ defaults:
     shell: bash
 
 jobs:
-  # ── Step 0: ensure Cargo.lock exists in the repo ─────────────────────
-  # Runs cargo generate-lockfile and commits the result back to main
-  # when the lockfile is missing or has drifted from Cargo.toml.
-  # All other jobs depend on this so cache keys always resolve.
-  # Skipped on pull_request events (forks cannot push back to main).
+  # ── Step 0: ensure Cargo.lock is clean and resolvable ────────────────
+  # Runs cargo generate-lockfile, commits the result, and outputs the
+  # HEAD SHA so downstream jobs check out exactly that commit.
   bootstrap-lockfile:
     name: Bootstrap Cargo.lock
     runs-on: ubuntu-latest
     permissions:
       contents: write
     outputs:
-      lockfile_sha: ${{ steps.commit.outputs.lockfile_sha }}
+      sha: ${{ steps.push.outputs.sha }}
 
     steps:
       - uses: actions/checkout@v4
         with:
-          # Fetch full history so we can push back cleanly.
           fetch-depth: 0
-          # Use the built-in GITHUB_TOKEN so the push is authenticated.
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Rust 1.75.0
@@ -49,24 +45,24 @@ jobs:
         with:
           toolchain: "1.75.0"
 
-      - name: Generate Cargo.lock
+      - name: Regenerate Cargo.lock
         run: cargo generate-lockfile
 
-      - name: Commit Cargo.lock if changed
-        id: commit
+      - name: Commit and push if changed
+        id: push
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet Cargo.lock 2>/dev/null && git ls-files --error-unmatch Cargo.lock 2>/dev/null; then
-            echo "Cargo.lock is already up to date."
-            echo "lockfile_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          git add Cargo.lock
+          if git diff --cached --quiet; then
+            echo "Cargo.lock unchanged"
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           else
-            git add Cargo.lock
             git commit -m "chore(ci): update Cargo.lock [skip ci]"
             if [ "${{ github.event_name }}" != "pull_request" ]; then
               git push origin main
             fi
-            echo "lockfile_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           fi
 
   # ── Step 1: lint ─────────────────────────────────────────────────────
@@ -77,6 +73,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bootstrap-lockfile.outputs.sha }}
 
       - name: Install Rust 1.75.0 (lint)
         uses: dtolnay/rust-toolchain@stable
@@ -117,6 +115,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bootstrap-lockfile.outputs.sha }}
 
       - name: Install Rust 1.75.0 (test)
         uses: dtolnay/rust-toolchain@stable
@@ -152,10 +152,15 @@ jobs:
     name: Security Audit
     runs-on: ubuntu-latest
     needs: bootstrap-lockfile
+
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bootstrap-lockfile.outputs.sha }}
+
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
+
       - name: Audit
         run: cargo audit
 
@@ -169,6 +174,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bootstrap-lockfile.outputs.sha }}
 
       - name: Install Rust 1.75.0 (coverage)
         uses: dtolnay/rust-toolchain@stable
