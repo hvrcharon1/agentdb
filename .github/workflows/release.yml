@@ -160,7 +160,7 @@ jobs:
           token: ${{ secrets.TAP_GITHUB_TOKEN }}
           repository: hvrcharon1/homebrew-tap
           event-type: update-formula
-          client-payload: '{"version": "${{ needs.validate.outputs.version }}"}'
+          client-payload: '{"version": "${{ needs.release.outputs.version }}"}'
 
   # ── Update Scoop bucket ─────────────────────────────────────────────
   update-scoop:
@@ -177,4 +177,4 @@ jobs:
           token: ${{ secrets.TAP_GITHUB_TOKEN }}
           repository: hvrcharon1/scoop-bucket
           event-type: update-manifest
-          client-payload: '{"version": "${{ needs.validate.outputs.version }}"}'
+          client-payload: '{"version": "${{ needs.release.outputs.version }}"}'
