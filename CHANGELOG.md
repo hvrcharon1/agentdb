@@ -10,6 +10,26 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.3.3] — 2026-06-18 — Universal Package Manager Distribution
+
+### Added
+- **Homebrew tap** (`brew install hvrcharon1/tap/agentdb`) — macOS + Linux, auto-updated on release.
+- **Scoop bucket** (`scoop bucket add agentdb https://github.com/hvrcharon1/scoop-bucket && scoop install agentdb`).
+- **Chocolatey** (`choco install agentdb`) — Windows, auto-published on tag.
+- **Snap Store** (`snap install agentdb`) — Linux, built from source on tag.
+- **WinGet** (`winget install Datacules.AgentDB`) — auto-submits PR to microsoft/winget-pkgs.
+- **Nix flake** (`nix run github:hvrcharon1/agentdb`) — reproducible builds from source.
+- **install.sh** — `curl -fsSL .../install.sh | sh` with SHA-256 verification (Linux/macOS).
+- **install.ps1** — `irm .../install.ps1 | iex` with SHA-256 verification (Windows).
+- Linux aarch64 cross-compiled binary in release matrix.
+
+### Changed
+- Release workflow now produces proper archives (`*.tar.gz`, `*.zip`) with `checksums-sha256.txt`.
+- Release workflow dispatches to homebrew-tap and scoop-bucket for auto-update.
+- README install section expanded to cover all 11 distribution channels.
+
+---
+
 ## [0.3.2] — 2026-06-18 — Registry Rename + Universal Install
 
 ### Changed

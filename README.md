@@ -21,7 +21,7 @@
   &nbsp;
   <img src="https://img.shields.io/badge/language-Rust%202021-orange.svg" alt="Rust"/>
   &nbsp;
-  <img src="https://img.shields.io/badge/version-v0.3.2-blue.svg" alt="v0.3.2"/>
+  <img src="https://img.shields.io/badge/version-v0.3.3-blue.svg" alt="v0.3.3"/>
   &nbsp;
   <img src="https://img.shields.io/badge/by-Datacules%20LLC-lightgrey.svg" alt="Datacules LLC"/>
 </p>
