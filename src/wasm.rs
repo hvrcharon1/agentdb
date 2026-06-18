@@ -84,8 +84,12 @@ impl WasmAgentDB {
             .vectors()
             .collection(collection, dim)
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
-        col.upsert(VectorEntry { id: id.to_string(), vector, metadata: meta })
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+        col.upsert(VectorEntry {
+            id: id.to_string(),
+            vector,
+            metadata: meta,
+        })
+        .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
     /// Search a vector collection. Returns a JSON array string.
@@ -101,24 +105,26 @@ impl WasmAgentDB {
             .vectors()
             .collection(collection, dim)
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
-        col.search(&query, SearchOptions { top_k, metric: DistanceMetric::Cosine, filter: None })
-            .map(|results| {
-                let json: Vec<Value> = results
-                    .iter()
-                    .map(|r| serde_json::json!({ "id": r.id, "score": r.score }))
-                    .collect();
-                Value::Array(json).to_string()
-            })
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+        col.search(
+            &query,
+            SearchOptions {
+                top_k,
+                metric: DistanceMetric::Cosine,
+                filter: None,
+            },
+        )
+        .map(|results| {
+            let json: Vec<Value> = results
+                .iter()
+                .map(|r| serde_json::json!({ "id": r.id, "score": r.score }))
+                .collect();
+            Value::Array(json).to_string()
+        })
+        .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
     /// Add a node to the memory graph.
-    pub fn graph_add_node(
-        &self,
-        id: &str,
-        kind: &str,
-        data_json: &str,
-    ) -> Result<(), JsValue> {
+    pub fn graph_add_node(&self, id: &str, kind: &str, data_json: &str) -> Result<(), JsValue> {
         let data: Option<Value> = if data_json.is_empty() {
             None
         } else {

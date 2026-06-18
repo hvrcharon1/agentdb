@@ -92,7 +92,7 @@ fn ffi_vector_upsert_and_search() {
         assert!(!h.is_null());
 
         let col = cstr("thoughts");
-        let id  = cstr("t1");
+        let id = cstr("t1");
         let vec: Vec<f32> = vec![0.9, 0.1, 0.0, 0.0];
         let meta = cstr(r#"{"score":9}"#);
 
@@ -107,11 +107,15 @@ fn ffi_vector_upsert_and_search() {
         assert_eq!(rc, 0, "upsert failed: {:?}", last_error());
 
         // Insert a second vector so search has something to rank.
-        let id2  = cstr("t2");
+        let id2 = cstr("t2");
         let vec2: Vec<f32> = vec![0.1, 0.9, 0.0, 0.0];
         let _rc = agentdb_vector_upsert(
-            h, col.as_ptr(), id2.as_ptr(),
-            vec2.as_ptr(), vec2.len(), std::ptr::null(),
+            h,
+            col.as_ptr(),
+            id2.as_ptr(),
+            vec2.as_ptr(),
+            vec2.len(),
+            std::ptr::null(),
         );
 
         let query: Vec<f32> = vec![0.9, 0.1, 0.0, 0.0];
@@ -180,9 +184,16 @@ fn ffi_fts_index_and_search() {
 
         // We need a vector collection to get a collection_id for FTS.
         let col = cstr("docs");
-        let id  = cstr("d1");
+        let id = cstr("d1");
         let vec: Vec<f32> = vec![0.5, 0.5];
-        agentdb_vector_upsert(h, col.as_ptr(), id.as_ptr(), vec.as_ptr(), 2, std::ptr::null());
+        agentdb_vector_upsert(
+            h,
+            col.as_ptr(),
+            id.as_ptr(),
+            vec.as_ptr(),
+            2,
+            std::ptr::null(),
+        );
 
         // Use a placeholder collection_id (FTS doesn't validate it).
         let rc = agentdb_fts_index(
@@ -224,5 +235,7 @@ fn ffi_stats_returns_valid_json() {
 #[test]
 fn ffi_free_string_null_is_safe() {
     // Must not panic or segfault.
-    unsafe { agentdb_free_string(std::ptr::null_mut()); }
+    unsafe {
+        agentdb_free_string(std::ptr::null_mut());
+    }
 }

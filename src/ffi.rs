@@ -54,7 +54,9 @@ fn clear_last_error() {
 #[no_mangle]
 pub extern "C" fn agentdb_last_error() -> *mut c_char {
     LAST_ERROR.with(|e| match e.borrow().as_deref() {
-        Some(msg) => CString::new(msg).map(|s| s.into_raw()).unwrap_or(std::ptr::null_mut()),
+        Some(msg) => CString::new(msg)
+            .map(|s| s.into_raw())
+            .unwrap_or(std::ptr::null_mut()),
         None => std::ptr::null_mut(),
     })
 }
@@ -175,7 +177,9 @@ pub unsafe extern "C" fn agentdb_query_json(
     match h.db.query_json(sql_str) {
         Ok(rows) => {
             let json = Value::Array(rows).to_string();
-            CString::new(json).map(|s| s.into_raw()).unwrap_or(std::ptr::null_mut())
+            CString::new(json)
+                .map(|s| s.into_raw())
+                .unwrap_or(std::ptr::null_mut())
         }
         Err(e) => {
             set_last_error(e.to_string());
@@ -241,7 +245,11 @@ pub unsafe extern "C" fn agentdb_vector_upsert(
             return -1;
         }
     };
-    match col.upsert(VectorEntry { id: id_str.to_string(), vector: vec, metadata: meta }) {
+    match col.upsert(VectorEntry {
+        id: id_str.to_string(),
+        vector: vec,
+        metadata: meta,
+    }) {
         Ok(()) => 0,
         Err(e) => {
             set_last_error(e.to_string());
@@ -299,16 +307,25 @@ pub unsafe extern "C" fn agentdb_vector_search(
             return std::ptr::null_mut();
         }
     };
-    match col.search(&q, SearchOptions { top_k, metric: DistanceMetric::Cosine, filter }) {
+    match col.search(
+        &q,
+        SearchOptions {
+            top_k,
+            metric: DistanceMetric::Cosine,
+            filter,
+        },
+    ) {
         Ok(results) => {
             let json: Vec<Value> = results
                 .iter()
-                .map(|r| {
-                    serde_json::json!({ "id": r.id, "score": r.score, "metadata": r.metadata })
-                })
+                .map(
+                    |r| serde_json::json!({ "id": r.id, "score": r.score, "metadata": r.metadata }),
+                )
                 .collect();
             let s = Value::Array(json).to_string();
-            CString::new(s).map(|c| c.into_raw()).unwrap_or(std::ptr::null_mut())
+            CString::new(s)
+                .map(|c| c.into_raw())
+                .unwrap_or(std::ptr::null_mut())
         }
         Err(e) => {
             set_last_error(e.to_string());
@@ -358,7 +375,10 @@ pub unsafe extern "C" fn agentdb_graph_add_node(
     let data: Option<Value> = if data_json.is_null() {
         None
     } else {
-        CStr::from_ptr(data_json).to_str().ok().and_then(|s| serde_json::from_str(s).ok())
+        CStr::from_ptr(data_json)
+            .to_str()
+            .ok()
+            .and_then(|s| serde_json::from_str(s).ok())
     };
     match h.db.memory().add_node(id_str, kind_str, data) {
         Ok(()) => 0,
@@ -409,7 +429,11 @@ pub unsafe extern "C" fn agentdb_graph_add_edge(
             return -1;
         }
     };
-    match h.db.memory().add_edge(src_str, dst_str, relation_str, weight) {
+    match h
+        .db
+        .memory()
+        .add_edge(src_str, dst_str, relation_str, weight)
+    {
         Ok(()) => 0,
         Err(e) => {
             set_last_error(e.to_string());
@@ -455,16 +479,20 @@ pub unsafe extern "C" fn agentdb_graph_neighbors(
         Ok(results) => {
             let json: Vec<Value> = results
                 .iter()
-                .map(|r| serde_json::json!({
-                    "id": r.node.id,
-                    "kind": r.node.kind,
-                    "depth": r.depth,
-                    "weight": r.weight,
-                    "data": r.node.data
-                }))
+                .map(|r| {
+                    serde_json::json!({
+                        "id": r.node.id,
+                        "kind": r.node.kind,
+                        "depth": r.depth,
+                        "weight": r.weight,
+                        "data": r.node.data
+                    })
+                })
                 .collect();
             let s = Value::Array(json).to_string();
-            CString::new(s).map(|c| c.into_raw()).unwrap_or(std::ptr::null_mut())
+            CString::new(s)
+                .map(|c| c.into_raw())
+                .unwrap_or(std::ptr::null_mut())
         }
         Err(e) => {
             set_last_error(e.to_string());
@@ -570,7 +598,9 @@ pub unsafe extern "C" fn agentdb_fts_search(
                 .map(|r| serde_json::json!({ "id": r.id, "snippet": r.snippet, "rank": r.rank }))
                 .collect();
             let s = Value::Array(json).to_string();
-            CString::new(s).map(|c| c.into_raw()).unwrap_or(std::ptr::null_mut())
+            CString::new(s)
+                .map(|c| c.into_raw())
+                .unwrap_or(std::ptr::null_mut())
         }
         Err(e) => {
             set_last_error(e.to_string());
@@ -639,15 +669,19 @@ pub unsafe extern "C" fn agentdb_hybrid_query(
         Ok(results) => {
             let json: Vec<Value> = results
                 .iter()
-                .map(|r| serde_json::json!({
-                    "id": r.id,
-                    "rank_score": r.rank_score,
-                    "vector_score": r.vector_score,
-                    "graph_weight": r.graph_weight
-                }))
+                .map(|r| {
+                    serde_json::json!({
+                        "id": r.id,
+                        "rank_score": r.rank_score,
+                        "vector_score": r.vector_score,
+                        "graph_weight": r.graph_weight
+                    })
+                })
                 .collect();
             let s = Value::Array(json).to_string();
-            CString::new(s).map(|c| c.into_raw()).unwrap_or(std::ptr::null_mut())
+            CString::new(s)
+                .map(|c| c.into_raw())
+                .unwrap_or(std::ptr::null_mut())
         }
         Err(e) => {
             set_last_error(e.to_string());
@@ -679,7 +713,9 @@ pub unsafe extern "C" fn agentdb_stats(handle: *mut AgentDbHandle) -> *mut c_cha
                 "nodes": s.nodes,
                 "edges": s.edges
             });
-            CString::new(json.to_string()).map(|c| c.into_raw()).unwrap_or(std::ptr::null_mut())
+            CString::new(json.to_string())
+                .map(|c| c.into_raw())
+                .unwrap_or(std::ptr::null_mut())
         }
         Err(e) => {
             set_last_error(e.to_string());

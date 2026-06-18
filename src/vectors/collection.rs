@@ -252,8 +252,8 @@ impl Collection {
         // Scope the borrow of conn so stmt and rows are dropped before the second lock.
         {
             let conn = self.conn.lock().unwrap();
-            let mut stmt = conn
-                .prepare("SELECT id, vector FROM _adb_vectors WHERE collection_id = ?1")?;
+            let mut stmt =
+                conn.prepare("SELECT id, vector FROM _adb_vectors WHERE collection_id = ?1")?;
             let rows = stmt.query_map(params![self.id], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
             })?;

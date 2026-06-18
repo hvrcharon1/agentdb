@@ -64,10 +64,18 @@ fn cli_stats_on_fresh_db() {
     let path = db.path().to_str().unwrap();
     let out = run(&["stats", path]);
     assert!(out.status.success(), "stderr: {}", out.stderr);
-    assert!(out.stdout.contains("collections:"), "unexpected: {}", out.stdout);
-    assert!(out.stdout.contains("vectors:"),     "unexpected: {}", out.stdout);
-    assert!(out.stdout.contains("nodes:"),       "unexpected: {}", out.stdout);
-    assert!(out.stdout.contains("edges:"),       "unexpected: {}", out.stdout);
+    assert!(
+        out.stdout.contains("collections:"),
+        "unexpected: {}",
+        out.stdout
+    );
+    assert!(
+        out.stdout.contains("vectors:"),
+        "unexpected: {}",
+        out.stdout
+    );
+    assert!(out.stdout.contains("nodes:"), "unexpected: {}", out.stdout);
+    assert!(out.stdout.contains("edges:"), "unexpected: {}", out.stdout);
 }
 
 #[test]
@@ -78,7 +86,8 @@ fn cli_collections_empty_db() {
     assert!(out.status.success(), "stderr: {}", out.stderr);
     assert!(
         out.stdout.contains("No collections") || out.stdout.contains("name"),
-        "unexpected: {}", out.stdout
+        "unexpected: {}",
+        out.stdout
     );
 }
 
@@ -88,7 +97,11 @@ fn cli_sql_create_and_query() {
     let path = db.path().to_str().unwrap();
 
     // Create table.
-    let create = run(&["sql", path, "CREATE TABLE t (id TEXT PRIMARY KEY, v INTEGER)"]);
+    let create = run(&[
+        "sql",
+        path,
+        "CREATE TABLE t (id TEXT PRIMARY KEY, v INTEGER)",
+    ]);
     assert!(create.status.success(), "CREATE failed: {}", create.stderr);
 
     // Insert.
@@ -98,8 +111,16 @@ fn cli_sql_create_and_query() {
     // Query.
     let sel = run(&["sql", path, "SELECT id, v FROM t"]);
     assert!(sel.status.success(), "SELECT failed: {}", sel.stderr);
-    assert!(sel.stdout.contains("r1"), "r1 not in output: {}", sel.stdout);
-    assert!(sel.stdout.contains("42"),  "42 not in output: {}", sel.stdout);
+    assert!(
+        sel.stdout.contains("r1"),
+        "r1 not in output: {}",
+        sel.stdout
+    );
+    assert!(
+        sel.stdout.contains("42"),
+        "42 not in output: {}",
+        sel.stdout
+    );
 }
 
 #[test]
@@ -118,8 +139,16 @@ fn cli_inspect_empty_db() {
     let path = db.path().to_str().unwrap();
     let out = run(&["inspect", path]);
     assert!(out.status.success(), "stderr: {}", out.stderr);
-    assert!(out.stdout.contains("AgentDB Inspect"), "unexpected: {}", out.stdout);
-    assert!(out.stdout.contains("Statistics"),      "unexpected: {}", out.stdout);
+    assert!(
+        out.stdout.contains("AgentDB Inspect"),
+        "unexpected: {}",
+        out.stdout
+    );
+    assert!(
+        out.stdout.contains("Statistics"),
+        "unexpected: {}",
+        out.stdout
+    );
 }
 
 #[test]
@@ -141,6 +170,8 @@ fn cli_search_on_empty_collection() {
     // Either succeeds with "No results" or fails gracefully — never panics.
     assert!(
         out.stdout.contains("No results") || out.status.success() || !out.stderr.is_empty(),
-        "Unexpected output: stdout={} stderr={}", out.stdout, out.stderr
+        "Unexpected output: stdout={} stderr={}",
+        out.stdout,
+        out.stderr
     );
 }

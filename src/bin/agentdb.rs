@@ -55,9 +55,7 @@ enum Commands {
     },
 
     /// List all vector collections with their dimension and vector count.
-    Collections {
-        path: String,
-    },
+    Collections { path: String },
 
     /// Run a SQL query and print results as pretty-printed JSON.
     Sql {
@@ -80,14 +78,10 @@ enum Commands {
     },
 
     /// Rebuild all dirty HNSW indexes in the database.
-    Reindex {
-        path: String,
-    },
+    Reindex { path: String },
 
     /// Print a full summary: stats + collections + recent nodes.
-    Inspect {
-        path: String,
-    },
+    Inspect { path: String },
 }
 
 // ── Entry point ───────────────────────────────────────────────────────
@@ -106,9 +100,12 @@ fn run(cli: Cli) -> agentdb::Result<()> {
         Commands::Stats { path } => cmd_stats(&path),
         Commands::Collections { path } => cmd_collections(&path),
         Commands::Sql { path, query } => cmd_sql(&path, &query),
-        Commands::Search { path, collection, vector, top_k } => {
-            cmd_search(&path, &collection, &vector, top_k)
-        }
+        Commands::Search {
+            path,
+            collection,
+            vector,
+            top_k,
+        } => cmd_search(&path, &collection, &vector, top_k),
         Commands::Reindex { path } => cmd_reindex(&path),
         Commands::Inspect { path } => cmd_inspect(&path),
     }
@@ -145,16 +142,14 @@ fn cmd_collections(path: &str) -> agentdb::Result<()> {
 fn cmd_sql(path: &str, query: &str) -> agentdb::Result<()> {
     let db = AgentDB::open(path)?;
     let rows = db.query_json(query)?;
-    println!("{}", serde_json::to_string_pretty(&rows).unwrap_or_default());
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&rows).unwrap_or_default()
+    );
     Ok(())
 }
 
-fn cmd_search(
-    path: &str,
-    collection: &str,
-    vector: &[f32],
-    top_k: usize,
-) -> agentdb::Result<()> {
+fn cmd_search(path: &str, collection: &str, vector: &[f32], top_k: usize) -> agentdb::Result<()> {
     use agentdb::{DistanceMetric, SearchOptions};
 
     let db = AgentDB::open(path)?;
@@ -162,7 +157,11 @@ fn cmd_search(
     let col = db.vectors().collection(collection, dim)?;
     let results = col.search(
         vector,
-        SearchOptions { top_k, metric: DistanceMetric::Cosine, filter: None },
+        SearchOptions {
+            top_k,
+            metric: DistanceMetric::Cosine,
+            filter: None,
+        },
     )?;
 
     if results.is_empty() {
@@ -222,7 +221,8 @@ fn cmd_inspect(path: &str) -> agentdb::Result<()> {
         println!();
     }
 
-    let rows = db.query_json("SELECT id, kind FROM _adb_nodes ORDER BY created_at DESC LIMIT 10")?;
+    let rows =
+        db.query_json("SELECT id, kind FROM _adb_nodes ORDER BY created_at DESC LIMIT 10")?;
     if !rows.is_empty() {
         println!("Recent nodes (up to 10)");
         for row in &rows {
