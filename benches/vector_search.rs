@@ -82,7 +82,8 @@ fn bench_reindex(c: &mut Criterion) {
                 .unwrap();
             }
             b.iter(|| {
-                black_box(col.reindex().unwrap());
+                col.reindex().unwrap();
+                black_box(());
             });
         });
     }

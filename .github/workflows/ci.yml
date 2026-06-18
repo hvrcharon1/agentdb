@@ -23,58 +23,13 @@ defaults:
     shell: bash
 
 jobs:
-  # ── Step 0: ensure Cargo.lock is clean and resolvable ────────────────
-  # Runs cargo generate-lockfile, commits the result, and outputs the
-  # HEAD SHA so downstream jobs check out exactly that commit.
-  bootstrap-lockfile:
-    name: Bootstrap Cargo.lock
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    outputs:
-      sha: ${{ steps.push.outputs.sha }}
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install Rust 1.75.0
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.75.0"
-
-      - name: Regenerate Cargo.lock
-        run: cargo generate-lockfile
-
-      - name: Commit and push if changed
-        id: push
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Cargo.lock
-          if git diff --cached --quiet; then
-            echo "Cargo.lock unchanged"
-            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          else
-            git commit -m "chore(ci): update Cargo.lock [skip ci]"
-            if [ "${{ github.event_name }}" != "pull_request" ]; then
-              git push origin main
-            fi
-            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          fi
-
   # ── Step 1: lint ─────────────────────────────────────────────────────
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    needs: bootstrap-lockfile
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.bootstrap-lockfile.outputs.sha }}
 
       - name: Install Rust 1.75.0 (lint)
         uses: dtolnay/rust-toolchain@stable
@@ -101,13 +56,12 @@ jobs:
       # on native x86_64 runners. Default features (empty set) + --all-targets
       # covers all library, test, example, and bench code.
       - name: Clippy
-        run: cargo clippy --all-targets
+        run: cargo clippy --all-targets -- -D warnings
 
   # ── Step 2: test matrix ───────────────────────────────────────────────
   test:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: bootstrap-lockfile
     strategy:
       fail-fast: false
       matrix:
@@ -115,8 +69,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.bootstrap-lockfile.outputs.sha }}
 
       - name: Install Rust 1.75.0 (test)
         uses: dtolnay/rust-toolchain@stable
@@ -133,30 +85,28 @@ jobs:
           key: ${{ runner.os }}-cargo-1.75.0-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-1.75.0-
 
+      # --locked ensures CI uses the exact Cargo.lock committed in the repo.
       # Skip cdylib so Windows/macOS don't need a C dynamic-lib toolchain.
       - name: Build
-        run: cargo build --lib --tests --examples --benches
+        run: cargo build --locked --lib --tests --examples --benches
 
       - name: Test
-        run: cargo test --lib --tests -- --nocapture
+        run: cargo test --locked --lib --tests -- --nocapture
 
       - name: Run examples
         run: |
-          cargo run --example agent_memory
-          cargo run --example rag_pipeline
-          cargo run --example graph_traverse
-          cargo run --example v020_query_power
+          cargo run --locked --example agent_memory
+          cargo run --locked --example rag_pipeline
+          cargo run --locked --example graph_traverse
+          cargo run --locked --example v020_query_power
 
   # ── Step 3: security audit ────────────────────────────────────────────
   audit:
     name: Security Audit
     runs-on: ubuntu-latest
-    needs: bootstrap-lockfile
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.bootstrap-lockfile.outputs.sha }}
 
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
@@ -173,19 +123,14 @@ jobs:
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
-    needs: bootstrap-lockfile
     permissions:
-      id-token: write   # required for Codecov OIDC tokenless upload (public repos)
+      id-token: write   # required for Codecov OIDC tokenless upload
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.bootstrap-lockfile.outputs.sha }}
 
-      - name: Install Rust 1.75.0 (coverage)
+      - name: Install Rust stable (coverage)
         uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.75.0"
 
       - name: Cache
         uses: actions/cache@v4
@@ -194,11 +139,11 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-cov-1.75.0-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-cov-1.75.0-
+          key: ${{ runner.os }}-cargo-cov-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-cov-
 
       - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin --locked
+        run: cargo install cargo-tarpaulin
 
       - name: Coverage
         run: cargo tarpaulin --out Xml --output-dir coverage/ --skip-clean

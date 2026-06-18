@@ -52,8 +52,7 @@ fn run(args: &[&str]) -> CliOutput {
 fn tmp_db() -> NamedTempFile {
     // Create a temp file; AgentDB::open will initialise it.
     // We need the path, not an open file handle, so close immediately.
-    let f = NamedTempFile::new().expect("tempfile");
-    f
+    NamedTempFile::new().expect("tempfile")
 }
 
 // ── tests ──────────────────────────────────────────────────────────────
@@ -130,7 +129,7 @@ fn cli_reindex_empty_db() {
     let out = run(&["reindex", path]);
     assert!(out.status.success(), "stderr: {}", out.stderr);
     // Should report 0 collections reindexed.
-    assert!(out.stdout.contains("0"), "unexpected: {}", out.stdout);
+    assert!(out.stdout.contains('0'), "unexpected: {}", out.stdout);
 }
 
 #[test]
