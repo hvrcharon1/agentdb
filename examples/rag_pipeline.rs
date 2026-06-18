@@ -94,7 +94,7 @@ fn main() -> agentdb::Result<()> {
     )?;
 
     println!("\n4. Retrieved context (pass to LLM):");
-    println!("{}", "\u2500".repeat(60));
+    println!("{}", "─".repeat(60));
 
     for (i, result) in results.iter().enumerate() {
         let text = result
@@ -111,8 +111,8 @@ fn main() -> agentdb::Result<()> {
         );
     }
 
-    println!("{}", "\u2500".repeat(60));
-    println!("\n\u2713 RAG retrieval complete \u2014 feed context above into your LLM.");
+    println!("{}", "─".repeat(60));
+    println!("\n✓ RAG retrieval complete — feed context above into your LLM.");
 
     println!("\n5. Filtered search (source = docs_v1):");
     let filtered = col.search(

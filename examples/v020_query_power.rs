@@ -10,7 +10,7 @@ fn embed(seed: f32, dim: usize) -> Vec<f32> {
 fn main() -> agentdb::Result<()> {
     let db = AgentDB::open(":memory:");
     let db = db?;
-    println!("=== AgentDB v0.2.0 \u2014 Query Power Demo ===\n");
+    println!("=== AgentDB v0.2.0 — Query Power Demo ===\n");
 
     // 1. BATCH UPSERT
     println!("1. Batch upsert (single transaction)");
@@ -56,7 +56,7 @@ fn main() -> agentdb::Result<()> {
             id: "doc_fr".into(),
             vector: embed(6.0, 8),
             metadata: Some(
-                json!({"text": "Apprentissage automatique avanc\u00e9", "lang": "fr", "score": 6, "ts": 1700000600}),
+                json!({"text": "Apprentissage automatique avancé", "lang": "fr", "score": 6, "ts": 1700000600}),
             ),
         },
     ];
@@ -220,6 +220,6 @@ fn main() -> agentdb::Result<()> {
         metadata: None,
     };
 
-    println!("\n\u2713 v0.2.0 demo complete.");
+    println!("\n✓ v0.2.0 demo complete.");
     Ok(())
 }

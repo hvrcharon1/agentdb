@@ -5,7 +5,7 @@ fn main() -> agentdb::Result<()> {
     let db = AgentDB::open(":memory:");
     let db = db?;
 
-    println!("=== AgentDB \u2014 Agent Memory Demo ===\n");
+    println!("=== AgentDB — Agent Memory Demo ===\n");
 
     db.execute(
         "CREATE TABLE IF NOT EXISTS events (
@@ -122,7 +122,7 @@ fn main() -> agentdb::Result<()> {
     println!("   session_42 memory graph (depth=2):");
     for n in &neighbors {
         println!(
-            "     depth={} weight={:.2} \u2192 {} ({})",
+            "     depth={} weight={:.2} → {} ({})",
             n.depth, n.weight, n.node.id, n.node.kind
         );
     }
@@ -134,6 +134,6 @@ fn main() -> agentdb::Result<()> {
     println!("   Nodes:       {}", stats.nodes);
     println!("   Edges:       {}", stats.edges);
 
-    println!("\n\u2713 AgentDB demo complete \u2014 all three layers working in one file.");
+    println!("\n✓ AgentDB demo complete — all three layers working in one file.");
     Ok(())
 }

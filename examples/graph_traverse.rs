@@ -96,12 +96,12 @@ fn main() -> agentdb::Result<()> {
     )?;
     for n in &neighbors {
         println!(
-            "   \u2192 {} ({})  weight={:.2}",
+            "   → {} ({})  weight={:.2}",
             n.node.id, n.node.kind, n.weight
         );
     }
 
-    println!("\n3. Depth-2 traversal from session_02 (all relations, weight \u2265 0.8):");
+    println!("\n3. Depth-2 traversal from session_02 (all relations, weight ≥ 0.8):");
     let deep = graph.neighbors(
         "session_02",
         TraversalOptions {
@@ -112,7 +112,7 @@ fn main() -> agentdb::Result<()> {
     )?;
     for n in &deep {
         println!(
-            "   depth={}  \u2192 {} ({})  weight={:.2}",
+            "   depth={}  → {} ({})  weight={:.2}",
             n.depth, n.node.id, n.node.kind, n.weight
         );
     }
@@ -128,7 +128,7 @@ fn main() -> agentdb::Result<()> {
     )?;
     for n in &agentdb_neighbors {
         println!(
-            "   depth={}  \u2192 {} ({})  weight={:.2}",
+            "   depth={}  → {} ({})  weight={:.2}",
             n.depth, n.node.id, n.node.kind, n.weight
         );
     }
@@ -141,9 +141,9 @@ fn main() -> agentdb::Result<()> {
             .as_ref()
             .and_then(|d| d["label"].as_str())
             .unwrap_or("?");
-        println!("   {} \u2014 {}", c.id, label);
+        println!("   {} — {}", c.id, label);
     }
 
-    println!("\n\u2713 Graph traversal demo complete.");
+    println!("\n✓ Graph traversal demo complete.");
     Ok(())
 }

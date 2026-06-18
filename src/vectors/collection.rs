@@ -248,32 +248,37 @@ impl Collection {
 
     /// Rebuild the HNSW index from stored vectors
     pub fn reindex(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
-        let mut stmt =
-            conn.prepare("SELECT id, vector FROM _adb_vectors WHERE collection_id = ?1")?;
         let mut index = HnswIndex::new(16, 200, self.metric.clone());
-        let rows = stmt.query_map(params![self.id], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
-        })?;
-        for row in rows {
-            let (id, blob) = row?;
-            let vec: Vec<f32> = blob
-                .chunks_exact(4)
-                .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
-                .collect();
-            index.insert(&id, vec);
+        // Scope the borrow of conn so stmt and rows are dropped before the second lock.
+        {
+            let conn = self.conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT id, vector FROM _adb_vectors WHERE collection_id = ?1")?;
+            let rows = stmt.query_map(params![self.id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
+            })?;
+            for row in rows {
+                let (id, blob) = row?;
+                let vec: Vec<f32> = blob
+                    .chunks_exact(4)
+                    .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+                    .collect();
+                index.insert(&id, vec);
+            }
         }
         let serialized = index.serialize()?;
-        conn.execute(
-            "INSERT INTO _adb_hnsw_index (collection_id, index_blob, built_at, is_dirty)
-             VALUES (?1, ?2, ?3, 0)
-             ON CONFLICT(collection_id) DO UPDATE SET
-               index_blob = excluded.index_blob,
-               built_at   = excluded.built_at,
-               is_dirty   = 0",
-            params![self.id, serialized, now_ms()],
-        )?;
-        drop(conn);
+        {
+            let conn = self.conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO _adb_hnsw_index (collection_id, index_blob, built_at, is_dirty)
+                 VALUES (?1, ?2, ?3, 0)
+                 ON CONFLICT(collection_id) DO UPDATE SET
+                   index_blob = excluded.index_blob,
+                   built_at   = excluded.built_at,
+                   is_dirty   = 0",
+                params![self.id, serialized, now_ms()],
+            )?;
+        }
         *self.index.lock().unwrap() = Some(index);
         Ok(())
     }

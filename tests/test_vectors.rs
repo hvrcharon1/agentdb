@@ -130,6 +130,8 @@ mod tests {
             metadata: Some(json!({ "version": 2 })),
         })
         .unwrap();
+        // Re-upserting the same ID must not increment the count.
+        assert_eq!(col.count().unwrap(), 1, "re-upsert must not inflate count");
         let results = col
             .search(
                 &[0.9, 0.0, 0.0, 0.0],
@@ -141,6 +143,21 @@ mod tests {
             )
             .unwrap();
         assert_eq!(results[0].id, "v1");
+    }
+
+    #[test]
+    fn test_upsert_batch_count_no_overcount() {
+        let db = open();
+        let col = db.vectors().collection("col", 4).unwrap();
+        let entries = vec![
+            BatchEntry { id: "b1".into(), vector: vec![1.0, 0.0, 0.0, 0.0], metadata: None },
+            BatchEntry { id: "b2".into(), vector: vec![0.0, 1.0, 0.0, 0.0], metadata: None },
+        ];
+        col.upsert_batch(entries.clone()).unwrap();
+        assert_eq!(col.count().unwrap(), 2, "initial batch must count 2");
+        // Re-insert the same IDs — count must stay at 2, not grow to 4.
+        col.upsert_batch(entries).unwrap();
+        assert_eq!(col.count().unwrap(), 2, "re-upsert batch must not inflate count");
     }
 
     #[test]
