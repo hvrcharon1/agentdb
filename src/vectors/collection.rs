@@ -88,24 +88,31 @@ impl Collection {
         let blob: Vec<u8> = entry.vector.iter().flat_map(|f| f.to_le_bytes()).collect();
         let meta = entry.metadata.as_ref().map(|m| m.to_string());
         let conn = self.conn.lock().unwrap();
-        conn.execute(
-            "INSERT INTO _adb_vectors (id, collection_id, vector, metadata, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5)
-             ON CONFLICT(id, collection_id) DO UPDATE SET
-               vector   = excluded.vector,
-               metadata = excluded.metadata",
+        // INSERT OR IGNORE returns changes()=1 for a new row, 0 for a duplicate.
+        let inserted = conn.execute(
+            "INSERT OR IGNORE INTO _adb_vectors (id, collection_id, vector, metadata, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
             params![entry.id, self.id, blob, meta, now_ms()],
         )?;
+        if inserted == 0 {
+            conn.execute(
+                "UPDATE _adb_vectors SET vector = ?1, metadata = ?2
+                 WHERE id = ?3 AND collection_id = ?4",
+                params![blob, meta, entry.id, self.id],
+            )?;
+        }
         conn.execute(
             "INSERT INTO _adb_hnsw_index (collection_id, index_blob, built_at, is_dirty)
              VALUES (?1, X'', ?2, 1)
              ON CONFLICT(collection_id) DO UPDATE SET is_dirty = 1",
             params![self.id, now_ms()],
         )?;
-        conn.execute(
-            "UPDATE _adb_collections SET count = count + 1 WHERE id = ?1",
-            params![self.id],
-        )?;
+        if inserted > 0 {
+            conn.execute(
+                "UPDATE _adb_collections SET count = count + 1 WHERE id = ?1",
+                params![self.id],
+            )?;
+        }
         *self.index.lock().unwrap() = None;
         Ok(())
     }
@@ -123,22 +130,29 @@ impl Collection {
                 });
             }
         }
-        let n = entries.len();
         let conn = self.conn.lock().unwrap();
         conn.execute_batch("BEGIN")?;
-        let result: Result<()> = (|| {
+        let result: Result<usize> = (|| {
+            let mut new_rows: usize = 0;
             for e in &entries {
                 let blob: Vec<u8> = e.vector.iter().flat_map(|f| f.to_le_bytes()).collect();
                 let meta = e.metadata.as_ref().map(|m| m.to_string());
-                conn.execute(
-                    "INSERT INTO _adb_vectors
+                // INSERT OR IGNORE: changes()=1 for new, 0 for existing
+                let inserted = conn.execute(
+                    "INSERT OR IGNORE INTO _adb_vectors
                          (id, collection_id, vector, metadata, created_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5)
-                     ON CONFLICT(id, collection_id) DO UPDATE SET
-                       vector   = excluded.vector,
-                       metadata = excluded.metadata",
+                     VALUES (?1, ?2, ?3, ?4, ?5)",
                     params![e.id, self.id, blob, meta, now_ms()],
                 )?;
+                if inserted == 0 {
+                    conn.execute(
+                        "UPDATE _adb_vectors SET vector = ?1, metadata = ?2
+                         WHERE id = ?3 AND collection_id = ?4",
+                        params![blob, meta, e.id, self.id],
+                    )?;
+                } else {
+                    new_rows += 1;
+                }
             }
             conn.execute(
                 "INSERT INTO _adb_hnsw_index (collection_id, index_blob, built_at, is_dirty)
@@ -146,17 +160,19 @@ impl Collection {
                  ON CONFLICT(collection_id) DO UPDATE SET is_dirty = 1",
                 params![self.id, now_ms()],
             )?;
-            conn.execute(
-                "UPDATE _adb_collections SET count = count + ?1 WHERE id = ?2",
-                params![n as i64, self.id],
-            )?;
-            Ok(())
+            if new_rows > 0 {
+                conn.execute(
+                    "UPDATE _adb_collections SET count = count + ?1 WHERE id = ?2",
+                    params![new_rows as i64, self.id],
+                )?;
+            }
+            Ok(new_rows)
         })();
         match result {
-            Ok(()) => {
+            Ok(new_rows) => {
                 conn.execute_batch("COMMIT")?;
                 *self.index.lock().unwrap() = None;
-                Ok(n)
+                Ok(new_rows)
             }
             Err(e) => {
                 let _ = conn.execute_batch("ROLLBACK");
