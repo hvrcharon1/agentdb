@@ -1,7 +1,7 @@
 use crate::error::Result;
 use rusqlite::Connection;
 
-pub const SCHEMA_VERSION: &str = "1";
+pub const SCHEMA_VERSION: &str = "2";
 
 pub fn bootstrap(conn: &Connection) -> Result<()> {
     conn.execute_batch(
@@ -64,6 +64,64 @@ pub fn bootstrap(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_edges_src ON _adb_edges(src);
         CREATE INDEX IF NOT EXISTS idx_edges_dst ON _adb_edges(dst);
         CREATE INDEX IF NOT EXISTS idx_vectors_col ON _adb_vectors(collection_id);
+
+        -- Conversations / message threading
+        CREATE TABLE IF NOT EXISTS _adb_conversations (
+            id         TEXT PRIMARY KEY,
+            title      TEXT,
+            metadata   TEXT,
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS _adb_messages (
+            id              TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL REFERENCES _adb_conversations(id) ON DELETE CASCADE,
+            role            TEXT NOT NULL,
+            content         TEXT NOT NULL,
+            metadata        TEXT,
+            created_at      INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_messages_conv ON _adb_messages(conversation_id, created_at);
+
+        -- Workflow persistence
+        CREATE TABLE IF NOT EXISTS _adb_workflows (
+            id         TEXT PRIMARY KEY,
+            name       TEXT NOT NULL,
+            status     TEXT NOT NULL DEFAULT 'pending',
+            input      TEXT,
+            output     TEXT,
+            metadata   TEXT,
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS _adb_workflow_steps (
+            id           TEXT PRIMARY KEY,
+            workflow_id  TEXT NOT NULL REFERENCES _adb_workflows(id) ON DELETE CASCADE,
+            step_index   INTEGER NOT NULL,
+            name         TEXT NOT NULL,
+            status       TEXT NOT NULL DEFAULT 'pending',
+            input        TEXT,
+            output       TEXT,
+            error        TEXT,
+            started_at   INTEGER,
+            completed_at INTEGER
+        );
+        CREATE INDEX IF NOT EXISTS idx_wf_steps ON _adb_workflow_steps(workflow_id, step_index);
+
+        -- Reasoning traces
+        CREATE TABLE IF NOT EXISTS _adb_traces (
+            id         TEXT PRIMARY KEY,
+            session_id TEXT,
+            parent_id  TEXT REFERENCES _adb_traces(id),
+            trace_type TEXT NOT NULL,
+            content    TEXT NOT NULL,
+            metadata   TEXT,
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_traces_session ON _adb_traces(session_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_traces_parent  ON _adb_traces(parent_id);
         ",
     )?;
 

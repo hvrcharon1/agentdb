@@ -1,0 +1,374 @@
+// Package agentdb provides Go bindings for the AgentDB embedded database.
+//
+// AgentDB combines SQLite, a vector store, a memory graph, and full-text
+// search into a single embeddable engine for AI agent workloads.
+//
+// Prerequisites:
+//
+//	cargo build --release --features ffi --lib
+//	# produces target/release/libagentdb.so (Linux)
+//	#             target/release/libagentdb.dylib (macOS)
+//	#             target/release/agentdb.dll    (Windows)
+//
+// Place the shared library and agentdb.h on your compiler/linker search path,
+// then build normally:
+//
+//	go build ./...
+package agentdb
+
+/*
+#cgo LDFLAGS: -lagentdb
+#include "agentdb.h"
+#include <stdlib.h>
+*/
+import "C"
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"runtime"
+	"unsafe"
+)
+
+// ── Error helpers ────────────────────────────────────────────────────────────
+
+// lastError retrieves the pending error string from the native library and
+// clears it. Returns a non-nil error if one is set, otherwise a fallback.
+func lastError(fallback string) error {
+	ptr := C.agentdb_last_error()
+	if ptr == nil {
+		return errors.New(fallback)
+	}
+	msg := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return errors.New(msg)
+}
+
+// ── Types ────────────────────────────────────────────────────────────────────
+
+// DB is an open AgentDB database handle. It is safe to call from multiple
+// goroutines as long as the underlying SQLite connection is compiled in
+// serialized or WAL mode (the default for libagentdb).
+//
+// Always call Close when finished to release native resources.
+type DB struct {
+	handle *C.AgentDbHandle
+}
+
+// Stats holds the snapshot statistics returned by [DB.Stats].
+type Stats struct {
+	Collections int64 `json:"collections"`
+	Vectors     int64 `json:"vectors"`
+	Nodes       int64 `json:"nodes"`
+	Edges       int64 `json:"edges"`
+}
+
+// VectorResult is one entry returned by [DB.VectorSearch].
+type VectorResult struct {
+	ID       string          `json:"id"`
+	Score    float64         `json:"score"`
+	Metadata json.RawMessage `json:"metadata"`
+}
+
+// GraphNode is one entry returned by [DB.GraphNeighbors].
+type GraphNode struct {
+	ID     string          `json:"id"`
+	Kind   string          `json:"kind"`
+	Depth  int             `json:"depth"`
+	Weight float64         `json:"weight"`
+	Data   json.RawMessage `json:"data"`
+}
+
+// FTSResult is one entry returned by [DB.FTSSearch].
+type FTSResult struct {
+	ID      string  `json:"id"`
+	Snippet string  `json:"snippet"`
+	Rank    float64 `json:"rank"`
+}
+
+// HybridResult is one entry returned by [DB.HybridQuery].
+type HybridResult struct {
+	ID          string  `json:"id"`
+	RankScore   float64 `json:"rank_score"`
+	VectorScore float64 `json:"vector_score"`
+	GraphWeight float64 `json:"graph_weight"`
+}
+
+// ── Lifecycle ────────────────────────────────────────────────────────────────
+
+// Open opens or creates an AgentDB database at path.
+// Use ":memory:" for an in-memory database that disappears when closed.
+//
+// The returned *DB has a finalizer set so it will be closed on GC, but you
+// should call Close explicitly to control when resources are released.
+func Open(path string) (*DB, error) {
+	cpath := C.CString(path)
+	defer C.free(unsafe.Pointer(cpath))
+
+	handle := C.agentdb_open(cpath)
+	if handle == nil {
+		return nil, lastError("agentdb_open returned nil")
+	}
+
+	db := &DB{handle: handle}
+	runtime.SetFinalizer(db, (*DB).Close)
+	return db, nil
+}
+
+// Close releases all resources held by the database. After Close returns the
+// DB must not be used. Calling Close more than once is safe.
+func (db *DB) Close() {
+	if db.handle != nil {
+		C.agentdb_close(db.handle)
+		db.handle = nil
+		runtime.SetFinalizer(db, nil)
+	}
+}
+
+// ── SQL ──────────────────────────────────────────────────────────────────────
+
+// Execute runs a raw SQL statement (no parameters) and returns the number of
+// rows affected. It is suitable for DDL and DML that does not return rows.
+func (db *DB) Execute(sql string) (int64, error) {
+	csql := C.CString(sql)
+	defer C.free(unsafe.Pointer(csql))
+
+	n := C.agentdb_execute(db.handle, csql)
+	if n == -1 {
+		return -1, lastError("agentdb_execute failed")
+	}
+	return int64(n), nil
+}
+
+// QueryJSON executes a SELECT statement and returns all rows encoded as a
+// JSON array of objects. Each object's keys match the column names.
+func (db *DB) QueryJSON(sql string) (string, error) {
+	csql := C.CString(sql)
+	defer C.free(unsafe.Pointer(csql))
+
+	ptr := C.agentdb_query_json(db.handle, csql)
+	if ptr == nil {
+		return "", lastError("agentdb_query_json failed")
+	}
+	result := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return result, nil
+}
+
+// ── Vector store ─────────────────────────────────────────────────────────────
+
+// VectorUpsert inserts or updates a vector in collection. metadata is an
+// optional JSON object; pass nil to omit it.
+func (db *DB) VectorUpsert(collection, id string, vector []float32, metadata []byte) error {
+	ccol := C.CString(collection)
+	defer C.free(unsafe.Pointer(ccol))
+	cid := C.CString(id)
+	defer C.free(unsafe.Pointer(cid))
+
+	var cmeta *C.char
+	if metadata != nil {
+		cmeta = C.CString(string(metadata))
+		defer C.free(unsafe.Pointer(cmeta))
+	}
+
+	if len(vector) == 0 {
+		return errors.New("vector must not be empty")
+	}
+	cvec := (*C.float)(unsafe.Pointer(&vector[0]))
+
+	rc := C.agentdb_vector_upsert(db.handle, ccol, cid, cvec, C.ulong(len(vector)), cmeta)
+	if rc != 0 {
+		return lastError("agentdb_vector_upsert failed")
+	}
+	return nil
+}
+
+// VectorSearch finds the top-k most similar vectors to query in collection.
+// filterJSON is an optional MongoDB-style metadata filter (pass nil to skip).
+func (db *DB) VectorSearch(collection string, query []float32, topK int, filterJSON []byte) ([]VectorResult, error) {
+	ccol := C.CString(collection)
+	defer C.free(unsafe.Pointer(ccol))
+
+	var cfilter *C.char
+	if filterJSON != nil {
+		cfilter = C.CString(string(filterJSON))
+		defer C.free(unsafe.Pointer(cfilter))
+	}
+
+	if len(query) == 0 {
+		return nil, errors.New("query vector must not be empty")
+	}
+	cq := (*C.float)(unsafe.Pointer(&query[0]))
+
+	ptr := C.agentdb_vector_search(db.handle, ccol, cq, C.ulong(len(query)), C.ulong(topK), cfilter)
+	if ptr == nil {
+		return nil, lastError("agentdb_vector_search failed")
+	}
+	raw := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+
+	var results []VectorResult
+	if err := json.Unmarshal([]byte(raw), &results); err != nil {
+		return nil, fmt.Errorf("agentdb: parse vector search results: %w", err)
+	}
+	return results, nil
+}
+
+// ── Memory graph ─────────────────────────────────────────────────────────────
+
+// GraphAddNode upserts a node into the memory graph. dataJSON is an optional
+// JSON metadata object (pass nil to omit).
+func (db *DB) GraphAddNode(id, kind string, dataJSON []byte) error {
+	cid := C.CString(id)
+	defer C.free(unsafe.Pointer(cid))
+	ckind := C.CString(kind)
+	defer C.free(unsafe.Pointer(ckind))
+
+	var cdata *C.char
+	if dataJSON != nil {
+		cdata = C.CString(string(dataJSON))
+		defer C.free(unsafe.Pointer(cdata))
+	}
+
+	rc := C.agentdb_graph_add_node(db.handle, cid, ckind, cdata)
+	if rc != 0 {
+		return lastError("agentdb_graph_add_node failed")
+	}
+	return nil
+}
+
+// GraphAddEdge adds or updates a directed weighted edge (src → dst) with the
+// given relation label and weight.
+func (db *DB) GraphAddEdge(src, dst, relation string, weight float64) error {
+	csrc := C.CString(src)
+	defer C.free(unsafe.Pointer(csrc))
+	cdst := C.CString(dst)
+	defer C.free(unsafe.Pointer(cdst))
+	crel := C.CString(relation)
+	defer C.free(unsafe.Pointer(crel))
+
+	rc := C.agentdb_graph_add_edge(db.handle, csrc, cdst, crel, C.double(weight))
+	if rc != 0 {
+		return lastError("agentdb_graph_add_edge failed")
+	}
+	return nil
+}
+
+// GraphNeighbors traverses the memory graph from nodeID up to maxDepth hops,
+// returning only edges whose weight is >= minWeight (use 0.0 for all edges).
+func (db *DB) GraphNeighbors(nodeID string, maxDepth int, minWeight float64) ([]GraphNode, error) {
+	cid := C.CString(nodeID)
+	defer C.free(unsafe.Pointer(cid))
+
+	ptr := C.agentdb_graph_neighbors(db.handle, cid, C.ulong(maxDepth), C.double(minWeight))
+	if ptr == nil {
+		return nil, lastError("agentdb_graph_neighbors failed")
+	}
+	raw := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+
+	var results []GraphNode
+	if err := json.Unmarshal([]byte(raw), &results); err != nil {
+		return nil, fmt.Errorf("agentdb: parse graph neighbors: %w", err)
+	}
+	return results, nil
+}
+
+// ── Full-text search ──────────────────────────────────────────────────────────
+
+// FTSIndex adds or updates a text document in collection. vecID and
+// collectionID are correlation keys that tie the FTS entry back to a vector.
+func (db *DB) FTSIndex(collection, vecID, collectionID, text string) error {
+	ccol := C.CString(collection)
+	defer C.free(unsafe.Pointer(ccol))
+	cvid := C.CString(vecID)
+	defer C.free(unsafe.Pointer(cvid))
+	ccid := C.CString(collectionID)
+	defer C.free(unsafe.Pointer(ccid))
+	ctxt := C.CString(text)
+	defer C.free(unsafe.Pointer(ctxt))
+
+	rc := C.agentdb_fts_index(db.handle, ccol, cvid, ccid, ctxt)
+	if rc != 0 {
+		return lastError("agentdb_fts_index failed")
+	}
+	return nil
+}
+
+// FTSSearch runs a full-text query against collection, returning up to topK
+// results with snippet highlights.
+func (db *DB) FTSSearch(collection, query string, topK int) ([]FTSResult, error) {
+	ccol := C.CString(collection)
+	defer C.free(unsafe.Pointer(ccol))
+	cq := C.CString(query)
+	defer C.free(unsafe.Pointer(cq))
+
+	ptr := C.agentdb_fts_search(db.handle, ccol, cq, C.ulong(topK))
+	if ptr == nil {
+		return nil, lastError("agentdb_fts_search failed")
+	}
+	raw := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+
+	var results []FTSResult
+	if err := json.Unmarshal([]byte(raw), &results); err != nil {
+		return nil, fmt.Errorf("agentdb: parse fts results: %w", err)
+	}
+	return results, nil
+}
+
+// ── Hybrid query ──────────────────────────────────────────────────────────────
+
+// HybridQuery blends a graph traversal from anchorNode with a vector
+// similarity search in collection. alpha controls the blend:
+// 0.0 = pure graph ranking, 1.0 = pure vector ranking.
+func (db *DB) HybridQuery(anchorNode string, embedding []float32, collection string, graphDepth, topK int, alpha float64) ([]HybridResult, error) {
+	canchor := C.CString(anchorNode)
+	defer C.free(unsafe.Pointer(canchor))
+	ccol := C.CString(collection)
+	defer C.free(unsafe.Pointer(ccol))
+
+	if len(embedding) == 0 {
+		return nil, errors.New("embedding must not be empty")
+	}
+	cemb := (*C.float)(unsafe.Pointer(&embedding[0]))
+
+	ptr := C.agentdb_hybrid_query(
+		db.handle, canchor,
+		cemb, C.ulong(len(embedding)),
+		ccol,
+		C.ulong(graphDepth), C.ulong(topK),
+		C.double(alpha),
+	)
+	if ptr == nil {
+		return nil, lastError("agentdb_hybrid_query failed")
+	}
+	raw := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+
+	var results []HybridResult
+	if err := json.Unmarshal([]byte(raw), &results); err != nil {
+		return nil, fmt.Errorf("agentdb: parse hybrid results: %w", err)
+	}
+	return results, nil
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+
+// Stats returns a snapshot of database statistics (collections, vectors,
+// nodes, edges).
+func (db *DB) Stats() (Stats, error) {
+	ptr := C.agentdb_stats(db.handle)
+	if ptr == nil {
+		return Stats{}, lastError("agentdb_stats failed")
+	}
+	raw := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+
+	var s Stats
+	if err := json.Unmarshal([]byte(raw), &s); err != nil {
+		return Stats{}, fmt.Errorf("agentdb: parse stats: %w", err)
+	}
+	return s, nil
+}

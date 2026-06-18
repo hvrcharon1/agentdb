@@ -1,5 +1,5 @@
 name: agentdb
-version: '0.3.4'
+version: '0.4.0'
 summary: Single-file embedded database for AI agents
 description: |
   AgentDB is a single-file embedded database purpose-built for AI agents.

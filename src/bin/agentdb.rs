@@ -11,6 +11,7 @@
 //! agentdb search      <path> <col> <vec...>   — ANN vector search
 //! agentdb reindex     <path>                  — rebuild all dirty HNSW indexes
 //! agentdb inspect     <path>                  — full database summary
+//! agentdb shell       <path>                  — interactive SQL/dot-command REPL
 //! ```
 //!
 //! ## Examples
@@ -27,6 +28,10 @@
 //!
 //! # Full inspection
 //! agentdb inspect agent.agentdb
+//!
+//! # Interactive shell
+//! agentdb shell agent.agentdb
+//! agentdb -i agent.agentdb
 //! ```
 
 use agentdb::AgentDB;
@@ -42,8 +47,12 @@ use clap::{Parser, Subcommand};
     long_about = None,
 )]
 struct Cli {
+    /// Open the database at PATH in an interactive shell (alias for `agentdb shell <PATH>`).
+    #[arg(short = 'i', long = "interactive", value_name = "PATH")]
+    interactive: Option<String>,
+
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -82,6 +91,21 @@ enum Commands {
 
     /// Print a full summary: stats + collections + recent nodes.
     Inspect { path: String },
+
+    /// Open an interactive SQL / dot-command REPL.
+    ///
+    /// SQL statements are terminated by a semicolon and may span multiple lines.
+    /// Dot-commands are single-line helpers:
+    ///
+    ///   .help          — show this help text
+    ///   .stats         — database statistics
+    ///   .collections   — list all vector collections
+    ///   .inspect       — full database summary
+    ///   .quit / .exit  — leave the shell
+    Shell {
+        /// Path to the .agentdb file (or :memory: for a blank in-memory DB).
+        path: String,
+    },
 }
 
 // ── Entry point ───────────────────────────────────────────────────────
@@ -96,18 +120,33 @@ fn main() {
 }
 
 fn run(cli: Cli) -> agentdb::Result<()> {
+    // --interactive / -i flag takes precedence when no subcommand is given.
+    if let Some(path) = cli.interactive {
+        return cmd_shell(&path);
+    }
+
     match cli.command {
-        Commands::Stats { path } => cmd_stats(&path),
-        Commands::Collections { path } => cmd_collections(&path),
-        Commands::Sql { path, query } => cmd_sql(&path, &query),
-        Commands::Search {
+        Some(Commands::Stats { path }) => cmd_stats(&path),
+        Some(Commands::Collections { path }) => cmd_collections(&path),
+        Some(Commands::Sql { path, query }) => cmd_sql(&path, &query),
+        Some(Commands::Search {
             path,
             collection,
             vector,
             top_k,
-        } => cmd_search(&path, &collection, &vector, top_k),
-        Commands::Reindex { path } => cmd_reindex(&path),
-        Commands::Inspect { path } => cmd_inspect(&path),
+        }) => cmd_search(&path, &collection, &vector, top_k),
+        Some(Commands::Reindex { path }) => cmd_reindex(&path),
+        Some(Commands::Inspect { path }) => cmd_inspect(&path),
+        Some(Commands::Shell { path }) => cmd_shell(&path),
+        None => {
+            // Neither a subcommand nor -i was supplied — print help.
+            use std::io::Write as _;
+            let _ = writeln!(
+                std::io::stderr(),
+                "No command specified. Run `agentdb --help` for usage."
+            );
+            std::process::exit(2);
+        }
     }
 }
 
@@ -235,4 +274,168 @@ fn cmd_inspect(path: &str) -> agentdb::Result<()> {
     }
 
     Ok(())
+}
+
+// ── Interactive shell ─────────────────────────────────────────────────
+
+/// Run an interactive REPL for the database at `path`.
+///
+/// Input model
+/// -----------
+/// * SQL statements are accumulated across lines until a semicolon is seen,
+///   then executed and the JSON result printed.
+/// * Dot-commands (`.help`, `.stats`, `.collections`, `.inspect`,
+///   `.quit` / `.exit`) are executed immediately on a single line.
+/// * An empty line is ignored.
+/// * Ctrl-D (EOF from `read_line` returning `Ok(0)`) exits cleanly.
+/// * An `Interrupted` IO error (Ctrl-C on Unix) discards the current buffer
+///   and redisplays the prompt so the user can start over.
+fn cmd_shell(path: &str) -> agentdb::Result<()> {
+    use std::io::{self, BufRead, Write};
+
+    let db = AgentDB::open(path)?;
+
+    println!("AgentDB shell v{}", env!("CARGO_PKG_VERSION"));
+    println!("Connected to: {path}");
+    println!("Type .help for help, .quit to exit.");
+    println!();
+
+    let stdin = io::stdin();
+    let stdout = io::stdout();
+
+    // SQL buffer — accumulates lines until a `;` is encountered.
+    let mut sql_buf = String::new();
+
+    loop {
+        // Choose the prompt: continuation lines use `   ...> ` so the user
+        // can see they are still inside a multi-line statement.
+        let prompt = if sql_buf.trim().is_empty() {
+            "agentdb> "
+        } else {
+            "      -> "
+        };
+
+        // Print the prompt without a newline and flush immediately.
+        {
+            let mut out = stdout.lock();
+            let _ = write!(out, "{prompt}");
+            let _ = out.flush();
+        }
+
+        let mut line = String::new();
+        match stdin.lock().read_line(&mut line) {
+            // EOF (Ctrl-D): exit cleanly.
+            Ok(0) => {
+                println!();
+                println!("Bye.");
+                break;
+            }
+            Ok(_) => {}
+            Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {
+                // Ctrl-C on Unix: discard current buffer and continue.
+                if !sql_buf.is_empty() {
+                    println!("  (input cleared)");
+                    sql_buf.clear();
+                } else {
+                    println!();
+                }
+                continue;
+            }
+            Err(e) => {
+                eprintln!("read error: {e}");
+                break;
+            }
+        }
+
+        let trimmed = line.trim();
+
+        // Skip blank lines.
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        // ── Dot-commands ──────────────────────────────────────────────
+        if trimmed.starts_with('.') {
+            // Dot-commands are only valid when no SQL buffer is in progress.
+            if !sql_buf.trim().is_empty() {
+                eprintln!(
+                    "error: complete the current statement first (end with `;`), \
+                     or press Ctrl-C to discard it."
+                );
+                continue;
+            }
+
+            match trimmed {
+                ".quit" | ".exit" => {
+                    println!("Bye.");
+                    break;
+                }
+                ".help" => shell_help(),
+                ".stats" => {
+                    if let Err(e) = cmd_stats(path) {
+                        eprintln!("error: {e}");
+                    }
+                }
+                ".collections" => {
+                    if let Err(e) = cmd_collections(path) {
+                        eprintln!("error: {e}");
+                    }
+                }
+                ".inspect" => {
+                    if let Err(e) = cmd_inspect(path) {
+                        eprintln!("error: {e}");
+                    }
+                }
+                other => {
+                    eprintln!("Unknown dot-command: {other}");
+                    eprintln!("Type .help for a list of commands.");
+                }
+            }
+            continue;
+        }
+
+        // ── SQL accumulation ──────────────────────────────────────────
+        sql_buf.push_str(&line);
+
+        // Execute when the accumulated buffer ends with a semicolon
+        // (ignoring trailing whitespace after the semicolon).
+        if sql_buf.trim_end().ends_with(';') {
+            let query = sql_buf.trim().to_string();
+            sql_buf.clear();
+
+            match db.query_json(&query) {
+                Ok(rows) => {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&rows).unwrap_or_default()
+                    );
+                    println!("({} row{})", rows.len(), if rows.len() == 1 { "" } else { "s" });
+                }
+                Err(e) => eprintln!("error: {e}"),
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Print the shell help text.
+fn shell_help() {
+    println!("AgentDB interactive shell");
+    println!();
+    println!("SQL queries");
+    println!("  Enter any SQL statement.  Statements may span multiple lines.");
+    println!("  Terminate with a semicolon (;) to execute.");
+    println!();
+    println!("Dot-commands");
+    println!("  .help          show this help text");
+    println!("  .stats         print database statistics");
+    println!("  .collections   list vector collections");
+    println!("  .inspect       full database summary");
+    println!("  .quit          exit the shell");
+    println!("  .exit          exit the shell (alias for .quit)");
+    println!();
+    println!("Keyboard shortcuts");
+    println!("  Ctrl-C         discard current input line and start fresh");
+    println!("  Ctrl-D         exit the shell (EOF)");
 }

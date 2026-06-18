@@ -21,7 +21,7 @@
   &nbsp;
   <img src="https://img.shields.io/badge/language-Rust%202021-orange.svg" alt="Rust"/>
   &nbsp;
-  <img src="https://img.shields.io/badge/version-v0.3.4-blue.svg" alt="v0.3.4"/>
+  <img src="https://img.shields.io/badge/version-v0.4.0-blue.svg" alt="v0.4.0"/>
   &nbsp;
   <img src="https://img.shields.io/badge/by-Datacules%20LLC-lightgrey.svg" alt="Datacules LLC"/>
 </p>
@@ -41,7 +41,7 @@ cargo add datacules-agentdb
 ```toml
 # Cargo.toml
 [dependencies]
-datacules-agentdb = "0.3"
+datacules-agentdb = "0.4"
 ```
 
 ```rust
@@ -91,7 +91,7 @@ Verify install: `node -e "const {AgentDB}=require('@datacules/agentdb'); console
 Pre-built native addons for Linux x64/arm64, macOS x64/arm64, Windows x64.
 Full TypeScript type definitions included.
 
-### C / Go / Ruby / Swift — shared library + header
+### C / C++ — shared library + header
 
 ```bash
 # Build the shared library
@@ -115,7 +115,44 @@ agentdb_close(db);
 
 The flat C API covers open/close, SQL execute/query, vector upsert/search,
 graph add\_node/add\_edge/neighbors, FTS index/search, hybrid query, and stats.
-Any language with C FFI (Go via cgo, Ruby via `ffi` gem, Swift, Kotlin/JNI) can use it.
+
+### Go — cgo
+
+```go
+import "github.com/hvrcharon1/agentdb/go"
+
+db, _ := agentdb.Open("agent.agentdb")
+defer db.Close()
+db.Execute("CREATE TABLE sessions (id TEXT PRIMARY KEY)")
+json, _ := db.QueryJSON("SELECT * FROM sessions")
+```
+
+See [`go/README.md`](go/README.md) for build instructions.
+
+### Java — JNI
+
+```java
+import com.datacules.agentdb.AgentDB;
+
+try (AgentDB db = AgentDB.open("agent.agentdb")) {
+    db.execute("CREATE TABLE sessions (id TEXT PRIMARY KEY)");
+    String json = db.queryJson("SELECT * FROM sessions");
+}
+```
+
+See [`java/README.md`](java/README.md) for Maven setup.
+
+### C# / .NET — P/Invoke
+
+```csharp
+using Datacules.AgentDB;
+
+using var db = AgentDB.Open("agent.agentdb");
+db.Execute("CREATE TABLE sessions (id TEXT PRIMARY KEY)");
+string json = db.QueryJson("SELECT * FROM sessions");
+```
+
+See [`dotnet/README.md`](dotnet/README.md) for NuGet setup.
 
 ### CLI — one command on any OS
 
@@ -138,6 +175,16 @@ agentdb sql        agent.agentdb "SELECT * FROM sessions LIMIT 5"
 agentdb search     agent.agentdb thoughts 0.9 0.1 0.0 0.0 --top-k 5
 agentdb reindex    agent.agentdb          # rebuild all dirty HNSW indexes
 agentdb collections agent.agentdb         # list all vector collections
+agentdb shell      agent.agentdb          # interactive SQL REPL
+agentdb -i         agent.agentdb          # same as shell (shorthand)
+```
+
+### Docker
+
+```bash
+docker build -t agentdb .
+docker run -v $(pwd):/data agentdb stats mydb.agentdb
+docker run -it -v $(pwd):/data agentdb shell mydb.agentdb
 ```
 
 ### WASM — browser + Cloudflare Workers
@@ -297,6 +344,41 @@ let results = db.hybrid_query(HybridQuery {
 })?;
 ```
 
+### Layer 6 — Conversations
+
+First-class message threading for agent interactions.
+
+```rust
+let conv = db.conversations();
+conv.create_conversation("chat_1", Some("Debug session"), None)?;
+conv.add_message("chat_1", "user", "Why is the test failing?", None)?;
+conv.add_message("chat_1", "assistant", "The assertion on line 42...", None)?;
+let messages = conv.get_messages("chat_1", Some(50))?;
+```
+
+### Layer 7 — Workflow Persistence
+
+Durable workflow state for multi-step agent tasks.
+
+```rust
+let wf = db.workflows();
+wf.create_workflow("wf_1", "code_review", Some(json!({"pr": 42})))?;
+let step_id = wf.add_step("wf_1", "fetch_diff", None)?;
+wf.update_step(&step_id, "completed", Some(json!({"lines": 120})), None)?;
+wf.complete_workflow("wf_1", Some(json!({"approved": true})))?;
+```
+
+### Layer 8 — Reasoning Traces
+
+Tree-structured traces for chain-of-thought, tool calls, and decision logs.
+
+```rust
+let traces = db.traces();
+let root = traces.add_trace(Some("session_1"), None, "thought", "Analyzing the error...", None)?;
+let child = traces.add_trace(Some("session_1"), Some(&root), "tool_call", "grep for assertion", None)?;
+let tree = traces.get_trace_tree(&root)?;
+```
+
 ---
 
 ## Quick Start
@@ -323,10 +405,15 @@ See also: [`python/examples/agent_memory.py`](python/examples/agent_memory.py) a
 | `AgentDB::open(path)` | Open or create a database file |
 | `db.execute(sql)` | Execute a SQL statement |
 | `db.execute_params(sql, params)` | Execute a parameterized SQL statement |
+| `db.execute_batch(sql)` | Run multiple statements in one atomic transaction |
+| `db.transaction(closure)` | Execute a closure inside an ACID transaction |
 | `db.query_json(sql)` | Query → `Vec<serde_json::Value>` |
 | `db.vectors()` | Access vector store |
 | `db.memory()` | Access memory graph |
 | `db.fts()` | Access full-text search |
+| `db.conversations()` | Access conversation/message threading |
+| `db.workflows()` | Access workflow persistence |
+| `db.traces()` | Access reasoning traces |
 | `db.hybrid_query(q)` | Run a hybrid graph + vector query |
 | `db.stats()` | Return `DbStats` |
 | `db.close()` | Flush dirty indexes and close |
@@ -363,24 +450,78 @@ See also: [`python/examples/agent_memory.py`](python/examples/agent_memory.py) a
 | `fts.delete_text(col, id)` | Remove a document from the index |
 | `fts.optimize(col)` | Merge FTS index segments |
 
+### `ConversationStore`
+
+| Method | Description |
+|---|---|
+| `conv.create_conversation(id, title, metadata)` | Create a conversation thread |
+| `conv.add_message(conv_id, role, content, metadata)` | Append a message → returns message ID |
+| `conv.get_messages(conv_id, limit)` | Get messages in chronological order |
+| `conv.list_conversations()` | List all conversations |
+| `conv.delete_conversation(id)` | Delete conversation and all messages |
+
+### `WorkflowStore`
+
+| Method | Description |
+|---|---|
+| `wf.create_workflow(id, name, input)` | Create a workflow run |
+| `wf.add_step(workflow_id, name, input)` | Add a step → returns step ID |
+| `wf.update_step(step_id, status, output, error)` | Update step status/output |
+| `wf.complete_workflow(id, output)` | Mark workflow as completed |
+| `wf.get_workflow(id)` | Get workflow with all its steps |
+| `wf.list_workflows(status_filter)` | List workflows, optionally filtered |
+
+### `TraceStore`
+
+| Method | Description |
+|---|---|
+| `traces.add_trace(session, parent, type, content, meta)` | Add a trace node → returns ID |
+| `traces.get_traces(session_id)` | All traces for a session |
+| `traces.get_trace_tree(root_id)` | Recursive tree from a root trace |
+
 ---
 
 ## Internal Schema
 
 ```sql
-CREATE TABLE _adb_meta        (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-CREATE TABLE _adb_collections (id TEXT PRIMARY KEY, name TEXT UNIQUE, dim INTEGER,
-                                metric TEXT, count INTEGER, created_at INTEGER);
-CREATE TABLE _adb_vectors     (id TEXT, collection_id TEXT, vector BLOB,
-                                metadata TEXT, created_at INTEGER,
-                                PRIMARY KEY (id, collection_id));
-CREATE TABLE _adb_hnsw_index  (collection_id TEXT PRIMARY KEY, index_blob BLOB,
-                                built_at INTEGER, is_dirty INTEGER);
-CREATE TABLE _adb_nodes       (id TEXT PRIMARY KEY, kind TEXT, data TEXT,
-                                created_at INTEGER, updated_at INTEGER);
-CREATE TABLE _adb_edges       (src TEXT, dst TEXT, relation TEXT, weight REAL,
-                                created_at INTEGER, PRIMARY KEY (src, dst, relation));
+-- Core tables
+CREATE TABLE _adb_meta          (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE _adb_collections   (id TEXT PRIMARY KEY, name TEXT UNIQUE, dim INTEGER,
+                                  metric TEXT, count INTEGER, created_at INTEGER);
+CREATE TABLE _adb_vectors       (id TEXT, collection_id TEXT, vector BLOB,
+                                  metadata TEXT, created_at INTEGER,
+                                  PRIMARY KEY (id, collection_id));
+CREATE TABLE _adb_hnsw_index    (collection_id TEXT PRIMARY KEY, index_blob BLOB,
+                                  built_at INTEGER, is_dirty INTEGER);
+CREATE TABLE _adb_nodes         (id TEXT PRIMARY KEY, kind TEXT, data TEXT,
+                                  created_at INTEGER, updated_at INTEGER);
+CREATE TABLE _adb_edges         (src TEXT, dst TEXT, relation TEXT, weight REAL,
+                                  created_at INTEGER, PRIMARY KEY (src, dst, relation));
 CREATE VIRTUAL TABLE _adb_fts_{name} USING fts5(...);
+
+-- Conversations
+CREATE TABLE _adb_conversations (id TEXT PRIMARY KEY, title TEXT, metadata TEXT,
+                                  created_at INTEGER, updated_at INTEGER);
+CREATE TABLE _adb_messages      (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL,
+                                  role TEXT NOT NULL, content TEXT NOT NULL,
+                                  metadata TEXT, created_at INTEGER);
+
+-- Workflow persistence
+CREATE TABLE _adb_workflows     (id TEXT PRIMARY KEY, name TEXT NOT NULL,
+                                  status TEXT DEFAULT 'pending', input TEXT,
+                                  output TEXT, metadata TEXT,
+                                  created_at INTEGER, updated_at INTEGER);
+CREATE TABLE _adb_workflow_steps (id TEXT PRIMARY KEY, workflow_id TEXT NOT NULL,
+                                  step_index INTEGER, name TEXT NOT NULL,
+                                  status TEXT DEFAULT 'pending', input TEXT,
+                                  output TEXT, error TEXT,
+                                  started_at INTEGER, completed_at INTEGER);
+
+-- Reasoning traces
+CREATE TABLE _adb_traces        (id TEXT PRIMARY KEY, session_id TEXT,
+                                  parent_id TEXT, trace_type TEXT NOT NULL,
+                                  content TEXT NOT NULL, metadata TEXT,
+                                  created_at INTEGER);
 ```
 
 ---
@@ -391,16 +532,25 @@ CREATE VIRTUAL TABLE _adb_fts_{name} USING fts5(...);
 |---|---|---|---|---|---|
 | Embedded (no server) | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Single file | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Zero-configuration setup | ✅ | ✅ | ❌ | ❌ | ❌ |
+| ACID transactions / WAL | ✅ | ✅ | ❌ | ❌ | ✅ |
 | Relational SQL | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Vector / ANN search | ✅ | ❌ | ✅ | ✅ | ❌ |
 | Advanced metadata filter | ✅ | ❌ | ⚠️ | ✅ | ❌ |
 | Full-text search (BM25) | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Memory graph layer | ✅ | ❌ | ❌ | ❌ | ✅ |
 | Hybrid graph + vector query | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Conversation threading | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Workflow persistence | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Reasoning traces | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Interactive CLI shell | ✅ | ✅ | ❌ | ❌ | ✅ |
+| Docker image | ✅ | ❌ | ✅ | ✅ | ✅ |
 | Python | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Node.js | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Go | ✅ | ✅ | ❌ | ✅ | ✅ |
+| Java | ✅ | ✅ | ❌ | ✅ | ✅ |
+| C# / .NET | ✅ | ✅ | ❌ | ✅ | ✅ |
 | C FFI | ✅ | ✅ | ❌ | ❌ | ❌ |
-| CLI | ✅ | ✅ | ❌ | ✅ | ✅ |
 | WASM / browser | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Works on edge / mobile | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Unlicense (public domain equivalent) | ✅ | ✅ | ❌ | ❌ | ❌ |
@@ -441,6 +591,7 @@ agentdb/
 │   ├── PULL_REQUEST_TEMPLATE.md
 │   ├── codecov.yml
 │   └── dependabot.yml
+├── Dockerfile             ← multi-stage Docker build
 ├── src/
 │   ├── lib.rs
 │   ├── db.rs
@@ -449,10 +600,13 @@ agentdb/
 │   ├── filter.rs
 │   ├── fts.rs
 │   ├── hybrid.rs
+│   ├── conversations.rs   ← conversation/message threading
+│   ├── workflows.rs       ← workflow persistence
+│   ├── traces.rs          ← reasoning traces
 │   ├── ffi.rs             ← C FFI flat API (feature = "ffi")
 │   ├── wasm.rs            ← WASM bindings (feature = "wasm")
 │   ├── bin/
-│   │   └── agentdb.rs     ← CLI binary
+│   │   └── agentdb.rs     ← CLI binary + interactive shell
 │   ├── vectors/
 │   │   ├── mod.rs
 │   │   ├── collection.rs
@@ -460,24 +614,11 @@ agentdb/
 │   └── memory/
 │       ├── mod.rs
 │       └── graph.rs
-├── python/
-│   ├── Cargo.toml
-│   ├── pyproject.toml
-│   ├── src/lib.rs
-│   ├── python/__init__.py
-│   └── examples/
-│       └── agent_memory.py
-├── nodejs/
-│   ├── Cargo.toml
-│   ├── build.rs
-│   ├── package.json
-│   ├── index.js
-│   ├── index.d.ts
-│   ├── src/lib.rs
-│   ├── test/
-│   │   └── smoke.js
-│   └── examples/
-│       └── agent_memory.ts
+├── python/                ← PyO3 + maturin (pip install)
+├── nodejs/                ← napi-rs (npm install)
+├── go/                    ← cgo wrapper (Go module)
+├── java/                  ← JNI wrapper (Maven)
+├── dotnet/                ← P/Invoke wrapper (NuGet)
 ├── examples/
 │   ├── agent_memory.rs
 │   ├── rag_pipeline.rs
@@ -504,9 +645,9 @@ agentdb/
 | v0.1.0 Core | ✅ Done |
 | v0.2.0 Query Power | ✅ Done |
 | v0.3.0 Universal Availability | ✅ Done |
-| v0.3.1 Registry Fixes + Hotfixes | ✅ Done |
-| v0.4.0 WASM Persistence + Go/Ruby bindings | 🔜 Next |
-| v0.5.0 LangChain + LlamaIndex + MCP + Sync | Planned |
+| v0.3.1–0.3.4 Stabilization + Packaging | ✅ Done |
+| v0.4.0 AI-Native + Multi-Language SDKs | ✅ Done |
+| v0.5.0 LangChain + LlamaIndex + MCP + Sync | 🔜 Next |
 | v1.0.0 Production + all registries published | Planned |
 
 Full detail in [ROADMAP.md](ROADMAP.md) and [CHANGELOG.md](CHANGELOG.md).

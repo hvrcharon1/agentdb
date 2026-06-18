@@ -10,6 +10,27 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.4.0] — 2026-06-19 — AI-Native Features + Multi-Language SDKs
+
+### Added
+- **Conversation threading** (`src/conversations.rs`): first-class `_adb_conversations` and `_adb_messages` tables with `ConversationStore` API — create threads, append messages with role/content/metadata, query chronologically.
+- **Workflow persistence** (`src/workflows.rs`): `_adb_workflows` and `_adb_workflow_steps` tables with `WorkflowStore` API — create durable workflows, add/update steps with status tracking, complete/fail workflows.
+- **Reasoning traces** (`src/traces.rs`): `_adb_traces` table with `TraceStore` API — tree-structured chain-of-thought, tool call logs, decision traces with recursive CTE traversal.
+- **Transaction API**: `db.transaction(|tx| { ... })` for multi-operation ACID closures, `db.execute_batch(sql)` for atomic multi-statement execution.
+- **Interactive CLI shell** (`agentdb shell <path>` / `agentdb -i <path>`): readline-style REPL with multi-line SQL, dot-commands (`.stats`, `.collections`, `.inspect`, `.help`, `.quit`), and graceful Ctrl+C/Ctrl+D handling.
+- **Dockerfile**: multi-stage build (rust:1.75-slim builder + debian:bookworm-slim runtime), OCI labels, VOLUME /data, under 30MB final image.
+- **`.dockerignore`**: excludes target/, .git/, node_modules/, *.agentdb from build context.
+- **Go SDK** (`go/`): cgo wrapper covering full FFI surface — Open, Execute, QueryJSON, Stats, vector upsert/search, graph, FTS, hybrid query.
+- **Java SDK** (`java/`): JNI wrapper with Maven POM — AgentDB.open(), execute(), queryJson(), full vector/graph/FTS/hybrid API, try-with-resources support.
+- **C# / .NET SDK** (`dotnet/`): P/Invoke wrapper with NuGet project — IDisposable pattern, full FFI coverage, .NET 8 class library.
+
+### Changed
+- Schema version bumped to 2 (adds 7 new tables + 5 indexes alongside existing schema).
+- README: comparison table expanded (25 rows), project structure updated, API reference updated with new stores, Docker/Go/Java/C# install sections added.
+- ROADMAP: v0.4.0 marked complete, v0.4.1 split off for WASM persistence + Ruby.
+
+---
+
 ## [0.3.4] — 2026-06-19 — CI Stability & Logo Refresh
 
 ### Changed
@@ -186,7 +207,8 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-[Unreleased]: https://github.com/hvrcharon1/agentdb/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/hvrcharon1/agentdb/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/hvrcharon1/agentdb/compare/v0.3.4...v0.4.0
 [0.3.4]: https://github.com/hvrcharon1/agentdb/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/hvrcharon1/agentdb/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/hvrcharon1/agentdb/compare/v0.3.1...v0.3.2

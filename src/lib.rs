@@ -51,6 +51,7 @@
 //! | `python` | PyO3 Python bindings (enables `ffi`) |
 //! | `wasm` | WASM/wasm-bindgen target |
 
+pub mod conversations;
 pub mod db;
 pub mod error;
 pub mod filter;
@@ -58,7 +59,9 @@ pub mod fts;
 pub mod hybrid;
 pub mod memory;
 pub mod schema;
+pub mod traces;
 pub mod vectors;
+pub mod workflows;
 
 #[cfg(feature = "ffi")]
 pub mod ffi;
@@ -66,12 +69,15 @@ pub mod ffi;
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
+pub use conversations::{Conversation, ConversationStore, Message};
 pub use db::{AgentDB, DbStats};
 pub use error::{AgentDbError, Result};
 pub use filter::matches as filter_matches;
 pub use fts::{FtsResult, FullTextStore};
 pub use hybrid::{HybridQuery, HybridResult, HybridStore};
 pub use memory::{Edge, MemoryGraph, Node, TraversalOptions, TraversalResult};
+pub use traces::{Trace, TraceStore};
 pub use vectors::{
     BatchEntry, Collection, DistanceMetric, SearchOptions, SearchResult, VectorEntry, VectorStore,
 };
+pub use workflows::{Workflow, WorkflowStep, WorkflowStore};

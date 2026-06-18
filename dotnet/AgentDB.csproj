@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <LangVersion>12</LangVersion>
+
+    <!-- Package metadata -->
+    <PackageId>Datacules.AgentDB</PackageId>
+    <Version>0.3.4</Version>
+    <Authors>AgentDB Contributors</Authors>
+    <Company>Datacules</Company>
+    <Description>
+      .NET P/Invoke bindings for AgentDB — an embedded AI-agent database
+      combining SQL, vector search, a memory graph, and full-text search.
+    </Description>
+    <PackageTags>agentdb;vector;embedding;graph;fts;sqlite;ai;agent</PackageTags>
+    <PackageProjectUrl>https://github.com/hvrcharon1/agentdb</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/hvrcharon1/agentdb</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <!-- Documentation XML -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../README.md" Pack="true" PackagePath="\" />
+    <Compile Include="src\AgentDB.cs" />
+    <Compile Include="src\AgentDBException.cs" />
+  </ItemGroup>
+
+</Project>

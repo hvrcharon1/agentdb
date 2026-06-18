@@ -1,0 +1,5 @@
+target/
+.git/
+*.agentdb
+node_modules/
+__pycache__/

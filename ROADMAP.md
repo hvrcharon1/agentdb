@@ -37,10 +37,21 @@
 - [x] CLI integration tests (`tests/test_cli.rs`) — 7 tests
 - [x] CHANGELOG.md — full history from v0.1.0 through v0.3.0
 
-## v0.4.0 — WASM Persistence + Go/Ruby Bindings
+## v0.4.0 — AI-Native Features + Multi-Language SDKs ✅
+- [x] Conversation/message threading layer (`_adb_conversations`, `_adb_messages`)
+- [x] Workflow persistence layer (`_adb_workflows`, `_adb_workflow_steps`)
+- [x] Reasoning traces layer (`_adb_traces`) — tree-structured chain-of-thought
+- [x] Transaction API (`db.transaction()`, `db.execute_batch()`)
+- [x] Interactive CLI shell (`agentdb shell <path>`, `agentdb -i <path>`)
+- [x] Go SDK via cgo wrapping the C FFI layer (`go/`)
+- [x] Java SDK via JNI wrapping the C FFI layer (`java/`)
+- [x] C# / .NET SDK via P/Invoke wrapping the C FFI layer (`dotnet/`)
+- [x] Dockerfile — multi-stage build, minimal runtime image
+- [x] Docker support (Linux, macOS, Windows, WSL)
+
+## v0.4.1 — WASM Persistence + Ruby
 - [ ] OPFS (Origin Private File System) VFS adapter for SQLite — persistent browser storage
 - [ ] Cloudflare Workers target (Durable Objects storage backend)
-- [ ] Go bindings via cgo wrapping the C FFI layer
 - [ ] Ruby gem via `ffi` wrapping the C FFI layer
 - [ ] `BENCHMARKS.md` — baseline numbers (100k vectors, 10k nodes, all platforms)
 - [ ] Schema migration runner for future schema upgrades

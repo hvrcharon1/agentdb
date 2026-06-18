@@ -1,9 +1,12 @@
+use crate::conversations::ConversationStore;
 use crate::error::Result;
 use crate::fts::FullTextStore;
 use crate::hybrid::{HybridQuery, HybridResult, HybridStore};
 use crate::memory::MemoryGraph;
 use crate::schema;
+use crate::traces::TraceStore;
 use crate::vectors::VectorStore;
+use crate::workflows::WorkflowStore;
 use rusqlite::Connection;
 use std::sync::{Arc, Mutex};
 
@@ -38,6 +41,21 @@ impl AgentDB {
         FullTextStore::new(Arc::clone(&self.conn))
     }
 
+    /// Access the conversation / message-threading layer
+    pub fn conversations(&self) -> ConversationStore {
+        ConversationStore::new(Arc::clone(&self.conn))
+    }
+
+    /// Access the workflow persistence layer
+    pub fn workflows(&self) -> WorkflowStore {
+        WorkflowStore::new(Arc::clone(&self.conn))
+    }
+
+    /// Access the reasoning-trace layer
+    pub fn traces(&self) -> TraceStore {
+        TraceStore::new(Arc::clone(&self.conn))
+    }
+
     /// Run a hybrid graph + vector query
     pub fn hybrid_query(&self, q: HybridQuery) -> Result<Vec<HybridResult>> {
         let dim: usize = {
@@ -64,6 +82,57 @@ impl AgentDB {
     pub fn execute_params(&self, sql: &str, params: &[&dyn rusqlite::ToSql]) -> Result<usize> {
         let conn = self.conn.lock().unwrap();
         Ok(conn.execute(sql, params)?)
+    }
+
+    /// Run multiple operations atomically inside a single SQLite transaction.
+    ///
+    /// The closure receives a [`rusqlite::Transaction`] and may perform any
+    /// number of reads or writes.  If the closure returns `Ok`, the transaction
+    /// is committed; if it returns `Err` (or panics), the transaction is rolled
+    /// back automatically.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use agentdb::AgentDB;
+    /// let db = AgentDB::open(":memory:").unwrap();
+    /// db.transaction(|tx| {
+    ///     tx.execute("INSERT INTO _adb_nodes (id, label, data) VALUES ('x','tag','{}')", [])?;
+    ///     tx.execute("INSERT INTO _adb_nodes (id, label, data) VALUES ('y','tag','{}')", [])?;
+    ///     Ok(())
+    /// }).unwrap();
+    /// ```
+    pub fn transaction<F, T>(&self, f: F) -> Result<T>
+    where
+        F: FnOnce(&rusqlite::Transaction) -> Result<T>,
+    {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        let result = f(&tx)?;
+        tx.commit()?;
+        Ok(result)
+    }
+
+    /// Execute one or more semicolon-separated SQL statements as a single
+    /// atomic batch.  This is a convenience wrapper around
+    /// [`execute_batch`](rusqlite::Connection::execute_batch) that wraps the
+    /// statements in an explicit transaction so partial execution is never
+    /// visible to other threads.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use agentdb::AgentDB;
+    /// let db = AgentDB::open(":memory:").unwrap();
+    /// db.execute_batch(
+    ///     "INSERT INTO _adb_nodes (id,label,data) VALUES ('a','t','{}');
+    ///      INSERT INTO _adb_nodes (id,label,data) VALUES ('b','t','{}');"
+    /// ).unwrap();
+    /// ```
+    pub fn execute_batch(&self, sql: &str) -> Result<()> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        tx.execute_batch(sql)?;
+        tx.commit()?;
+        Ok(())
     }
 
     /// Query and return rows as JSON values
