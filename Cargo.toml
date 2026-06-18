@@ -60,7 +60,7 @@ serde     = { version = "1",    features = ["derive"] }
 serde_json = "1"
 bincode   = "1"
 thiserror = "1"
-uuid      = { version = "1", features = ["v4"] }
+uuid      = { version = "~1.20", features = ["v4"] }
 rand      = "0.8"
 
 # Optional: async runtime
@@ -70,10 +70,11 @@ tokio = { version = "1", features = ["full"], optional = true }
 pyo3 = { version = "0.21", features = ["extension-module"], optional = true }
 
 # Optional: WASM target
-wasm-bindgen = { version = "0.2", optional = true }
+# Pinned to <0.2.118: versions 0.2.118+ require Rust 1.77 (our MSRV is 1.75)
+wasm-bindgen = { version = "~0.2.117", optional = true }
 
-# CLI argument parsing (always available for the bin target)
-clap = { version = "4", features = ["derive"] }
+# CLI argument parsing — pinned to 4.5.x: clap 4.6+ requires Rust 1.85 (MSRV=1.75)
+clap = { version = "~4.5", features = ["derive"] }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
