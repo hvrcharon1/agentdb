@@ -4,7 +4,8 @@
 
 | Version | Supported |
 |---|---|
-| 0.3.x (latest) | ✅ Receives security patches |
+| 0.4.x (latest) | ✅ Receives security patches |
+| 0.3.x | ❌ End of life |
 | 0.2.x | ⚠️ Critical fixes only |
 | 0.1.x | ❌ End of life |
 

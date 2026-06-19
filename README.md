@@ -21,7 +21,13 @@
   &nbsp;
   <img src="https://img.shields.io/badge/language-Rust%202021-orange.svg" alt="Rust"/>
   &nbsp;
-  <img src="https://img.shields.io/badge/version-v0.4.0-blue.svg" alt="v0.4.0"/>
+  <a href="https://crates.io/crates/datacules-agentdb">
+    <img src="https://img.shields.io/crates/v/datacules-agentdb.svg" alt="crates.io"/>
+  </a>
+  &nbsp;
+  [![PyPI](https://img.shields.io/pypi/v/datacules-agentdb.svg)](https://pypi.org/project/datacules-agentdb/)
+  &nbsp;
+  [![npm](https://img.shields.io/npm/v/@datacules/agentdb.svg)](https://www.npmjs.com/package/@datacules/agentdb)
   &nbsp;
   <img src="https://img.shields.io/badge/by-Datacules%20LLC-lightgrey.svg" alt="Datacules LLC"/>
 </p>
@@ -203,7 +209,7 @@ console.log(JSON.parse(db.stats()));
 // { collections: 0, vectors: 0, nodes: 0, edges: 0 }
 ```
 
-In-memory databases work today. Persistent storage via OPFS is tracked for v0.4.0.
+In-memory databases work today. Persistent storage via OPFS is planned for a future release.
 
 ---
 

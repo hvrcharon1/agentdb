@@ -1,16 +1,19 @@
-//! # AgentDB v0.3.0
+//! # AgentDB
 //!
 //! A single-file embedded database for AI agents.
 //!
-//! **Five layers, one file, zero servers:**
+//! **Eight layers, one file, zero servers:**
 //!
 //! | Layer | What it gives you |
 //! |---|---|
-//! | Relational SQL | Full SQL engine, ACID, WAL, user-defined tables |
-//! | Vector Store | HNSW ANN search, cosine/euclidean/dot, batch upsert |
-//! | Memory Graph | Typed nodes, weighted edges, recursive CTE traversal |
-//! | Full-Text Search | FTS5 virtual tables, BM25 ranking, Porter stemmer |
-//! | Hybrid Queries | Graph traversal + vector ANN with alpha blending |
+//! | Relational SQL (SQLite) | Full SQL engine, ACID, WAL, user-defined tables |
+//! | HNSW Vector Search | ANN search, cosine/euclidean/dot, batch upsert |
+//! | Memory Graph (recursive CTE) | Typed nodes, weighted edges, recursive CTE traversal |
+//! | FTS5 Full-Text Search | FTS5 virtual tables, BM25 ranking, Porter stemmer |
+//! | Hybrid Graph + Vector Queries | Graph traversal + vector ANN with alpha blending |
+//! | Conversations | Threaded message history with role and metadata |
+//! | Workflow Persistence | Durable multi-step agent workflow state |
+//! | Reasoning Traces | Structured chain-of-thought and trace logging |
 //!
 //! ## Quick start
 //!

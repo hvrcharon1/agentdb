@@ -9,7 +9,7 @@
 
     <!-- Package metadata -->
     <PackageId>Datacules.AgentDB</PackageId>
-    <Version>0.3.4</Version>
+    <Version>0.4.5</Version>
     <Authors>AgentDB Contributors</Authors>
     <Company>Datacules</Company>
     <Description>
@@ -20,7 +20,7 @@
     <PackageProjectUrl>https://github.com/hvrcharon1/agentdb</PackageProjectUrl>
     <RepositoryUrl>https://github.com/hvrcharon1/agentdb</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
 
     <!-- Documentation XML -->

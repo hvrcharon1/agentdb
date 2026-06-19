@@ -10,6 +10,19 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.4.5] — 2026-06-19
+
+### Fixed
+- Chocolatey publish workflow: corrected secret name (`CHOCO_API_KEY`)
+- Python publish workflow: switched to Rust stable toolchain, fixed maturin readme path, corrected module directory structure, replaced container build with `maturin-action`
+- Node.js publish workflow: switched to Rust stable toolchain, added `--ignore-scripts` for publish step
+- crates.io publish workflow: switched to Rust stable toolchain
+
+### Changed
+- All publish workflows now use Rust stable instead of pinned 1.75 for wheel/addon builds (transitive deps require edition2024)
+
+---
+
 ## [0.4.0] — 2026-06-19 — AI-Native Features + Multi-Language SDKs
 
 ### Added
@@ -207,7 +220,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-[Unreleased]: https://github.com/hvrcharon1/agentdb/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/hvrcharon1/agentdb/compare/v0.4.5...HEAD
+[0.4.5]: https://github.com/hvrcharon1/agentdb/compare/v0.4.0...v0.4.5
+[0.4.4]: https://github.com/hvrcharon1/agentdb/compare/v0.4.3...v0.4.4
+[0.4.3]: https://github.com/hvrcharon1/agentdb/compare/v0.4.2...v0.4.3
+[0.4.2]: https://github.com/hvrcharon1/agentdb/compare/v0.4.1...v0.4.2
+[0.4.1]: https://github.com/hvrcharon1/agentdb/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/hvrcharon1/agentdb/compare/v0.3.4...v0.4.0
 [0.3.4]: https://github.com/hvrcharon1/agentdb/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/hvrcharon1/agentdb/compare/v0.3.2...v0.3.3

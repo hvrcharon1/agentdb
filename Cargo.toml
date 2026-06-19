@@ -9,6 +9,7 @@ description = "Single-file embedded database for AI agents. SQL + Vector Search 
 license = "Unlicense"
 repository = "https://github.com/hvrcharon1/agentdb"
 homepage = "https://github.com/hvrcharon1/agentdb"
+documentation = "https://docs.rs/datacules-agentdb"
 readme = "README.md"
 keywords = ["database", "vector-search", "ai", "agents", "embedded"]
 categories = ["database", "embedded", "science", "data-structures"]

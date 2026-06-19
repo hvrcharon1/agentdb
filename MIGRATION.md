@@ -4,6 +4,56 @@ This document covers API changes between AgentDB versions and how to update your
 
 ---
 
+## v0.3.x → v0.4.0
+
+**No breaking changes.** All v0.3.x Rust, Python, and Node.js code compiles and runs unchanged.
+
+### What's new
+
+**New `AgentDB` methods:**
+
+```rust
+// Conversation threading — create threads, append messages, query chronologically
+let store = db.conversations()?;
+let conv_id = store.create("My thread", None)?;
+store.append_message(conv_id, "user", "Hello", None)?;
+let msgs = store.messages(conv_id, None)?;
+
+// Workflow persistence — durable workflows with step tracking
+let wf = db.workflows()?;
+let wf_id = wf.create("my-pipeline", None)?;
+let step_id = wf.add_step(wf_id, "fetch", None)?;
+wf.update_step_status(step_id, "complete", None)?;
+wf.complete(wf_id, None)?;
+
+// Reasoning traces — tree-structured chain-of-thought, tool call logs
+let tr = db.traces()?;
+let root = tr.create("plan", None, None)?;
+let child = tr.add_child(root, "tool_call", Some(json!({"tool": "search"})))?;
+let tree = tr.subtree(root)?;
+
+// ACID transaction closure
+db.transaction(|tx| {
+    tx.execute("INSERT INTO t VALUES (?1)", ["x"])?;
+    tx.execute("UPDATE counters SET n = n + 1", [])?;
+    Ok(())
+})?;
+
+// Atomic multi-statement execution
+db.execute_batch("
+    CREATE TABLE IF NOT EXISTS log (ts INTEGER, msg TEXT);
+    INSERT INTO log VALUES (unixepoch(), 'boot');
+")?;
+```
+
+### Schema v2
+
+The database schema is automatically migrated from v1 to v2 on first open. Seven new tables are added transparently alongside the existing schema — no manual action required, and existing data is untouched.
+
+New tables: `agentdb_conversations`, `agentdb_messages`, `agentdb_workflows`, `agentdb_workflow_steps`, `agentdb_traces`, plus supporting FTS tables.
+
+---
+
 ## v0.3.1 → v0.3.2
 
 **Package renamed on crates.io and PyPI to avoid name conflicts.** No API changes.
