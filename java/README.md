@@ -109,7 +109,7 @@ All methods throw `AgentDBException` (unchecked) on native errors.
 ## JNI glue (for native library authors)
 
 The Java class declares these native methods; the JNI implementation lives in
-the Rust crate under `src/jni.rs` (built into the shared library):
+the Rust crate under `src/ffi.rs` (built into the shared library via `--features ffi`):
 
 ```
 Java_com_datacules_agentdb_AgentDB_nativeOpen

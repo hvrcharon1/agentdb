@@ -46,6 +46,10 @@ path = "examples/graph_traverse.rs"
 name = "v020_query_power"
 path = "examples/v020_query_power.rs"
 
+[[example]]
+name = "ai_agent_loop"
+path = "examples/ai_agent_loop.rs"
+
 # ── Benchmarks ─────────────────────────────────────────────────────────
 [[bench]]
 name = "vector_search"
