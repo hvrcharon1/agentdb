@@ -40,6 +40,9 @@ jobs:
       - name: Install maturin
         run: pip install maturin
 
+      - name: Copy README into python package
+        run: cp README.md python/README.md
+
       - name: Build wheel
         working-directory: python
         run: maturin build --release --out dist
@@ -57,6 +60,8 @@ jobs:
     container: ghcr.io/pyo3/maturin
     steps:
       - uses: actions/checkout@v4
+      - name: Copy README into python package
+        run: cp README.md python/README.md
       - name: Build manylinux wheel
         working-directory: python
         run: maturin build --release --out dist --manylinux auto

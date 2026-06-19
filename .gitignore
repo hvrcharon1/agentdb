@@ -8,3 +8,4 @@ nodejs/Cargo.lock
 .env
 dist/
 *.docx
+python/README.md

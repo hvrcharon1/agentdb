@@ -6,7 +6,7 @@ build-backend = "maturin"
 name        = "datacules-agentdb"
 version     = "0.4.1"
 description = "Single-file embedded database for AI agents. SQL + Vector Search + Full-Text Search + Hybrid Queries + Memory Graphs."
-readme      = "../README.md"
+readme      = "README.md"
 license     = { text = "The Unlicense (Public Domain)" }
 requires-python = ">=3.9"
 keywords    = ["database", "vector-search", "ai", "agents", "embeddings", "rag"]
