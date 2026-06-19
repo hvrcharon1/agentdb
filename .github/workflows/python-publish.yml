@@ -57,14 +57,15 @@ jobs:
   build-manylinux:
     name: Build manylinux wheel
     runs-on: ubuntu-latest
-    container: ghcr.io/pyo3/maturin
     steps:
       - uses: actions/checkout@v4
       - name: Copy README into python package
         run: cp README.md python/README.md
       - name: Build manylinux wheel
-        working-directory: python
-        run: maturin build --release --out dist --manylinux auto
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: python
+          args: --release --out dist --manylinux auto
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-manylinux
