@@ -25,10 +25,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Rust 1.75.0
+      - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.75.0"
 
       - name: Cache Rust
         uses: actions/cache@v4

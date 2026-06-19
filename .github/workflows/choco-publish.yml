@@ -40,4 +40,4 @@ jobs:
         run: |
           cd choco
           choco pack agentdb.nuspec
-          choco push --source https://push.chocolatey.org/ --api-key ${{ secrets.CHOCOLATEY_API_KEY }}
+          choco push --source https://push.chocolatey.org/ --api-key ${{ secrets.CHOCO_API_KEY }}
