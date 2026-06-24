@@ -73,7 +73,7 @@ rand      = "0.8"
 tokio = { version = "1", features = ["full"], optional = true }
 
 # Optional: Python bindings (PyO3)
-pyo3 = { version = "0.21", features = ["extension-module"], optional = true }
+pyo3 = { version = "0.29", features = ["extension-module"], optional = true }
 
 # Optional: WASM target
 # Pinned to <0.2.118: versions 0.2.118+ require Rust 1.77 (our MSRV is 1.75)
