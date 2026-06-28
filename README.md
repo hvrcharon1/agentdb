@@ -3,9 +3,10 @@
 </p>
 
 <p align="center">
-  <b>The database built for AI agents.</b><br/>
-  One file. Zero servers. Eight layers.<br/>
-  SQL &nbsp;·&nbsp; Vector Search &nbsp;·&nbsp; Memory Graphs &nbsp;·&nbsp; Full-Text Search &nbsp;·&nbsp; Conversations &nbsp;·&nbsp; Workflows &nbsp;·&nbsp; Reasoning Traces
+  <b>The default embedded database for AI agents.</b><br/>
+  One file. Eight layers. Every platform. Zero servers.<br/>
+  Semantic Memory &nbsp;·&nbsp; Vector Search &nbsp;·&nbsp; Memory Graphs &nbsp;·&nbsp; Full-Text Search &nbsp;·&nbsp; Hybrid Queries &nbsp;·&nbsp; Conversations &nbsp;·&nbsp; Workflows &nbsp;·&nbsp; Reasoning Traces<br/>
+  Rust &nbsp;·&nbsp; Python &nbsp;·&nbsp; Node.js &nbsp;·&nbsp; Go &nbsp;·&nbsp; Java &nbsp;·&nbsp; C# &nbsp;·&nbsp; C/C++ &nbsp;·&nbsp; WASM &nbsp;·&nbsp; CLI
 </p>
 
 <p align="center">
@@ -35,6 +36,27 @@
   &nbsp;
   <img src="https://img.shields.io/badge/by-Datacules%20LLC-lightgrey.svg" alt="Datacules LLC"/>
 </p>
+
+---
+
+## Philosophy
+
+AgentDB is the default embedded database for AI agents. It is a single file, zero configuration, cross-platform database that works consistently across desktop, mobile, edge, browser, server, CLI, and embedded devices. Every feature is built to optimize for agentic workloads — semantic memory, vector search, graph relationships, conversations, workflows, tool executions, and structured knowledge — while remaining lightweight, portable, deterministic, and developer-friendly.
+
+AgentDB prioritizes local-first operations, high performance, reliability, language interoperability, and simple APIs so developers can drop it into any application and immediately give AI agents persistent, intelligent memory. Every new capability reinforces the philosophy of **embed, open, use** — minimal setup, maximum portability.
+
+### Core Principles
+
+| # | Principle | What it means |
+|---|---|---|
+| 1 | **AI-native first, not AI as an add-on** | Every API, schema, and default is designed around agentic access patterns — not retrofitted onto a general-purpose database |
+| 2 | **One file, one API, every platform** | A single `.agentdb` file works identically whether you open it from Python, Rust, Node.js, Go, Java, or the CLI |
+| 3 | **Offline-first with optional synchronization** | Full capability without any network connection; sync is an opt-in layer, not a requirement |
+| 4 | **Deterministic and reproducible agent memory** | Given the same inputs, agents produce the same outputs — no hidden server state, no non-deterministic remote indexes |
+| 5 | **Built-in semantic primitives** | Vectors, graphs, memory, workflows, conversations, and reasoning traces are first-class citizens, not plugins |
+| 6 | **Language-agnostic** | Native bindings for Rust, Python, JavaScript, Go, Java, C#, C/C++, Swift, Kotlin, Ruby, and more |
+| 7 | **No infrastructure required** | No server. No daemon. No configuration. Drop in a file and start writing |
+| 8 | **Scales from a phone to a data center** | The same programming model works on a microcontroller, a laptop, and a cloud server — without code changes |
 
 ---
 
@@ -312,7 +334,8 @@ A brief map of what's available. Full API documentation lives on [docs.rs](https
 | v0.2.0 — Query Power (FTS + Hybrid + Filters) | ✅ Released |
 | v0.3.0 — Universal Availability (C FFI, CLI, Python, Node.js, WASM) | ✅ Released |
 | v0.4.0 — AI-Native (Conversations, Workflows, Traces + Go/Java/.NET SDKs) | ✅ Released |
-| v0.4.1 — WASM Persistence (OPFS) + Ruby SDK | 🔜 Next |
+| v0.4.5 — Dep upgrades (rusqlite 0.40, pyo3 0.29, bincode 2, thiserror 2), MSRV 1.85 | ✅ Released |
+| v0.4.6 — WASM Persistence (OPFS) + Ruby SDK | 🔜 Next |
 | v0.5.0 — Ecosystem (LangChain, LlamaIndex, MCP server, AgentDB Sync) | Planned |
 | v1.0.0 — Production Release | Planned |
 
