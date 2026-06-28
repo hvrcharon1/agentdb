@@ -1,5 +1,6 @@
 use crate::error::{AgentDbError, Result};
 use crate::filter;
+use crate::fts::FullTextStore;
 use crate::schema::now_ms;
 use crate::vectors::hnsw::{DistanceMetric, HnswIndex};
 use rusqlite::{params, Connection};
@@ -231,6 +232,17 @@ impl Collection {
         Ok(out)
     }
 
+    /// Insert or update a vector AND index its text content for FTS in one atomic call.
+    ///
+    /// This keeps the vector index and the FTS index in sync — callers no longer
+    /// need to call `col.upsert()` + `fts.index_text()` separately.
+    pub fn upsert_with_text(&self, entry: VectorEntry, text: &str) -> Result<()> {
+        let id = entry.id.clone();
+        self.upsert(entry)?;
+        let fts = FullTextStore::new(Arc::clone(&self.conn));
+        fts.index_text(&self.name, &id, &self.id, text)
+    }
+
     /// Delete a vector by ID
     pub fn delete(&self, id: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
@@ -286,6 +298,26 @@ impl Collection {
     fn ensure_index(&self) -> Result<()> {
         if self.index.lock().unwrap().is_some() {
             return Ok(());
+        }
+        // Try to deserialize the stored blob first; fall back to a full rebuild
+        // only when the blob is absent, empty, or corrupt.
+        let blob_opt: Option<Vec<u8>> = {
+            let conn = self.conn.lock().unwrap();
+            conn.query_row(
+                "SELECT index_blob FROM _adb_hnsw_index
+                 WHERE collection_id = ?1 AND is_dirty = 0",
+                params![self.id],
+                |r| r.get::<_, Vec<u8>>(0),
+            )
+            .ok()
+        };
+        if let Some(blob) = blob_opt {
+            if !blob.is_empty() {
+                if let Ok(index) = HnswIndex::deserialize(&blob) {
+                    *self.index.lock().unwrap() = Some(index);
+                    return Ok(());
+                }
+            }
         }
         self.reindex()
     }

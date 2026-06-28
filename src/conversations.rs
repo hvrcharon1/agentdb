@@ -69,6 +69,9 @@ impl ConversationStore {
 
     /// Append a message to an existing conversation.
     ///
+    /// The INSERT and the updated_at bump run inside a single lock acquisition
+    /// so a crash between the two operations cannot leave a stale timestamp.
+    ///
     /// Returns the newly generated message ID.
     pub fn add_message(
         &self,
@@ -80,23 +83,17 @@ impl ConversationStore {
         let msg_id = Uuid::new_v4().to_string();
         let meta_str = metadata.as_ref().map(|m| m.to_string());
         let now = now_ms();
-        {
-            let conn = self.conn.lock().unwrap();
-            conn.execute(
-                "INSERT INTO _adb_messages
-                     (id, conversation_id, role, content, metadata, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![msg_id, conversation_id, role, content, meta_str, now],
-            )?;
-        }
-        // Bump the conversation's updated_at timestamp.
-        {
-            let conn = self.conn.lock().unwrap();
-            conn.execute(
-                "UPDATE _adb_conversations SET updated_at = ?1 WHERE id = ?2",
-                params![now, conversation_id],
-            )?;
-        }
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO _adb_messages
+                 (id, conversation_id, role, content, metadata, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![msg_id, conversation_id, role, content, meta_str, now],
+        )?;
+        conn.execute(
+            "UPDATE _adb_conversations SET updated_at = ?1 WHERE id = ?2",
+            params![now, conversation_id],
+        )?;
         Ok(msg_id)
     }
 

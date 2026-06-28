@@ -61,9 +61,10 @@ pub fn bootstrap(conn: &Connection) -> Result<()> {
             FOREIGN KEY (dst) REFERENCES _adb_nodes(id) ON DELETE CASCADE
         );
 
-        CREATE INDEX IF NOT EXISTS idx_edges_src ON _adb_edges(src);
-        CREATE INDEX IF NOT EXISTS idx_edges_dst ON _adb_edges(dst);
+        CREATE INDEX IF NOT EXISTS idx_edges_src  ON _adb_edges(src);
+        CREATE INDEX IF NOT EXISTS idx_edges_dst  ON _adb_edges(dst);
         CREATE INDEX IF NOT EXISTS idx_vectors_col ON _adb_vectors(collection_id);
+        CREATE INDEX IF NOT EXISTS idx_nodes_kind  ON _adb_nodes(kind);
 
         -- Conversations / message threading
         CREATE TABLE IF NOT EXISTS _adb_conversations (

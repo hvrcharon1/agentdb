@@ -620,6 +620,7 @@ pub unsafe extern "C" fn agentdb_fts_search(
 /// `graph_depth`  — max hops from anchor
 /// `top_k`        — results to return
 /// `alpha`        — 0.0 = pure graph, 1.0 = pure vector
+/// `filter_json`  — optional MongoDB-style metadata filter JSON (may be NULL)
 ///
 /// Returns heap-allocated JSON string — free with `agentdb_free_string`.
 #[no_mangle]
@@ -632,6 +633,7 @@ pub unsafe extern "C" fn agentdb_hybrid_query(
     graph_depth: usize,
     top_k: usize,
     alpha: f64,
+    filter_json: *const c_char,
 ) -> *mut c_char {
     clear_last_error();
     let h = match handle.as_ref() {
@@ -656,6 +658,14 @@ pub unsafe extern "C" fn agentdb_hybrid_query(
         }
     };
     let emb: Vec<f32> = std::slice::from_raw_parts(embedding, dim).to_vec();
+    let filter: Option<serde_json::Value> = if filter_json.is_null() {
+        None
+    } else {
+        CStr::from_ptr(filter_json)
+            .to_str()
+            .ok()
+            .and_then(|s| serde_json::from_str(s).ok())
+    };
     let q = HybridQuery {
         anchor_node: anchor,
         embedding: &emb,
@@ -663,7 +673,7 @@ pub unsafe extern "C" fn agentdb_hybrid_query(
         graph_depth,
         top_k,
         alpha,
-        filter: None,
+        filter,
     };
     match h.db.hybrid_query(q) {
         Ok(results) => {
@@ -708,10 +718,15 @@ pub unsafe extern "C" fn agentdb_stats(handle: *mut AgentDbHandle) -> *mut c_cha
     match h.db.stats() {
         Ok(s) => {
             let json = serde_json::json!({
-                "collections": s.collections,
-                "vectors": s.vectors,
-                "nodes": s.nodes,
-                "edges": s.edges
+                "collections":    s.collections,
+                "vectors":        s.vectors,
+                "nodes":          s.nodes,
+                "edges":          s.edges,
+                "conversations":  s.conversations,
+                "messages":       s.messages,
+                "workflows":      s.workflows,
+                "workflow_steps": s.workflow_steps,
+                "traces":         s.traces
             });
             CString::new(json.to_string())
                 .map(|c| c.into_raw())
@@ -1185,6 +1200,46 @@ pub unsafe extern "C" fn agentdb_workflow_complete(
     }
 }
 
+/// Mark a workflow as failed with an optional error message.
+///
+/// `error` — optional error string (may be NULL)
+///
+/// Returns 0 on success, -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_workflow_fail(
+    handle: *mut AgentDbHandle,
+    id: *const c_char,
+    error: *const c_char,
+) -> i32 {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
+    };
+    let id_str = match CStr::from_ptr(id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid id");
+            return -1;
+        }
+    };
+    let error_str = if error.is_null() {
+        None
+    } else {
+        CStr::from_ptr(error).to_str().ok()
+    };
+    match h.db.workflows().fail_workflow(id_str, error_str) {
+        Ok(()) => 0,
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
+    }
+}
+
 /// Get a workflow and its steps as a JSON object.
 ///
 /// Returns heap-allocated JSON string — free with `agentdb_free_string`.
@@ -1411,6 +1466,327 @@ pub unsafe extern "C" fn agentdb_trace_get_by_session(
         Err(e) => {
             set_last_error(e.to_string());
             std::ptr::null_mut()
+        }
+    }
+}
+
+// ── Missing vector operations ─────────────────────────────────────────────
+
+/// Delete a single vector from a collection by ID.
+///
+/// Returns 0 on success, -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_vector_delete(
+    handle: *mut AgentDbHandle,
+    collection: *const c_char,
+    id: *const c_char,
+    dim: usize,
+) -> i32 {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
+    };
+    let col_name = match CStr::from_ptr(collection).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid collection name");
+            return -1;
+        }
+    };
+    let id_str = match CStr::from_ptr(id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid id");
+            return -1;
+        }
+    };
+    let col = match h.db.vectors().collection(col_name, dim) {
+        Ok(c) => c,
+        Err(e) => {
+            set_last_error(e.to_string());
+            return -1;
+        }
+    };
+    match col.delete(id_str) {
+        Ok(()) => 0,
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
+    }
+}
+
+/// Drop an entire vector collection and all its vectors.
+///
+/// Returns 0 on success, -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_drop_collection(
+    handle: *mut AgentDbHandle,
+    collection: *const c_char,
+) -> i32 {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
+    };
+    let col_name = match CStr::from_ptr(collection).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid collection name");
+            return -1;
+        }
+    };
+    match h.db.vectors().drop_collection(col_name) {
+        Ok(()) => 0,
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
+    }
+}
+
+/// Rebuild the HNSW index for a collection from stored vectors.
+///
+/// Returns 0 on success, -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_reindex(
+    handle: *mut AgentDbHandle,
+    collection: *const c_char,
+    dim: usize,
+) -> i32 {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
+    };
+    let col_name = match CStr::from_ptr(collection).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid collection name");
+            return -1;
+        }
+    };
+    let col = match h.db.vectors().collection(col_name, dim) {
+        Ok(c) => c,
+        Err(e) => {
+            set_last_error(e.to_string());
+            return -1;
+        }
+    };
+    match col.reindex() {
+        Ok(()) => 0,
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
+    }
+}
+
+// ── Missing graph operations ──────────────────────────────────────────────
+
+/// Get a graph node as a JSON object, or NULL if not found.
+///
+/// Returns heap-allocated JSON string — free with `agentdb_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_graph_get_node(
+    handle: *mut AgentDbHandle,
+    id: *const c_char,
+) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    let id_str = match CStr::from_ptr(id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid id");
+            return std::ptr::null_mut();
+        }
+    };
+    match h.db.memory().get_node(id_str) {
+        Ok(node) => {
+            let json = serde_json::json!({
+                "id": node.id,
+                "kind": node.kind,
+                "data": node.data,
+                "created_at": node.created_at,
+                "updated_at": node.updated_at
+            });
+            CString::new(json.to_string())
+                .map(|c| c.into_raw())
+                .unwrap_or(std::ptr::null_mut())
+        }
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// Delete a graph node (and all its connected edges via CASCADE).
+///
+/// Returns 0 on success, -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_graph_delete_node(
+    handle: *mut AgentDbHandle,
+    id: *const c_char,
+) -> i32 {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
+    };
+    let id_str = match CStr::from_ptr(id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid id");
+            return -1;
+        }
+    };
+    match h.db.memory().delete_node(id_str) {
+        Ok(()) => 0,
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
+    }
+}
+
+/// Delete the directed edge from `src` to `dst` with the given `relation`.
+///
+/// Returns 0 on success, -1 on error (including edge not found).
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_graph_delete_edge(
+    handle: *mut AgentDbHandle,
+    src: *const c_char,
+    dst: *const c_char,
+    relation: *const c_char,
+) -> i32 {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
+    };
+    let src_str = match CStr::from_ptr(src).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid src");
+            return -1;
+        }
+    };
+    let dst_str = match CStr::from_ptr(dst).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid dst");
+            return -1;
+        }
+    };
+    let rel_str = match CStr::from_ptr(relation).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid relation");
+            return -1;
+        }
+    };
+    match h.db.memory().delete_edge(src_str, dst_str, rel_str) {
+        Ok(()) => 0,
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
+    }
+}
+
+// ── Missing FTS operations ────────────────────────────────────────────────
+
+/// Delete a document from the FTS index.
+///
+/// Returns 0 on success, -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_fts_delete(
+    handle: *mut AgentDbHandle,
+    collection: *const c_char,
+    vec_id: *const c_char,
+) -> i32 {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
+    };
+    let col = match CStr::from_ptr(collection).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid collection");
+            return -1;
+        }
+    };
+    let vid = match CStr::from_ptr(vec_id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid vec_id");
+            return -1;
+        }
+    };
+    match h.db.fts().delete_text(col, vid) {
+        Ok(()) => 0,
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
+    }
+}
+
+/// Merge FTS index segments for faster queries (optimize).
+///
+/// Returns 0 on success, -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_fts_optimize(
+    handle: *mut AgentDbHandle,
+    collection: *const c_char,
+) -> i32 {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
+    };
+    let col = match CStr::from_ptr(collection).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid collection");
+            return -1;
+        }
+    };
+    match h.db.fts().optimize(col) {
+        Ok(()) => 0,
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
         }
     }
 }

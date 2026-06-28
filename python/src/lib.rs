@@ -384,10 +384,15 @@ impl AgentDB {
     fn stats(&self, py: Python) -> PyResult<PyObject> {
         let s = self.db.lock().unwrap().stats().map_err(to_py_err)?;
         let v = serde_json::json!({
-            "collections": s.collections,
-            "vectors":     s.vectors,
-            "nodes":       s.nodes,
-            "edges":       s.edges
+            "collections":    s.collections,
+            "vectors":        s.vectors,
+            "nodes":          s.nodes,
+            "edges":          s.edges,
+            "conversations":  s.conversations,
+            "messages":       s.messages,
+            "workflows":      s.workflows,
+            "workflow_steps": s.workflow_steps,
+            "traces":         s.traces
         });
         json_to_pyobj(py, &v)
     }
@@ -551,6 +556,16 @@ impl AgentDB {
             .unwrap()
             .workflows()
             .complete_workflow(id, out)
+            .map_err(to_py_err)
+    }
+
+    #[pyo3(signature = (id, error=None))]
+    fn fail_workflow(&self, id: &str, error: Option<&str>) -> PyResult<()> {
+        self.db
+            .lock()
+            .unwrap()
+            .workflows()
+            .fail_workflow(id, error)
             .map_err(to_py_err)
     }
 

@@ -161,6 +161,24 @@ impl WorkflowStore {
         Ok(())
     }
 
+    /// Mark a workflow as `failed` and record an optional error message.
+    pub fn fail_workflow(&self, id: &str, error: Option<&str>) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let now = now_ms();
+        let changed = conn.execute(
+            "UPDATE _adb_workflows
+             SET status = 'failed', output = COALESCE(?2, output), updated_at = ?3
+             WHERE id = ?1",
+            params![id, error, now],
+        )?;
+        if changed == 0 {
+            return Err(AgentDbError::InvalidArgument(format!(
+                "workflow not found: {id}"
+            )));
+        }
+        Ok(())
+    }
+
     /// Retrieve a workflow and all of its steps.
     pub fn get_workflow(&self, id: &str) -> Result<Workflow> {
         let workflow = {

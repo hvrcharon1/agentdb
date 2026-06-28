@@ -2,31 +2,70 @@ use serde_json::Value;
 
 /// Evaluate a metadata filter against a JSON document.
 ///
-/// Supports exact match and operators:
-/// `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$exists`
+/// Supports exact match, comparison, and logical operators:
+/// `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$exists`,
+/// `$regex` (substring match), `$and`, `$or`, `$not`.
+///
+/// Field paths support dot notation: `{ "user.name": { "$eq": "alice" } }`.
 pub fn matches(metadata: &Value, filter: &Value) -> bool {
-    let (meta_obj, filter_obj) = match (metadata, filter) {
-        (Value::Object(m), Value::Object(f)) => (m, f),
+    let filter_obj = match filter {
+        Value::Object(f) => f,
         _ => return false,
     };
     for (key, condition) in filter_obj {
-        let field = meta_obj.get(key);
-        match condition {
-            Value::Object(ops) => {
-                for (op, operand) in ops {
-                    if !apply_op(op, field, operand) {
+        match key.as_str() {
+            "$and" => {
+                if let Value::Array(clauses) = condition {
+                    if !clauses.iter().all(|c| matches(metadata, c)) {
                         return false;
                     }
+                } else {
+                    return false;
                 }
             }
-            expected => {
-                if field != Some(expected) {
+            "$or" => {
+                if let Value::Array(clauses) = condition {
+                    if !clauses.iter().any(|c| matches(metadata, c)) {
+                        return false;
+                    }
+                } else {
                     return false;
+                }
+            }
+            "$not" => {
+                if matches(metadata, condition) {
+                    return false;
+                }
+            }
+            field => {
+                let field_value = get_nested(metadata, field);
+                match condition {
+                    Value::Object(ops) => {
+                        for (op, operand) in ops {
+                            if !apply_op(op, field_value, operand) {
+                                return false;
+                            }
+                        }
+                    }
+                    expected => {
+                        if field_value != Some(expected) {
+                            return false;
+                        }
+                    }
                 }
             }
         }
     }
     true
+}
+
+/// Resolve a possibly dot-separated field path into the nested JSON value.
+fn get_nested<'a>(val: &'a Value, path: &str) -> Option<&'a Value> {
+    let mut current = val;
+    for segment in path.split('.') {
+        current = current.get(segment)?;
+    }
+    Some(current)
 }
 
 fn apply_op(op: &str, field: Option<&Value>, operand: &Value) -> bool {
@@ -45,6 +84,10 @@ fn apply_op(op: &str, field: Option<&Value>, operand: &Value) -> bool {
         "$nin" => match (field, operand) {
             (Some(v), Value::Array(arr)) => !arr.contains(v),
             _ => true,
+        },
+        "$regex" => match (field, operand.as_str()) {
+            (Some(Value::String(s)), Some(pattern)) => s.contains(pattern),
+            _ => false,
         },
         _ => false,
     }

@@ -26,7 +26,7 @@ impl AsyncAgentDB {
         let path = path.to_string();
         let db = task::spawn_blocking(move || AgentDB::open(&path))
             .await
-            .expect("spawn_blocking join")?;
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))??;
         Ok(Self {
             inner: Arc::new(db),
         })
@@ -38,7 +38,7 @@ impl AsyncAgentDB {
         let sql = sql.to_string();
         task::spawn_blocking(move || db.execute(&sql))
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Execute a batch of semicolon-separated SQL statements atomically.
@@ -47,7 +47,7 @@ impl AsyncAgentDB {
         let sql = sql.to_string();
         task::spawn_blocking(move || db.execute_batch(&sql))
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Query and return rows as JSON values.
@@ -56,7 +56,7 @@ impl AsyncAgentDB {
         let sql = sql.to_string();
         task::spawn_blocking(move || db.query_json(&sql))
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Return database-wide statistics.
@@ -64,7 +64,7 @@ impl AsyncAgentDB {
         let db = self.inner.clone();
         task::spawn_blocking(move || db.stats())
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Access an async vector collection handle.
@@ -136,7 +136,7 @@ impl AsyncAgentDB {
             db.hybrid_query(q)
         })
         .await
-        .expect("spawn_blocking join")
+        .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Flush dirty indexes and close gracefully.
@@ -149,7 +149,7 @@ impl AsyncAgentDB {
         });
         task::spawn_blocking(move || db.close())
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 }
 
@@ -171,7 +171,7 @@ impl AsyncVectorStore {
                 .map(|c| AsyncCollection { inner: Arc::new(c) })
         })
         .await
-        .expect("spawn_blocking join")
+        .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 }
 
@@ -187,7 +187,7 @@ impl AsyncCollection {
         let col = self.inner.clone();
         task::spawn_blocking(move || col.upsert(entry))
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Batch upsert multiple vectors atomically.
@@ -195,7 +195,7 @@ impl AsyncCollection {
         let col = self.inner.clone();
         task::spawn_blocking(move || col.upsert_batch(entries))
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// ANN search.
@@ -207,7 +207,7 @@ impl AsyncCollection {
         let col = self.inner.clone();
         task::spawn_blocking(move || col.search(&query, options))
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Number of vectors in this collection.
@@ -215,7 +215,7 @@ impl AsyncCollection {
         let col = self.inner.clone();
         task::spawn_blocking(move || col.count())
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Rebuild the HNSW index.
@@ -223,7 +223,7 @@ impl AsyncCollection {
         let col = self.inner.clone();
         task::spawn_blocking(move || col.reindex())
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 }
 
@@ -242,7 +242,7 @@ impl AsyncMemoryGraph {
         let kind = kind.to_string();
         task::spawn_blocking(move || db.memory().add_node(&id, &kind, data))
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Add or update a directed edge.
@@ -253,7 +253,7 @@ impl AsyncMemoryGraph {
         let relation = relation.to_string();
         task::spawn_blocking(move || db.memory().add_edge(&src, &dst, &relation, weight))
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Traverse the graph from a node.
@@ -266,7 +266,7 @@ impl AsyncMemoryGraph {
         let node_id = node_id.to_string();
         task::spawn_blocking(move || db.memory().neighbors(&node_id, opts))
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 }
 
@@ -293,7 +293,7 @@ impl AsyncFullTextStore {
         let text = text.to_string();
         task::spawn_blocking(move || db.fts().index_text(&collection, &id, &collection_id, &text))
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Full-text search.
@@ -308,7 +308,7 @@ impl AsyncFullTextStore {
         let query = query.to_string();
         task::spawn_blocking(move || db.fts().search(&collection, &query, top_k))
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 }
 
@@ -335,7 +335,7 @@ impl AsyncConversationStore {
                 .create_conversation(&id, title.as_deref(), metadata)
         })
         .await
-        .expect("spawn_blocking join")
+        .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Append a message to a conversation.
@@ -355,7 +355,7 @@ impl AsyncConversationStore {
                 .add_message(&cid, &role, &content, metadata)
         })
         .await
-        .expect("spawn_blocking join")
+        .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Get messages for a conversation.
@@ -368,7 +368,7 @@ impl AsyncConversationStore {
         let cid = conversation_id.to_string();
         task::spawn_blocking(move || db.conversations().get_messages(&cid, limit))
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// List all conversations.
@@ -376,7 +376,7 @@ impl AsyncConversationStore {
         let db = self.inner.clone();
         task::spawn_blocking(move || db.conversations().list_conversations())
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Delete a conversation and all its messages.
@@ -385,7 +385,7 @@ impl AsyncConversationStore {
         let id = id.to_string();
         task::spawn_blocking(move || db.conversations().delete_conversation(&id))
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 }
 
@@ -404,7 +404,7 @@ impl AsyncWorkflowStore {
         let name = name.to_string();
         task::spawn_blocking(move || db.workflows().create_workflow(&id, &name, input))
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Append a step to a workflow.
@@ -419,7 +419,7 @@ impl AsyncWorkflowStore {
         let name = name.to_string();
         task::spawn_blocking(move || db.workflows().add_step(&wid, &name, input))
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Update a step's status/output/error.
@@ -439,7 +439,7 @@ impl AsyncWorkflowStore {
                 .update_step(&sid, &status, output, error.as_deref())
         })
         .await
-        .expect("spawn_blocking join")
+        .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Mark a workflow as completed.
@@ -448,7 +448,17 @@ impl AsyncWorkflowStore {
         let id = id.to_string();
         task::spawn_blocking(move || db.workflows().complete_workflow(&id, output))
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Mark a workflow as failed.
+    pub async fn fail_workflow(&self, id: &str, error: Option<&str>) -> Result<()> {
+        let db = self.inner.clone();
+        let id = id.to_string();
+        let error = error.map(|s| s.to_string());
+        task::spawn_blocking(move || db.workflows().fail_workflow(&id, error.as_deref()))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Get a workflow and its steps.
@@ -457,7 +467,7 @@ impl AsyncWorkflowStore {
         let id = id.to_string();
         task::spawn_blocking(move || db.workflows().get_workflow(&id))
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// List workflows with optional status filter.
@@ -466,7 +476,7 @@ impl AsyncWorkflowStore {
         let status = status_filter.map(|s| s.to_string());
         task::spawn_blocking(move || db.workflows().list_workflows(status.as_deref()))
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 }
 
@@ -497,7 +507,7 @@ impl AsyncTraceStore {
                 .add_trace(sid.as_deref(), pid.as_deref(), &tt, &content, metadata)
         })
         .await
-        .expect("spawn_blocking join")
+        .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Get all traces for a session.
@@ -506,7 +516,7 @@ impl AsyncTraceStore {
         let sid = session_id.to_string();
         task::spawn_blocking(move || db.traces().get_traces(&sid))
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Get a trace subtree rooted at `root_id`.
@@ -515,6 +525,6 @@ impl AsyncTraceStore {
         let rid = root_id.to_string();
         task::spawn_blocking(move || db.traces().get_trace_tree(&rid))
             .await
-            .expect("spawn_blocking join")
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 }

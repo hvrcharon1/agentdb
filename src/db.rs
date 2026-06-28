@@ -189,11 +189,26 @@ impl AgentDB {
         )?;
         let nodes: i64 = conn.query_row("SELECT COUNT(*) FROM _adb_nodes", [], |r| r.get(0))?;
         let edges: i64 = conn.query_row("SELECT COUNT(*) FROM _adb_edges", [], |r| r.get(0))?;
+        let conversations: i64 =
+            conn.query_row("SELECT COUNT(*) FROM _adb_conversations", [], |r| r.get(0))?;
+        let messages: i64 =
+            conn.query_row("SELECT COUNT(*) FROM _adb_messages", [], |r| r.get(0))?;
+        let workflows: i64 =
+            conn.query_row("SELECT COUNT(*) FROM _adb_workflows", [], |r| r.get(0))?;
+        let workflow_steps: i64 =
+            conn.query_row("SELECT COUNT(*) FROM _adb_workflow_steps", [], |r| r.get(0))?;
+        let traces: i64 =
+            conn.query_row("SELECT COUNT(*) FROM _adb_traces", [], |r| r.get(0))?;
         Ok(DbStats {
             collections,
             vectors,
             nodes,
             edges,
+            conversations,
+            messages,
+            workflows,
+            workflow_steps,
+            traces,
         })
     }
 }
@@ -209,6 +224,16 @@ pub struct DbStats {
     pub nodes: i64,
     /// Number of directed edges in the memory graph.
     pub edges: i64,
+    /// Number of conversation threads.
+    pub conversations: i64,
+    /// Total number of messages across all conversations.
+    pub messages: i64,
+    /// Number of workflow records.
+    pub workflows: i64,
+    /// Total number of workflow steps across all workflows.
+    pub workflow_steps: i64,
+    /// Total number of reasoning trace entries.
+    pub traces: i64,
 }
 
 fn rusqlite_value_to_json(val: rusqlite::types::Value) -> serde_json::Value {
