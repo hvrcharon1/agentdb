@@ -197,8 +197,7 @@ impl AgentDB {
             conn.query_row("SELECT COUNT(*) FROM _adb_workflows", [], |r| r.get(0))?;
         let workflow_steps: i64 =
             conn.query_row("SELECT COUNT(*) FROM _adb_workflow_steps", [], |r| r.get(0))?;
-        let traces: i64 =
-            conn.query_row("SELECT COUNT(*) FROM _adb_traces", [], |r| r.get(0))?;
+        let traces: i64 = conn.query_row("SELECT COUNT(*) FROM _adb_traces", [], |r| r.get(0))?;
         Ok(DbStats {
             collections,
             vectors,

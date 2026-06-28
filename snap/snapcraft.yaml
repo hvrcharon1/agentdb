@@ -24,7 +24,7 @@ parts:
   agentdb:
     plugin: rust
     source: .
-    rust-channel: "1.87"
+    rust-channel: "1.95"
     build-packages:
       - gcc
       - pkg-config
