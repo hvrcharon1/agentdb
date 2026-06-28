@@ -222,11 +222,14 @@ impl HnswIndex {
     }
 
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        bincode::serialize(self).map_err(|e| AgentDbError::Serialization(e.to_string()))
+        bincode::serde::encode_to_vec(self, bincode::config::standard())
+            .map_err(|e| AgentDbError::Serialization(e.to_string()))
     }
 
     pub fn deserialize(bytes: &[u8]) -> Result<Self> {
-        bincode::deserialize(bytes).map_err(|e| AgentDbError::Serialization(e.to_string()))
+        bincode::serde::decode_from_slice(bytes, bincode::config::standard())
+            .map(|(val, _)| val)
+            .map_err(|e| AgentDbError::Serialization(e.to_string()))
     }
 
     pub fn len(&self) -> usize {

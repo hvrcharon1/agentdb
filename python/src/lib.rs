@@ -19,7 +19,7 @@ use agentdb::{
 };
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList};
+use pyo3::types::{PyDict, PyList, PyModule};
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
 
@@ -29,7 +29,7 @@ fn to_py_err(e: impl std::fmt::Display) -> PyErr {
     PyRuntimeError::new_err(e.to_string())
 }
 
-fn pyobj_to_json(obj: &PyAny) -> PyResult<Option<Value>> {
+fn pyobj_to_json(obj: &Bound<'_, pyo3::PyAny>) -> PyResult<Option<Value>> {
     if obj.is_none() {
         return Ok(None);
     }
@@ -41,7 +41,7 @@ fn pyobj_to_json(obj: &PyAny) -> PyResult<Option<Value>> {
 fn json_to_pyobj(py: Python, val: &Value) -> PyResult<PyObject> {
     let json_mod = py.import("json")?;
     let s = val.to_string();
-    Ok(json_mod.call_method1("loads", (s,))?.into_py(py))
+    Ok(json_mod.call_method1("loads", (s,))?.into_pyobject(py)?.into_any().unbind())
 }
 
 // ── SearchResult ──────────────────────────────────────────────────────
@@ -49,8 +49,10 @@ fn json_to_pyobj(py: Python, val: &Value) -> PyResult<PyObject> {
 #[pyclass]
 #[derive(Clone)]
 pub struct SearchResult {
-    #[pyo3(get)] pub id:       String,
-    #[pyo3(get)] pub score:    f32,
+    #[pyo3(get)]
+    pub id: String,
+    #[pyo3(get)]
+    pub score: f32,
     metadata_raw: Option<Value>,
 }
 
@@ -60,7 +62,7 @@ impl SearchResult {
     fn metadata(&self, py: Python) -> PyResult<PyObject> {
         match &self.metadata_raw {
             Some(v) => json_to_pyobj(py, v),
-            None    => Ok(py.None()),
+            None => Ok(py.None()),
         }
     }
     fn __repr__(&self) -> String {
@@ -73,9 +75,12 @@ impl SearchResult {
 #[pyclass]
 #[derive(Clone)]
 pub struct FtsResult {
-    #[pyo3(get)] pub id:      String,
-    #[pyo3(get)] pub snippet: String,
-    #[pyo3(get)] pub rank:    f64,
+    #[pyo3(get)]
+    pub id: String,
+    #[pyo3(get)]
+    pub snippet: String,
+    #[pyo3(get)]
+    pub rank: f64,
 }
 
 #[pymethods]
@@ -90,16 +95,23 @@ impl FtsResult {
 #[pyclass]
 #[derive(Clone)]
 pub struct HybridResult {
-    #[pyo3(get)] pub id:           String,
-    #[pyo3(get)] pub rank_score:   f64,
-    #[pyo3(get)] pub vector_score: f32,
-    #[pyo3(get)] pub graph_weight: f64,
+    #[pyo3(get)]
+    pub id: String,
+    #[pyo3(get)]
+    pub rank_score: f64,
+    #[pyo3(get)]
+    pub vector_score: f32,
+    #[pyo3(get)]
+    pub graph_weight: f64,
 }
 
 #[pymethods]
 impl HybridResult {
     fn __repr__(&self) -> String {
-        format!("HybridResult(id={:?}, rank={:.4})", self.id, self.rank_score)
+        format!(
+            "HybridResult(id={:?}, rank={:.4})",
+            self.id, self.rank_score
+        )
     }
 }
 
@@ -112,74 +124,90 @@ pub struct Collection {
 
 #[pymethods]
 impl Collection {
-    /// Upsert a single vector.
-    ///
-    /// :param id: Unique string identifier.
-    /// :param vector: List[float] or numpy array of floats.
-    /// :param metadata: Optional dict of metadata.
     fn upsert(
         &self,
         id: String,
         vector: Vec<f32>,
-        metadata: Option<&PyAny>,
+        metadata: Option<Bound<'_, pyo3::PyAny>>,
     ) -> PyResult<()> {
-        let meta = metadata.map(pyobj_to_json).transpose()?.flatten();
+        let meta = metadata
+            .as_ref()
+            .map(pyobj_to_json)
+            .transpose()?
+            .flatten();
         self.inner
-            .upsert(VectorEntry { id, vector, metadata: meta })
+            .upsert(VectorEntry {
+                id,
+                vector,
+                metadata: meta,
+            })
             .map_err(to_py_err)
     }
 
-    /// Upsert multiple vectors in a single transaction.
-    ///
-    /// :param entries: List of dicts with keys 'id', 'vector', and optional 'metadata'.
-    fn upsert_batch(&self, entries: &PyList) -> PyResult<usize> {
-        let mut batch = Vec::with_capacity(entries.len());
-        for item in entries.iter() {
-            let d: &PyDict = item.downcast()?;
-            let id: String     = d.get_item("id")?.ok_or_else(|| to_py_err("missing 'id'"))?.extract()?;
-            let vector: Vec<f32> = d.get_item("vector")?.ok_or_else(|| to_py_err("missing 'vector'"))?.extract()?;
-            let meta = d.get_item("metadata")?
-                .map(|m| pyobj_to_json(m))
+    fn upsert_batch(&self, entries: &Bound<'_, PyList>) -> PyResult<usize> {
+        let mut batch = Vec::with_capacity(entries.len()?);
+        for item in entries.iter()? {
+            let item = item?;
+            let d: Bound<'_, PyDict> = item.downcast_into()?;
+            let id: String = d
+                .get_item("id")?
+                .ok_or_else(|| to_py_err("missing 'id'"))?
+                .extract()?;
+            let vector: Vec<f32> = d
+                .get_item("vector")?
+                .ok_or_else(|| to_py_err("missing 'vector'"))?
+                .extract()?;
+            let meta = d
+                .get_item("metadata")?
+                .map(|m| pyobj_to_json(&m))
                 .transpose()?
                 .flatten();
-            batch.push(BatchEntry { id, vector, metadata: meta });
+            batch.push(BatchEntry {
+                id,
+                vector,
+                metadata: meta,
+            });
         }
         self.inner.upsert_batch(batch).map_err(to_py_err)
     }
 
-    /// Approximate nearest-neighbor search.
-    ///
-    /// :param query: List[float] or numpy array.
-    /// :param top_k: Maximum results to return.
-    /// :param filter: Optional metadata filter dict (MongoDB-style operators).
-    /// :returns: List of SearchResult objects.
     #[pyo3(signature = (query, top_k=10, filter=None))]
     fn search(
         &self,
         py: Python,
         query: Vec<f32>,
         top_k: usize,
-        filter: Option<&PyAny>,
+        filter: Option<Bound<'_, pyo3::PyAny>>,
     ) -> PyResult<Vec<PyObject>> {
-        let f = filter.map(pyobj_to_json).transpose()?.flatten();
-        let results = self.inner
-            .search(&query, SearchOptions { top_k, metric: DistanceMetric::Cosine, filter: f })
+        let f = filter.as_ref().map(pyobj_to_json).transpose()?.flatten();
+        let results = self
+            .inner
+            .search(
+                &query,
+                SearchOptions {
+                    top_k,
+                    metric: DistanceMetric::Cosine,
+                    filter: f,
+                },
+            )
             .map_err(to_py_err)?;
         results
             .into_iter()
             .map(|r| {
-                let obj = SearchResult { id: r.id, score: r.score, metadata_raw: r.metadata };
-                Ok(Py::new(py, obj)?.into_py(py))
+                let obj = SearchResult {
+                    id: r.id,
+                    score: r.score,
+                    metadata_raw: r.metadata,
+                };
+                Ok(Py::new(py, obj)?.into_pyobject(py)?.into_any().unbind())
             })
             .collect()
     }
 
-    /// Number of vectors in this collection.
     fn count(&self) -> PyResult<i64> {
         self.inner.count().map_err(to_py_err)
     }
 
-    /// Rebuild the HNSW index.
     fn reindex(&self) -> PyResult<()> {
         self.inner.reindex().map_err(to_py_err)
     }
@@ -194,31 +222,24 @@ pub struct AgentDB {
 
 #[pymethods]
 impl AgentDB {
-    /// Open or create an AgentDB database.
-    ///
-    /// :param path: File path, or ':memory:' for an in-memory database.
     #[staticmethod]
     fn open(path: &str) -> PyResult<Self> {
         RustDB::open(path)
-            .map(|db| AgentDB { db: Arc::new(Mutex::new(db)) })
+            .map(|db| AgentDB {
+                db: Arc::new(Mutex::new(db)),
+            })
             .map_err(to_py_err)
     }
 
-    /// Execute a raw SQL statement.
     fn execute(&self, sql: &str) -> PyResult<usize> {
         self.db.lock().unwrap().execute(sql).map_err(to_py_err)
     }
 
-    /// Query and return rows as a list of dicts.
     fn query(&self, py: Python, sql: &str) -> PyResult<Vec<PyObject>> {
         let rows = self.db.lock().unwrap().query_json(sql).map_err(to_py_err)?;
         rows.iter().map(|v| json_to_pyobj(py, v)).collect()
     }
 
-    /// Return a Collection handle for vector operations.
-    ///
-    /// :param name: Collection name (created if absent).
-    /// :param dim:  Embedding dimensionality.
     fn collection(&self, name: &str, dim: usize) -> PyResult<Collection> {
         let db = self.db.lock().unwrap();
         db.vectors()
@@ -227,24 +248,26 @@ impl AgentDB {
             .map_err(to_py_err)
     }
 
-    /// Add or update a memory graph node.
     #[pyo3(signature = (id, kind, data=None))]
-    fn add_node(&self, id: &str, kind: &str, data: Option<&PyAny>) -> PyResult<()> {
-        let d = data.map(pyobj_to_json).transpose()?.flatten();
-        self.db.lock().unwrap().memory().add_node(id, kind, d).map_err(to_py_err)
+    fn add_node(&self, id: &str, kind: &str, data: Option<Bound<'_, pyo3::PyAny>>) -> PyResult<()> {
+        let d = data.as_ref().map(pyobj_to_json).transpose()?.flatten();
+        self.db
+            .lock()
+            .unwrap()
+            .memory()
+            .add_node(id, kind, d)
+            .map_err(to_py_err)
     }
 
-    /// Add or update a directed edge in the memory graph.
     fn add_edge(&self, src: &str, dst: &str, relation: &str, weight: f64) -> PyResult<()> {
-        self.db.lock().unwrap().memory().add_edge(src, dst, relation, weight).map_err(to_py_err)
+        self.db
+            .lock()
+            .unwrap()
+            .memory()
+            .add_edge(src, dst, relation, weight)
+            .map_err(to_py_err)
     }
 
-    /// Traverse the memory graph from a node.
-    ///
-    /// :param node_id:   Start node.
-    /// :param max_depth: Maximum hops (default 2).
-    /// :param min_weight: Minimum edge weight to follow (default 0.0).
-    /// :returns: List of dicts with 'id', 'kind', 'depth', 'weight', 'data'.
     #[pyo3(signature = (node_id, max_depth=2, min_weight=0.0))]
     fn neighbors(
         &self,
@@ -253,8 +276,15 @@ impl AgentDB {
         max_depth: usize,
         min_weight: f64,
     ) -> PyResult<Vec<PyObject>> {
-        let opts = TraversalOptions { relation: None, max_depth, min_weight: Some(min_weight) };
-        let results = self.db.lock().unwrap()
+        let opts = TraversalOptions {
+            relation: None,
+            max_depth,
+            min_weight: Some(min_weight),
+        };
+        let results = self
+            .db
+            .lock()
+            .unwrap()
             .memory()
             .neighbors(node_id, opts)
             .map_err(to_py_err)?;
@@ -273,34 +303,48 @@ impl AgentDB {
             .collect()
     }
 
-    /// Index text for full-text search.
-    fn fts_index(&self, collection: &str, id: &str, collection_id: &str, text: &str) -> PyResult<()> {
-        self.db.lock().unwrap().fts().index_text(collection, id, collection_id, text).map_err(to_py_err)
+    fn fts_index(
+        &self,
+        collection: &str,
+        id: &str,
+        collection_id: &str,
+        text: &str,
+    ) -> PyResult<()> {
+        self.db
+            .lock()
+            .unwrap()
+            .fts()
+            .index_text(collection, id, collection_id, text)
+            .map_err(to_py_err)
     }
 
-    /// Full-text search over a collection.
-    ///
-    /// :returns: List of FtsResult objects.
-    fn fts_search(&self, py: Python, collection: &str, query: &str, top_k: usize) -> PyResult<Vec<PyObject>> {
-        let results = self.db.lock().unwrap().fts().search(collection, query, top_k).map_err(to_py_err)?;
+    fn fts_search(
+        &self,
+        py: Python,
+        collection: &str,
+        query: &str,
+        top_k: usize,
+    ) -> PyResult<Vec<PyObject>> {
+        let results = self
+            .db
+            .lock()
+            .unwrap()
+            .fts()
+            .search(collection, query, top_k)
+            .map_err(to_py_err)?;
         results
             .into_iter()
             .map(|r| {
-                let obj = FtsResult { id: r.id, snippet: r.snippet, rank: r.rank };
-                Ok(Py::new(py, obj)?.into_py(py))
+                let obj = FtsResult {
+                    id: r.id,
+                    snippet: r.snippet,
+                    rank: r.rank,
+                };
+                Ok(Py::new(py, obj)?.into_pyobject(py)?.into_any().unbind())
             })
             .collect()
     }
 
-    /// Run a hybrid graph + vector query.
-    ///
-    /// :param anchor_node: Graph traversal start node.
-    /// :param embedding:   Query vector (List[float] or numpy array).
-    /// :param collection:  Vector collection name.
-    /// :param graph_depth: Max hops from anchor (default 2).
-    /// :param top_k:       Results to return (default 10).
-    /// :param alpha:       0.0 = pure graph, 1.0 = pure vector (default 0.6).
-    /// :returns: List of HybridResult objects.
     #[pyo3(signature = (anchor_node, embedding, collection, graph_depth=2, top_k=10, alpha=0.6))]
     fn hybrid_query(
         &self,
@@ -327,17 +371,16 @@ impl AgentDB {
             .into_iter()
             .map(|r| {
                 let obj = HybridResult {
-                    id:           r.id,
-                    rank_score:   r.rank_score,
+                    id: r.id,
+                    rank_score: r.rank_score,
                     vector_score: r.vector_score,
                     graph_weight: r.graph_weight,
                 };
-                Ok(Py::new(py, obj)?.into_py(py))
+                Ok(Py::new(py, obj)?.into_pyobject(py)?.into_any().unbind())
             })
             .collect()
     }
 
-    /// Return database-wide statistics as a dict.
     fn stats(&self, py: Python) -> PyResult<PyObject> {
         let s = self.db.lock().unwrap().stats().map_err(to_py_err)?;
         let v = serde_json::json!({
@@ -351,52 +394,39 @@ impl AgentDB {
 
     // ── Conversations ─────────────────────────────────────────────────
 
-    /// Create a new conversation thread.
-    ///
-    /// :param id: Unique conversation identifier.
-    /// :param title: Optional human-readable title.
-    /// :param metadata: Optional dict of metadata.
     #[pyo3(signature = (id, title=None, metadata=None))]
     fn create_conversation(
         &self,
         id: &str,
         title: Option<&str>,
-        metadata: Option<&PyAny>,
+        metadata: Option<Bound<'_, pyo3::PyAny>>,
     ) -> PyResult<()> {
-        let meta = metadata.map(pyobj_to_json).transpose()?.flatten();
-        self.db.lock().unwrap()
+        let meta = metadata.as_ref().map(pyobj_to_json).transpose()?.flatten();
+        self.db
+            .lock()
+            .unwrap()
             .conversations()
             .create_conversation(id, title, meta)
             .map_err(to_py_err)
     }
 
-    /// Add a message to an existing conversation.
-    ///
-    /// :param conversation_id: ID of the conversation.
-    /// :param role: Sender role (e.g. "user", "assistant", "system").
-    /// :param content: Message text.
-    /// :param metadata: Optional dict of metadata.
-    /// :returns: The new message ID.
     #[pyo3(signature = (conversation_id, role, content, metadata=None))]
     fn add_message(
         &self,
         conversation_id: &str,
         role: &str,
         content: &str,
-        metadata: Option<&PyAny>,
+        metadata: Option<Bound<'_, pyo3::PyAny>>,
     ) -> PyResult<String> {
-        let meta = metadata.map(pyobj_to_json).transpose()?.flatten();
-        self.db.lock().unwrap()
+        let meta = metadata.as_ref().map(pyobj_to_json).transpose()?.flatten();
+        self.db
+            .lock()
+            .unwrap()
             .conversations()
             .add_message(conversation_id, role, content, meta)
             .map_err(to_py_err)
     }
 
-    /// Get messages for a conversation in chronological order.
-    ///
-    /// :param conversation_id: ID of the conversation.
-    /// :param limit: Optional maximum number of most-recent messages.
-    /// :returns: List of message dicts.
     #[pyo3(signature = (conversation_id, limit=None))]
     fn get_messages(
         &self,
@@ -404,7 +434,10 @@ impl AgentDB {
         conversation_id: &str,
         limit: Option<usize>,
     ) -> PyResult<Vec<PyObject>> {
-        let msgs = self.db.lock().unwrap()
+        let msgs = self
+            .db
+            .lock()
+            .unwrap()
             .conversations()
             .get_messages(conversation_id, limit)
             .map_err(to_py_err)?;
@@ -423,15 +456,16 @@ impl AgentDB {
             .collect()
     }
 
-    /// List all conversations ordered by most-recently updated.
-    ///
-    /// :returns: List of conversation dicts.
     fn list_conversations(&self, py: Python) -> PyResult<Vec<PyObject>> {
-        let convos = self.db.lock().unwrap()
+        let convos = self
+            .db
+            .lock()
+            .unwrap()
             .conversations()
             .list_conversations()
             .map_err(to_py_err)?;
-        convos.iter()
+        convos
+            .iter()
             .map(|c| {
                 let v = serde_json::json!({
                     "id": c.id,
@@ -445,9 +479,10 @@ impl AgentDB {
             .collect()
     }
 
-    /// Delete a conversation and all its messages.
     fn delete_conversation(&self, id: &str) -> PyResult<()> {
-        self.db.lock().unwrap()
+        self.db
+            .lock()
+            .unwrap()
             .conversations()
             .delete_conversation(id)
             .map_err(to_py_err)
@@ -455,98 +490,95 @@ impl AgentDB {
 
     // ── Workflows ─────────────────────────────────────────────────────
 
-    /// Create a new workflow in pending status.
-    ///
-    /// :param id: Unique workflow identifier.
-    /// :param name: Human-readable workflow name.
-    /// :param input: Optional JSON-serializable input.
     #[pyo3(signature = (id, name, input=None))]
     fn create_workflow(
         &self,
         id: &str,
         name: &str,
-        input: Option<&PyAny>,
+        input: Option<Bound<'_, pyo3::PyAny>>,
     ) -> PyResult<()> {
-        let inp = input.map(pyobj_to_json).transpose()?.flatten();
-        self.db.lock().unwrap()
+        let inp = input.as_ref().map(pyobj_to_json).transpose()?.flatten();
+        self.db
+            .lock()
+            .unwrap()
             .workflows()
             .create_workflow(id, name, inp)
             .map_err(to_py_err)
     }
 
-    /// Add a step to an existing workflow.
-    ///
-    /// :returns: The new step ID.
     #[pyo3(signature = (workflow_id, name, input=None))]
     fn add_workflow_step(
         &self,
         workflow_id: &str,
         name: &str,
-        input: Option<&PyAny>,
+        input: Option<Bound<'_, pyo3::PyAny>>,
     ) -> PyResult<String> {
-        let inp = input.map(pyobj_to_json).transpose()?.flatten();
-        self.db.lock().unwrap()
+        let inp = input.as_ref().map(pyobj_to_json).transpose()?.flatten();
+        self.db
+            .lock()
+            .unwrap()
             .workflows()
             .add_step(workflow_id, name, inp)
             .map_err(to_py_err)
     }
 
-    /// Update a workflow step's status.
-    ///
-    /// :param step_id: Step identifier.
-    /// :param status: New status ("running", "completed", "failed").
-    /// :param output: Optional output payload.
-    /// :param error: Optional error message.
     #[pyo3(signature = (step_id, status, output=None, error=None))]
     fn update_workflow_step(
         &self,
         step_id: &str,
         status: &str,
-        output: Option<&PyAny>,
+        output: Option<Bound<'_, pyo3::PyAny>>,
         error: Option<&str>,
     ) -> PyResult<()> {
-        let out = output.map(pyobj_to_json).transpose()?.flatten();
-        self.db.lock().unwrap()
+        let out = output.as_ref().map(pyobj_to_json).transpose()?.flatten();
+        self.db
+            .lock()
+            .unwrap()
             .workflows()
             .update_step(step_id, status, out, error)
             .map_err(to_py_err)
     }
 
-    /// Mark a workflow as completed.
     #[pyo3(signature = (id, output=None))]
     fn complete_workflow(
         &self,
         id: &str,
-        output: Option<&PyAny>,
+        output: Option<Bound<'_, pyo3::PyAny>>,
     ) -> PyResult<()> {
-        let out = output.map(pyobj_to_json).transpose()?.flatten();
-        self.db.lock().unwrap()
+        let out = output.as_ref().map(pyobj_to_json).transpose()?.flatten();
+        self.db
+            .lock()
+            .unwrap()
             .workflows()
             .complete_workflow(id, out)
             .map_err(to_py_err)
     }
 
-    /// Get a workflow and its steps.
-    ///
-    /// :returns: Workflow dict with a "steps" list.
     fn get_workflow(&self, py: Python, id: &str) -> PyResult<PyObject> {
-        let w = self.db.lock().unwrap()
+        let w = self
+            .db
+            .lock()
+            .unwrap()
             .workflows()
             .get_workflow(id)
             .map_err(to_py_err)?;
-        let steps: Vec<Value> = w.steps.iter().map(|s| {
-            serde_json::json!({
-                "id": s.id,
-                "step_index": s.step_index,
-                "name": s.name,
-                "status": s.status,
-                "input": s.input,
-                "output": s.output,
-                "error": s.error,
-                "started_at": s.started_at,
-                "completed_at": s.completed_at
+        let steps: Vec<Value> = w
+            .steps
+            .iter()
+            .map(|s| {
+                serde_json::json!({
+                    "id": s.id,
+                    "step_index": s.step_index,
+                    "name": s.name,
+                    "status": s.status,
+                    "input": s.input,
+                    "output": s.output,
+                    "error": s.error,
+                    "started_at": s.started_at,
+                    "completed_at": s.completed_at
+                })
             })
-        }).collect();
+            .collect();
         let v = serde_json::json!({
             "id": w.id,
             "name": w.name,
@@ -561,18 +593,17 @@ impl AgentDB {
         json_to_pyobj(py, &v)
     }
 
-    /// List workflows, optionally filtered by status.
     #[pyo3(signature = (status=None))]
-    fn list_workflows(
-        &self,
-        py: Python,
-        status: Option<&str>,
-    ) -> PyResult<Vec<PyObject>> {
-        let workflows = self.db.lock().unwrap()
+    fn list_workflows(&self, py: Python, status: Option<&str>) -> PyResult<Vec<PyObject>> {
+        let workflows = self
+            .db
+            .lock()
+            .unwrap()
             .workflows()
             .list_workflows(status)
             .map_err(to_py_err)?;
-        workflows.iter()
+        workflows
+            .iter()
             .map(|w| {
                 let v = serde_json::json!({
                     "id": w.id,
@@ -588,14 +619,6 @@ impl AgentDB {
 
     // ── Traces ────────────────────────────────────────────────────────
 
-    /// Record a reasoning trace entry.
-    ///
-    /// :param session_id: Optional session grouping key.
-    /// :param parent_id: Optional parent trace ID for tree structures.
-    /// :param trace_type: Semantic label (e.g. "thought", "tool_call").
-    /// :param content: Text body of the trace.
-    /// :param metadata: Optional dict of metadata.
-    /// :returns: The new trace ID.
     #[pyo3(signature = (trace_type, content, session_id=None, parent_id=None, metadata=None))]
     fn add_trace(
         &self,
@@ -603,22 +626,27 @@ impl AgentDB {
         content: &str,
         session_id: Option<&str>,
         parent_id: Option<&str>,
-        metadata: Option<&PyAny>,
+        metadata: Option<Bound<'_, pyo3::PyAny>>,
     ) -> PyResult<String> {
-        let meta = metadata.map(pyobj_to_json).transpose()?.flatten();
-        self.db.lock().unwrap()
+        let meta = metadata.as_ref().map(pyobj_to_json).transpose()?.flatten();
+        self.db
+            .lock()
+            .unwrap()
             .traces()
             .add_trace(session_id, parent_id, trace_type, content, meta)
             .map_err(to_py_err)
     }
 
-    /// Get all traces for a session in chronological order.
     fn get_traces(&self, py: Python, session_id: &str) -> PyResult<Vec<PyObject>> {
-        let traces = self.db.lock().unwrap()
+        let traces = self
+            .db
+            .lock()
+            .unwrap()
             .traces()
             .get_traces(session_id)
             .map_err(to_py_err)?;
-        traces.iter()
+        traces
+            .iter()
             .map(|t| {
                 let v = serde_json::json!({
                     "id": t.id,
@@ -634,13 +662,16 @@ impl AgentDB {
             .collect()
     }
 
-    /// Get a trace subtree rooted at the given trace ID.
     fn get_trace_tree(&self, py: Python, root_id: &str) -> PyResult<Vec<PyObject>> {
-        let traces = self.db.lock().unwrap()
+        let traces = self
+            .db
+            .lock()
+            .unwrap()
             .traces()
             .get_trace_tree(root_id)
             .map_err(to_py_err)?;
-        traces.iter()
+        traces
+            .iter()
             .map(|t| {
                 let v = serde_json::json!({
                     "id": t.id,
@@ -660,7 +691,7 @@ impl AgentDB {
 // ── Module registration ───────────────────────────────────────────────
 
 #[pymodule]
-fn _agentdb(_py: Python, m: &PyModule) -> PyResult<()> {
+fn _agentdb(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<AgentDB>()?;
     m.add_class::<Collection>()?;
     m.add_class::<SearchResult>()?;

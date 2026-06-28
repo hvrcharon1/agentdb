@@ -326,7 +326,7 @@ impl VectorStore {
             .query_row(
                 "SELECT id, dim, metric FROM _adb_collections WHERE name = ?1",
                 params![name],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                |row| Ok((row.get(0)?, row.get::<_, i64>(1)? as usize, row.get(2)?)),
             )
             .ok();
         if let Some((id, edim, mstr)) = existing {
@@ -358,7 +358,7 @@ impl VectorStore {
         conn.execute(
             "INSERT INTO _adb_collections (id, name, dim, metric, count, created_at)
              VALUES (?1, ?2, ?3, ?4, 0, ?5)",
-            params![id, name, dim, mstr, now_ms()],
+            params![id, name, dim as i64, mstr, now_ms()],
         )?;
         Ok(Collection::new(
             id,
@@ -376,7 +376,7 @@ impl VectorStore {
         let rows = stmt.query_map([], |row| {
             Ok((
                 row.get::<_, String>(0)?,
-                row.get::<_, usize>(1)?,
+                row.get::<_, i64>(1)? as usize,
                 row.get::<_, i64>(2)?,
             ))
         })?;

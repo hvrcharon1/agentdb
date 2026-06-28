@@ -63,7 +63,7 @@ impl AgentDB {
             conn.query_row(
                 "SELECT dim FROM _adb_collections WHERE name = ?1",
                 rusqlite::params![q.collection],
-                |r| r.get(0),
+                |r| r.get::<_, i64>(0).map(|v| v as usize),
             )
             .unwrap_or(q.embedding.len())
         };
