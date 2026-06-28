@@ -348,6 +348,313 @@ impl AgentDB {
         });
         json_to_pyobj(py, &v)
     }
+
+    // ── Conversations ─────────────────────────────────────────────────
+
+    /// Create a new conversation thread.
+    ///
+    /// :param id: Unique conversation identifier.
+    /// :param title: Optional human-readable title.
+    /// :param metadata: Optional dict of metadata.
+    #[pyo3(signature = (id, title=None, metadata=None))]
+    fn create_conversation(
+        &self,
+        id: &str,
+        title: Option<&str>,
+        metadata: Option<&PyAny>,
+    ) -> PyResult<()> {
+        let meta = metadata.map(pyobj_to_json).transpose()?.flatten();
+        self.db.lock().unwrap()
+            .conversations()
+            .create_conversation(id, title, meta)
+            .map_err(to_py_err)
+    }
+
+    /// Add a message to an existing conversation.
+    ///
+    /// :param conversation_id: ID of the conversation.
+    /// :param role: Sender role (e.g. "user", "assistant", "system").
+    /// :param content: Message text.
+    /// :param metadata: Optional dict of metadata.
+    /// :returns: The new message ID.
+    #[pyo3(signature = (conversation_id, role, content, metadata=None))]
+    fn add_message(
+        &self,
+        conversation_id: &str,
+        role: &str,
+        content: &str,
+        metadata: Option<&PyAny>,
+    ) -> PyResult<String> {
+        let meta = metadata.map(pyobj_to_json).transpose()?.flatten();
+        self.db.lock().unwrap()
+            .conversations()
+            .add_message(conversation_id, role, content, meta)
+            .map_err(to_py_err)
+    }
+
+    /// Get messages for a conversation in chronological order.
+    ///
+    /// :param conversation_id: ID of the conversation.
+    /// :param limit: Optional maximum number of most-recent messages.
+    /// :returns: List of message dicts.
+    #[pyo3(signature = (conversation_id, limit=None))]
+    fn get_messages(
+        &self,
+        py: Python,
+        conversation_id: &str,
+        limit: Option<usize>,
+    ) -> PyResult<Vec<PyObject>> {
+        let msgs = self.db.lock().unwrap()
+            .conversations()
+            .get_messages(conversation_id, limit)
+            .map_err(to_py_err)?;
+        msgs.iter()
+            .map(|m| {
+                let v = serde_json::json!({
+                    "id": m.id,
+                    "conversation_id": m.conversation_id,
+                    "role": m.role,
+                    "content": m.content,
+                    "metadata": m.metadata,
+                    "created_at": m.created_at
+                });
+                json_to_pyobj(py, &v)
+            })
+            .collect()
+    }
+
+    /// List all conversations ordered by most-recently updated.
+    ///
+    /// :returns: List of conversation dicts.
+    fn list_conversations(&self, py: Python) -> PyResult<Vec<PyObject>> {
+        let convos = self.db.lock().unwrap()
+            .conversations()
+            .list_conversations()
+            .map_err(to_py_err)?;
+        convos.iter()
+            .map(|c| {
+                let v = serde_json::json!({
+                    "id": c.id,
+                    "title": c.title,
+                    "metadata": c.metadata,
+                    "created_at": c.created_at,
+                    "updated_at": c.updated_at
+                });
+                json_to_pyobj(py, &v)
+            })
+            .collect()
+    }
+
+    /// Delete a conversation and all its messages.
+    fn delete_conversation(&self, id: &str) -> PyResult<()> {
+        self.db.lock().unwrap()
+            .conversations()
+            .delete_conversation(id)
+            .map_err(to_py_err)
+    }
+
+    // ── Workflows ─────────────────────────────────────────────────────
+
+    /// Create a new workflow in pending status.
+    ///
+    /// :param id: Unique workflow identifier.
+    /// :param name: Human-readable workflow name.
+    /// :param input: Optional JSON-serializable input.
+    #[pyo3(signature = (id, name, input=None))]
+    fn create_workflow(
+        &self,
+        id: &str,
+        name: &str,
+        input: Option<&PyAny>,
+    ) -> PyResult<()> {
+        let inp = input.map(pyobj_to_json).transpose()?.flatten();
+        self.db.lock().unwrap()
+            .workflows()
+            .create_workflow(id, name, inp)
+            .map_err(to_py_err)
+    }
+
+    /// Add a step to an existing workflow.
+    ///
+    /// :returns: The new step ID.
+    #[pyo3(signature = (workflow_id, name, input=None))]
+    fn add_workflow_step(
+        &self,
+        workflow_id: &str,
+        name: &str,
+        input: Option<&PyAny>,
+    ) -> PyResult<String> {
+        let inp = input.map(pyobj_to_json).transpose()?.flatten();
+        self.db.lock().unwrap()
+            .workflows()
+            .add_step(workflow_id, name, inp)
+            .map_err(to_py_err)
+    }
+
+    /// Update a workflow step's status.
+    ///
+    /// :param step_id: Step identifier.
+    /// :param status: New status ("running", "completed", "failed").
+    /// :param output: Optional output payload.
+    /// :param error: Optional error message.
+    #[pyo3(signature = (step_id, status, output=None, error=None))]
+    fn update_workflow_step(
+        &self,
+        step_id: &str,
+        status: &str,
+        output: Option<&PyAny>,
+        error: Option<&str>,
+    ) -> PyResult<()> {
+        let out = output.map(pyobj_to_json).transpose()?.flatten();
+        self.db.lock().unwrap()
+            .workflows()
+            .update_step(step_id, status, out, error)
+            .map_err(to_py_err)
+    }
+
+    /// Mark a workflow as completed.
+    #[pyo3(signature = (id, output=None))]
+    fn complete_workflow(
+        &self,
+        id: &str,
+        output: Option<&PyAny>,
+    ) -> PyResult<()> {
+        let out = output.map(pyobj_to_json).transpose()?.flatten();
+        self.db.lock().unwrap()
+            .workflows()
+            .complete_workflow(id, out)
+            .map_err(to_py_err)
+    }
+
+    /// Get a workflow and its steps.
+    ///
+    /// :returns: Workflow dict with a "steps" list.
+    fn get_workflow(&self, py: Python, id: &str) -> PyResult<PyObject> {
+        let w = self.db.lock().unwrap()
+            .workflows()
+            .get_workflow(id)
+            .map_err(to_py_err)?;
+        let steps: Vec<Value> = w.steps.iter().map(|s| {
+            serde_json::json!({
+                "id": s.id,
+                "step_index": s.step_index,
+                "name": s.name,
+                "status": s.status,
+                "input": s.input,
+                "output": s.output,
+                "error": s.error,
+                "started_at": s.started_at,
+                "completed_at": s.completed_at
+            })
+        }).collect();
+        let v = serde_json::json!({
+            "id": w.id,
+            "name": w.name,
+            "status": w.status,
+            "input": w.input,
+            "output": w.output,
+            "metadata": w.metadata,
+            "created_at": w.created_at,
+            "updated_at": w.updated_at,
+            "steps": steps
+        });
+        json_to_pyobj(py, &v)
+    }
+
+    /// List workflows, optionally filtered by status.
+    #[pyo3(signature = (status=None))]
+    fn list_workflows(
+        &self,
+        py: Python,
+        status: Option<&str>,
+    ) -> PyResult<Vec<PyObject>> {
+        let workflows = self.db.lock().unwrap()
+            .workflows()
+            .list_workflows(status)
+            .map_err(to_py_err)?;
+        workflows.iter()
+            .map(|w| {
+                let v = serde_json::json!({
+                    "id": w.id,
+                    "name": w.name,
+                    "status": w.status,
+                    "created_at": w.created_at,
+                    "updated_at": w.updated_at
+                });
+                json_to_pyobj(py, &v)
+            })
+            .collect()
+    }
+
+    // ── Traces ────────────────────────────────────────────────────────
+
+    /// Record a reasoning trace entry.
+    ///
+    /// :param session_id: Optional session grouping key.
+    /// :param parent_id: Optional parent trace ID for tree structures.
+    /// :param trace_type: Semantic label (e.g. "thought", "tool_call").
+    /// :param content: Text body of the trace.
+    /// :param metadata: Optional dict of metadata.
+    /// :returns: The new trace ID.
+    #[pyo3(signature = (trace_type, content, session_id=None, parent_id=None, metadata=None))]
+    fn add_trace(
+        &self,
+        trace_type: &str,
+        content: &str,
+        session_id: Option<&str>,
+        parent_id: Option<&str>,
+        metadata: Option<&PyAny>,
+    ) -> PyResult<String> {
+        let meta = metadata.map(pyobj_to_json).transpose()?.flatten();
+        self.db.lock().unwrap()
+            .traces()
+            .add_trace(session_id, parent_id, trace_type, content, meta)
+            .map_err(to_py_err)
+    }
+
+    /// Get all traces for a session in chronological order.
+    fn get_traces(&self, py: Python, session_id: &str) -> PyResult<Vec<PyObject>> {
+        let traces = self.db.lock().unwrap()
+            .traces()
+            .get_traces(session_id)
+            .map_err(to_py_err)?;
+        traces.iter()
+            .map(|t| {
+                let v = serde_json::json!({
+                    "id": t.id,
+                    "session_id": t.session_id,
+                    "parent_id": t.parent_id,
+                    "trace_type": t.trace_type,
+                    "content": t.content,
+                    "metadata": t.metadata,
+                    "created_at": t.created_at
+                });
+                json_to_pyobj(py, &v)
+            })
+            .collect()
+    }
+
+    /// Get a trace subtree rooted at the given trace ID.
+    fn get_trace_tree(&self, py: Python, root_id: &str) -> PyResult<Vec<PyObject>> {
+        let traces = self.db.lock().unwrap()
+            .traces()
+            .get_trace_tree(root_id)
+            .map_err(to_py_err)?;
+        traces.iter()
+            .map(|t| {
+                let v = serde_json::json!({
+                    "id": t.id,
+                    "session_id": t.session_id,
+                    "parent_id": t.parent_id,
+                    "trace_type": t.trace_type,
+                    "content": t.content,
+                    "metadata": t.metadata,
+                    "created_at": t.created_at
+                });
+                json_to_pyobj(py, &v)
+            })
+            .collect()
+    }
 }
 
 // ── Module registration ───────────────────────────────────────────────

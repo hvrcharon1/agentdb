@@ -99,6 +99,7 @@ jobs:
           cargo run --locked --example rag_pipeline
           cargo run --locked --example graph_traverse
           cargo run --locked --example v020_query_power
+          cargo run --locked --example ai_agent_loop
 
   # ── Step 3: security audit ────────────────────────────────────────────
   audit:

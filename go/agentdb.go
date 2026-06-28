@@ -18,7 +18,7 @@ package agentdb
 
 /*
 #cgo LDFLAGS: -lagentdb
-#include "agentdb.h"
+#include "../include/agentdb.h"
 #include <stdlib.h>
 */
 import "C"
@@ -371,4 +371,277 @@ func (db *DB) Stats() (Stats, error) {
 		return Stats{}, fmt.Errorf("agentdb: parse stats: %w", err)
 	}
 	return s, nil
+}
+
+// ── Conversations ───────────────────────────────────────────────────────────
+
+// ConversationCreate creates a new conversation thread. title and metadata are
+// optional (pass "" to omit).
+func (db *DB) ConversationCreate(id, title string, metadataJSON []byte) error {
+	cid := C.CString(id)
+	defer C.free(unsafe.Pointer(cid))
+
+	var ctitle *C.char
+	if title != "" {
+		ctitle = C.CString(title)
+		defer C.free(unsafe.Pointer(ctitle))
+	}
+
+	var cmeta *C.char
+	if metadataJSON != nil {
+		cmeta = C.CString(string(metadataJSON))
+		defer C.free(unsafe.Pointer(cmeta))
+	}
+
+	rc := C.agentdb_conversation_create(db.handle, cid, ctitle, cmeta)
+	if rc != 0 {
+		return lastError("agentdb_conversation_create failed")
+	}
+	return nil
+}
+
+// ConversationAddMessage appends a message to a conversation. Returns the new message ID.
+func (db *DB) ConversationAddMessage(conversationID, role, content string, metadataJSON []byte) (string, error) {
+	ccid := C.CString(conversationID)
+	defer C.free(unsafe.Pointer(ccid))
+	crole := C.CString(role)
+	defer C.free(unsafe.Pointer(crole))
+	ccontent := C.CString(content)
+	defer C.free(unsafe.Pointer(ccontent))
+
+	var cmeta *C.char
+	if metadataJSON != nil {
+		cmeta = C.CString(string(metadataJSON))
+		defer C.free(unsafe.Pointer(cmeta))
+	}
+
+	ptr := C.agentdb_conversation_add_message(db.handle, ccid, crole, ccontent, cmeta)
+	if ptr == nil {
+		return "", lastError("agentdb_conversation_add_message failed")
+	}
+	result := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return result, nil
+}
+
+// ConversationGetMessages returns messages for a conversation as a JSON array.
+// Pass limit=0 for all messages.
+func (db *DB) ConversationGetMessages(conversationID string, limit int) (string, error) {
+	ccid := C.CString(conversationID)
+	defer C.free(unsafe.Pointer(ccid))
+
+	ptr := C.agentdb_conversation_get_messages(db.handle, ccid, C.ulong(limit))
+	if ptr == nil {
+		return "", lastError("agentdb_conversation_get_messages failed")
+	}
+	raw := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return raw, nil
+}
+
+// ConversationList returns all conversations as a JSON array.
+func (db *DB) ConversationList() (string, error) {
+	ptr := C.agentdb_conversation_list(db.handle)
+	if ptr == nil {
+		return "", lastError("agentdb_conversation_list failed")
+	}
+	raw := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return raw, nil
+}
+
+// ConversationDelete deletes a conversation and all its messages.
+func (db *DB) ConversationDelete(id string) error {
+	cid := C.CString(id)
+	defer C.free(unsafe.Pointer(cid))
+
+	rc := C.agentdb_conversation_delete(db.handle, cid)
+	if rc != 0 {
+		return lastError("agentdb_conversation_delete failed")
+	}
+	return nil
+}
+
+// ── Workflows ───────────────────────────────────────────────────────────────
+
+// WorkflowCreate creates a new workflow. inputJSON is optional (pass nil to omit).
+func (db *DB) WorkflowCreate(id, name string, inputJSON []byte) error {
+	cid := C.CString(id)
+	defer C.free(unsafe.Pointer(cid))
+	cname := C.CString(name)
+	defer C.free(unsafe.Pointer(cname))
+
+	var cinput *C.char
+	if inputJSON != nil {
+		cinput = C.CString(string(inputJSON))
+		defer C.free(unsafe.Pointer(cinput))
+	}
+
+	rc := C.agentdb_workflow_create(db.handle, cid, cname, cinput)
+	if rc != 0 {
+		return lastError("agentdb_workflow_create failed")
+	}
+	return nil
+}
+
+// WorkflowAddStep adds a step to a workflow. Returns the new step ID.
+func (db *DB) WorkflowAddStep(workflowID, name string, inputJSON []byte) (string, error) {
+	cwid := C.CString(workflowID)
+	defer C.free(unsafe.Pointer(cwid))
+	cname := C.CString(name)
+	defer C.free(unsafe.Pointer(cname))
+
+	var cinput *C.char
+	if inputJSON != nil {
+		cinput = C.CString(string(inputJSON))
+		defer C.free(unsafe.Pointer(cinput))
+	}
+
+	ptr := C.agentdb_workflow_add_step(db.handle, cwid, cname, cinput)
+	if ptr == nil {
+		return "", lastError("agentdb_workflow_add_step failed")
+	}
+	result := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return result, nil
+}
+
+// WorkflowUpdateStep updates a step's status, output, and/or error.
+func (db *DB) WorkflowUpdateStep(stepID, status string, outputJSON []byte, errMsg string) error {
+	csid := C.CString(stepID)
+	defer C.free(unsafe.Pointer(csid))
+	cstatus := C.CString(status)
+	defer C.free(unsafe.Pointer(cstatus))
+
+	var coutput *C.char
+	if outputJSON != nil {
+		coutput = C.CString(string(outputJSON))
+		defer C.free(unsafe.Pointer(coutput))
+	}
+
+	var cerr *C.char
+	if errMsg != "" {
+		cerr = C.CString(errMsg)
+		defer C.free(unsafe.Pointer(cerr))
+	}
+
+	rc := C.agentdb_workflow_update_step(db.handle, csid, cstatus, coutput, cerr)
+	if rc != 0 {
+		return lastError("agentdb_workflow_update_step failed")
+	}
+	return nil
+}
+
+// WorkflowComplete marks a workflow as completed with optional output.
+func (db *DB) WorkflowComplete(id string, outputJSON []byte) error {
+	cid := C.CString(id)
+	defer C.free(unsafe.Pointer(cid))
+
+	var coutput *C.char
+	if outputJSON != nil {
+		coutput = C.CString(string(outputJSON))
+		defer C.free(unsafe.Pointer(coutput))
+	}
+
+	rc := C.agentdb_workflow_complete(db.handle, cid, coutput)
+	if rc != 0 {
+		return lastError("agentdb_workflow_complete failed")
+	}
+	return nil
+}
+
+// WorkflowGet retrieves a workflow and its steps as a JSON object.
+func (db *DB) WorkflowGet(id string) (string, error) {
+	cid := C.CString(id)
+	defer C.free(unsafe.Pointer(cid))
+
+	ptr := C.agentdb_workflow_get(db.handle, cid)
+	if ptr == nil {
+		return "", lastError("agentdb_workflow_get failed")
+	}
+	raw := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return raw, nil
+}
+
+// WorkflowList lists workflows as a JSON array. Pass "" for statusFilter to get all.
+func (db *DB) WorkflowList(statusFilter string) (string, error) {
+	var cfilter *C.char
+	if statusFilter != "" {
+		cfilter = C.CString(statusFilter)
+		defer C.free(unsafe.Pointer(cfilter))
+	}
+
+	ptr := C.agentdb_workflow_list(db.handle, cfilter)
+	if ptr == nil {
+		return "", lastError("agentdb_workflow_list failed")
+	}
+	raw := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return raw, nil
+}
+
+// ── Traces ──────────────────────────────────────────────────────────────────
+
+// TraceAdd records a reasoning trace entry. Returns the new trace ID.
+// sessionID and parentID are optional (pass "" to omit).
+func (db *DB) TraceAdd(sessionID, parentID, traceType, content string, metadataJSON []byte) (string, error) {
+	var csid *C.char
+	if sessionID != "" {
+		csid = C.CString(sessionID)
+		defer C.free(unsafe.Pointer(csid))
+	}
+
+	var cpid *C.char
+	if parentID != "" {
+		cpid = C.CString(parentID)
+		defer C.free(unsafe.Pointer(cpid))
+	}
+
+	ctt := C.CString(traceType)
+	defer C.free(unsafe.Pointer(ctt))
+	ccontent := C.CString(content)
+	defer C.free(unsafe.Pointer(ccontent))
+
+	var cmeta *C.char
+	if metadataJSON != nil {
+		cmeta = C.CString(string(metadataJSON))
+		defer C.free(unsafe.Pointer(cmeta))
+	}
+
+	ptr := C.agentdb_trace_add(db.handle, csid, cpid, ctt, ccontent, cmeta)
+	if ptr == nil {
+		return "", lastError("agentdb_trace_add failed")
+	}
+	result := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return result, nil
+}
+
+// TraceGetBySession returns all traces for a session as a JSON array.
+func (db *DB) TraceGetBySession(sessionID string) (string, error) {
+	csid := C.CString(sessionID)
+	defer C.free(unsafe.Pointer(csid))
+
+	ptr := C.agentdb_trace_get_by_session(db.handle, csid)
+	if ptr == nil {
+		return "", lastError("agentdb_trace_get_by_session failed")
+	}
+	raw := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return raw, nil
+}
+
+// TraceGetTree returns a trace subtree as a JSON array.
+func (db *DB) TraceGetTree(rootID string) (string, error) {
+	crid := C.CString(rootID)
+	defer C.free(unsafe.Pointer(crid))
+
+	ptr := C.agentdb_trace_get_tree(db.handle, crid)
+	if ptr == nil {
+		return "", lastError("agentdb_trace_get_tree failed")
+	}
+	raw := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return raw, nil
 }

@@ -723,3 +723,745 @@ pub unsafe extern "C" fn agentdb_stats(handle: *mut AgentDbHandle) -> *mut c_cha
         }
     }
 }
+
+// ── Conversations ────────────────────────────────────────────────────────
+
+/// Create a new conversation.
+///
+/// `id`       — unique conversation identifier
+/// `title`    — optional title (may be NULL)
+/// `metadata` — optional JSON string (may be NULL)
+///
+/// Returns 0 on success, -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_conversation_create(
+    handle: *mut AgentDbHandle,
+    id: *const c_char,
+    title: *const c_char,
+    metadata: *const c_char,
+) -> i32 {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
+    };
+    let id_str = match CStr::from_ptr(id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid id");
+            return -1;
+        }
+    };
+    let title_opt = if title.is_null() {
+        None
+    } else {
+        CStr::from_ptr(title).to_str().ok()
+    };
+    let meta: Option<Value> = if metadata.is_null() {
+        None
+    } else {
+        CStr::from_ptr(metadata)
+            .to_str()
+            .ok()
+            .and_then(|s| serde_json::from_str(s).ok())
+    };
+    match h
+        .db
+        .conversations()
+        .create_conversation(id_str, title_opt, meta)
+    {
+        Ok(()) => 0,
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
+    }
+}
+
+/// Add a message to an existing conversation.
+///
+/// Returns the new message ID as a heap-allocated string, or NULL on error.
+/// Free with `agentdb_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_conversation_add_message(
+    handle: *mut AgentDbHandle,
+    conversation_id: *const c_char,
+    role: *const c_char,
+    content: *const c_char,
+    metadata: *const c_char,
+) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    let cid = match CStr::from_ptr(conversation_id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid conversation_id");
+            return std::ptr::null_mut();
+        }
+    };
+    let role_str = match CStr::from_ptr(role).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid role");
+            return std::ptr::null_mut();
+        }
+    };
+    let content_str = match CStr::from_ptr(content).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid content");
+            return std::ptr::null_mut();
+        }
+    };
+    let meta: Option<Value> = if metadata.is_null() {
+        None
+    } else {
+        CStr::from_ptr(metadata)
+            .to_str()
+            .ok()
+            .and_then(|s| serde_json::from_str(s).ok())
+    };
+    match h
+        .db
+        .conversations()
+        .add_message(cid, role_str, content_str, meta)
+    {
+        Ok(msg_id) => CString::new(msg_id)
+            .map(|s| s.into_raw())
+            .unwrap_or(std::ptr::null_mut()),
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// Get messages for a conversation as a JSON array.
+///
+/// `limit` — maximum messages to return (0 = all).
+///
+/// Returns heap-allocated JSON string — free with `agentdb_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_conversation_get_messages(
+    handle: *mut AgentDbHandle,
+    conversation_id: *const c_char,
+    limit: usize,
+) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    let cid = match CStr::from_ptr(conversation_id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid conversation_id");
+            return std::ptr::null_mut();
+        }
+    };
+    let lim = if limit == 0 { None } else { Some(limit) };
+    match h.db.conversations().get_messages(cid, lim) {
+        Ok(msgs) => {
+            let json: Vec<Value> = msgs
+                .iter()
+                .map(|m| {
+                    serde_json::json!({
+                        "id": m.id,
+                        "conversation_id": m.conversation_id,
+                        "role": m.role,
+                        "content": m.content,
+                        "metadata": m.metadata,
+                        "created_at": m.created_at
+                    })
+                })
+                .collect();
+            let s = Value::Array(json).to_string();
+            CString::new(s)
+                .map(|c| c.into_raw())
+                .unwrap_or(std::ptr::null_mut())
+        }
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// List all conversations as a JSON array.
+///
+/// Returns heap-allocated JSON string — free with `agentdb_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_conversation_list(handle: *mut AgentDbHandle) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    match h.db.conversations().list_conversations() {
+        Ok(convos) => {
+            let json: Vec<Value> = convos
+                .iter()
+                .map(|c| {
+                    serde_json::json!({
+                        "id": c.id,
+                        "title": c.title,
+                        "metadata": c.metadata,
+                        "created_at": c.created_at,
+                        "updated_at": c.updated_at
+                    })
+                })
+                .collect();
+            let s = Value::Array(json).to_string();
+            CString::new(s)
+                .map(|c| c.into_raw())
+                .unwrap_or(std::ptr::null_mut())
+        }
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// Delete a conversation and all its messages.
+///
+/// Returns 0 on success, -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_conversation_delete(
+    handle: *mut AgentDbHandle,
+    id: *const c_char,
+) -> i32 {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
+    };
+    let id_str = match CStr::from_ptr(id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid id");
+            return -1;
+        }
+    };
+    match h.db.conversations().delete_conversation(id_str) {
+        Ok(()) => 0,
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
+    }
+}
+
+// ── Workflows ────────────────────────────────────────────────────────────
+
+/// Create a new workflow in `pending` status.
+///
+/// `id`    — unique workflow identifier
+/// `name`  — human-readable workflow name
+/// `input` — optional JSON input (may be NULL)
+///
+/// Returns 0 on success, -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_workflow_create(
+    handle: *mut AgentDbHandle,
+    id: *const c_char,
+    name: *const c_char,
+    input: *const c_char,
+) -> i32 {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
+    };
+    let id_str = match CStr::from_ptr(id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid id");
+            return -1;
+        }
+    };
+    let name_str = match CStr::from_ptr(name).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid name");
+            return -1;
+        }
+    };
+    let input_val: Option<Value> = if input.is_null() {
+        None
+    } else {
+        CStr::from_ptr(input)
+            .to_str()
+            .ok()
+            .and_then(|s| serde_json::from_str(s).ok())
+    };
+    match h
+        .db
+        .workflows()
+        .create_workflow(id_str, name_str, input_val)
+    {
+        Ok(()) => 0,
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
+    }
+}
+
+/// Add a step to an existing workflow.
+///
+/// Returns the step ID as a heap-allocated string, or NULL on error.
+/// Free with `agentdb_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_workflow_add_step(
+    handle: *mut AgentDbHandle,
+    workflow_id: *const c_char,
+    name: *const c_char,
+    input: *const c_char,
+) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    let wid = match CStr::from_ptr(workflow_id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid workflow_id");
+            return std::ptr::null_mut();
+        }
+    };
+    let name_str = match CStr::from_ptr(name).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid name");
+            return std::ptr::null_mut();
+        }
+    };
+    let input_val: Option<Value> = if input.is_null() {
+        None
+    } else {
+        CStr::from_ptr(input)
+            .to_str()
+            .ok()
+            .and_then(|s| serde_json::from_str(s).ok())
+    };
+    match h.db.workflows().add_step(wid, name_str, input_val) {
+        Ok(step_id) => CString::new(step_id)
+            .map(|s| s.into_raw())
+            .unwrap_or(std::ptr::null_mut()),
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// Update a workflow step's status, output, and/or error.
+///
+/// `status` — new status string ("running", "completed", "failed")
+/// `output` — optional JSON output (may be NULL)
+/// `error`  — optional error message (may be NULL)
+///
+/// Returns 0 on success, -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_workflow_update_step(
+    handle: *mut AgentDbHandle,
+    step_id: *const c_char,
+    status: *const c_char,
+    output: *const c_char,
+    error: *const c_char,
+) -> i32 {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
+    };
+    let sid = match CStr::from_ptr(step_id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid step_id");
+            return -1;
+        }
+    };
+    let status_str = match CStr::from_ptr(status).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid status");
+            return -1;
+        }
+    };
+    let output_val: Option<Value> = if output.is_null() {
+        None
+    } else {
+        CStr::from_ptr(output)
+            .to_str()
+            .ok()
+            .and_then(|s| serde_json::from_str(s).ok())
+    };
+    let error_str = if error.is_null() {
+        None
+    } else {
+        CStr::from_ptr(error).to_str().ok()
+    };
+    match h
+        .db
+        .workflows()
+        .update_step(sid, status_str, output_val, error_str)
+    {
+        Ok(()) => 0,
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
+    }
+}
+
+/// Mark a workflow as completed with optional output.
+///
+/// Returns 0 on success, -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_workflow_complete(
+    handle: *mut AgentDbHandle,
+    id: *const c_char,
+    output: *const c_char,
+) -> i32 {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
+    };
+    let id_str = match CStr::from_ptr(id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid id");
+            return -1;
+        }
+    };
+    let output_val: Option<Value> = if output.is_null() {
+        None
+    } else {
+        CStr::from_ptr(output)
+            .to_str()
+            .ok()
+            .and_then(|s| serde_json::from_str(s).ok())
+    };
+    match h.db.workflows().complete_workflow(id_str, output_val) {
+        Ok(()) => 0,
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
+    }
+}
+
+/// Get a workflow and its steps as a JSON object.
+///
+/// Returns heap-allocated JSON string — free with `agentdb_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_workflow_get(
+    handle: *mut AgentDbHandle,
+    id: *const c_char,
+) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    let id_str = match CStr::from_ptr(id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid id");
+            return std::ptr::null_mut();
+        }
+    };
+    match h.db.workflows().get_workflow(id_str) {
+        Ok(w) => {
+            let steps: Vec<Value> = w
+                .steps
+                .iter()
+                .map(|s| {
+                    serde_json::json!({
+                        "id": s.id,
+                        "step_index": s.step_index,
+                        "name": s.name,
+                        "status": s.status,
+                        "input": s.input,
+                        "output": s.output,
+                        "error": s.error,
+                        "started_at": s.started_at,
+                        "completed_at": s.completed_at
+                    })
+                })
+                .collect();
+            let json = serde_json::json!({
+                "id": w.id,
+                "name": w.name,
+                "status": w.status,
+                "input": w.input,
+                "output": w.output,
+                "metadata": w.metadata,
+                "created_at": w.created_at,
+                "updated_at": w.updated_at,
+                "steps": steps
+            });
+            CString::new(json.to_string())
+                .map(|c| c.into_raw())
+                .unwrap_or(std::ptr::null_mut())
+        }
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// List workflows as a JSON array, optionally filtered by status.
+///
+/// `status_filter` — status to filter by (may be NULL for all).
+///
+/// Returns heap-allocated JSON string — free with `agentdb_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_workflow_list(
+    handle: *mut AgentDbHandle,
+    status_filter: *const c_char,
+) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    let filter = if status_filter.is_null() {
+        None
+    } else {
+        CStr::from_ptr(status_filter).to_str().ok()
+    };
+    match h.db.workflows().list_workflows(filter) {
+        Ok(workflows) => {
+            let json: Vec<Value> = workflows
+                .iter()
+                .map(|w| {
+                    serde_json::json!({
+                        "id": w.id,
+                        "name": w.name,
+                        "status": w.status,
+                        "created_at": w.created_at,
+                        "updated_at": w.updated_at
+                    })
+                })
+                .collect();
+            let s = Value::Array(json).to_string();
+            CString::new(s)
+                .map(|c| c.into_raw())
+                .unwrap_or(std::ptr::null_mut())
+        }
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+// ── Traces ───────────────────────────────────────────────────────────────
+
+/// Record a new reasoning trace entry.
+///
+/// Returns the trace ID as a heap-allocated string, or NULL on error.
+/// Free with `agentdb_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_trace_add(
+    handle: *mut AgentDbHandle,
+    session_id: *const c_char,
+    parent_id: *const c_char,
+    trace_type: *const c_char,
+    content: *const c_char,
+    metadata: *const c_char,
+) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    let sid = if session_id.is_null() {
+        None
+    } else {
+        CStr::from_ptr(session_id).to_str().ok()
+    };
+    let pid = if parent_id.is_null() {
+        None
+    } else {
+        CStr::from_ptr(parent_id).to_str().ok()
+    };
+    let tt = match CStr::from_ptr(trace_type).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid trace_type");
+            return std::ptr::null_mut();
+        }
+    };
+    let content_str = match CStr::from_ptr(content).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid content");
+            return std::ptr::null_mut();
+        }
+    };
+    let meta: Option<Value> = if metadata.is_null() {
+        None
+    } else {
+        CStr::from_ptr(metadata)
+            .to_str()
+            .ok()
+            .and_then(|s| serde_json::from_str(s).ok())
+    };
+    match h.db.traces().add_trace(sid, pid, tt, content_str, meta) {
+        Ok(trace_id) => CString::new(trace_id)
+            .map(|s| s.into_raw())
+            .unwrap_or(std::ptr::null_mut()),
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// Get all traces for a session as a JSON array.
+///
+/// Returns heap-allocated JSON string — free with `agentdb_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_trace_get_by_session(
+    handle: *mut AgentDbHandle,
+    session_id: *const c_char,
+) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    let sid = match CStr::from_ptr(session_id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid session_id");
+            return std::ptr::null_mut();
+        }
+    };
+    match h.db.traces().get_traces(sid) {
+        Ok(traces) => {
+            let json: Vec<Value> = traces
+                .iter()
+                .map(|t| {
+                    serde_json::json!({
+                        "id": t.id,
+                        "session_id": t.session_id,
+                        "parent_id": t.parent_id,
+                        "trace_type": t.trace_type,
+                        "content": t.content,
+                        "metadata": t.metadata,
+                        "created_at": t.created_at
+                    })
+                })
+                .collect();
+            let s = Value::Array(json).to_string();
+            CString::new(s)
+                .map(|c| c.into_raw())
+                .unwrap_or(std::ptr::null_mut())
+        }
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// Get a trace subtree as a JSON array.
+///
+/// Returns heap-allocated JSON string — free with `agentdb_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_trace_get_tree(
+    handle: *mut AgentDbHandle,
+    root_id: *const c_char,
+) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    let rid = match CStr::from_ptr(root_id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid root_id");
+            return std::ptr::null_mut();
+        }
+    };
+    match h.db.traces().get_trace_tree(rid) {
+        Ok(traces) => {
+            let json: Vec<Value> = traces
+                .iter()
+                .map(|t| {
+                    serde_json::json!({
+                        "id": t.id,
+                        "session_id": t.session_id,
+                        "parent_id": t.parent_id,
+                        "trace_type": t.trace_type,
+                        "content": t.content,
+                        "metadata": t.metadata,
+                        "created_at": t.created_at
+                    })
+                })
+                .collect();
+            let s = Value::Array(json).to_string();
+            CString::new(s)
+                .map(|c| c.into_raw())
+                .unwrap_or(std::ptr::null_mut())
+        }
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}

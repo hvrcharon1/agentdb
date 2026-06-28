@@ -457,4 +457,305 @@ impl AgentDB {
             })
             .map_err(|e| Error::from_reason(e.to_string()))
     }
+
+    // ── Conversations ────────────────────────────────────────────────
+
+    /// Create a new conversation thread.
+    #[napi]
+    pub fn create_conversation(
+        &self,
+        id: String,
+        title: Option<String>,
+        metadata: Option<serde_json::Value>,
+    ) -> Result<()> {
+        self.db
+            .lock()
+            .unwrap()
+            .conversations()
+            .create_conversation(&id, title.as_deref(), metadata)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Add a message to a conversation. Returns the new message ID.
+    #[napi]
+    pub fn add_message(
+        &self,
+        conversation_id: String,
+        role: String,
+        content: String,
+        metadata: Option<serde_json::Value>,
+    ) -> Result<String> {
+        self.db
+            .lock()
+            .unwrap()
+            .conversations()
+            .add_message(&conversation_id, &role, &content, metadata)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Get messages for a conversation. Pass `limit: 0` for all messages.
+    #[napi]
+    pub fn get_messages(
+        &self,
+        conversation_id: String,
+        limit: Option<u32>,
+    ) -> Result<Vec<serde_json::Value>> {
+        let lim = limit.and_then(|n| if n == 0 { None } else { Some(n as usize) });
+        let msgs = self.db
+            .lock()
+            .unwrap()
+            .conversations()
+            .get_messages(&conversation_id, lim)
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        Ok(msgs
+            .iter()
+            .map(|m| {
+                serde_json::json!({
+                    "id": m.id,
+                    "conversationId": m.conversation_id,
+                    "role": m.role,
+                    "content": m.content,
+                    "metadata": m.metadata,
+                    "createdAt": m.created_at
+                })
+            })
+            .collect())
+    }
+
+    /// List all conversations ordered by most-recently updated.
+    #[napi]
+    pub fn list_conversations(&self) -> Result<Vec<serde_json::Value>> {
+        let convos = self.db
+            .lock()
+            .unwrap()
+            .conversations()
+            .list_conversations()
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        Ok(convos
+            .iter()
+            .map(|c| {
+                serde_json::json!({
+                    "id": c.id,
+                    "title": c.title,
+                    "metadata": c.metadata,
+                    "createdAt": c.created_at,
+                    "updatedAt": c.updated_at
+                })
+            })
+            .collect())
+    }
+
+    /// Delete a conversation and all its messages.
+    #[napi]
+    pub fn delete_conversation(&self, id: String) -> Result<()> {
+        self.db
+            .lock()
+            .unwrap()
+            .conversations()
+            .delete_conversation(&id)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    // ── Workflows ────────────────────────────────────────────────────
+
+    /// Create a new workflow in pending status.
+    #[napi]
+    pub fn create_workflow(
+        &self,
+        id: String,
+        name: String,
+        input: Option<serde_json::Value>,
+    ) -> Result<()> {
+        self.db
+            .lock()
+            .unwrap()
+            .workflows()
+            .create_workflow(&id, &name, input)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Add a step to a workflow. Returns the new step ID.
+    #[napi]
+    pub fn add_workflow_step(
+        &self,
+        workflow_id: String,
+        name: String,
+        input: Option<serde_json::Value>,
+    ) -> Result<String> {
+        self.db
+            .lock()
+            .unwrap()
+            .workflows()
+            .add_step(&workflow_id, &name, input)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Update a workflow step's status, output, and/or error.
+    #[napi]
+    pub fn update_workflow_step(
+        &self,
+        step_id: String,
+        status: String,
+        output: Option<serde_json::Value>,
+        error: Option<String>,
+    ) -> Result<()> {
+        self.db
+            .lock()
+            .unwrap()
+            .workflows()
+            .update_step(&step_id, &status, output, error.as_deref())
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Mark a workflow as completed with optional output.
+    #[napi]
+    pub fn complete_workflow(
+        &self,
+        id: String,
+        output: Option<serde_json::Value>,
+    ) -> Result<()> {
+        self.db
+            .lock()
+            .unwrap()
+            .workflows()
+            .complete_workflow(&id, output)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Get a workflow and its steps.
+    #[napi]
+    pub fn get_workflow(&self, id: String) -> Result<serde_json::Value> {
+        let w = self.db
+            .lock()
+            .unwrap()
+            .workflows()
+            .get_workflow(&id)
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        let steps: Vec<serde_json::Value> = w.steps.iter().map(|s| {
+            serde_json::json!({
+                "id": s.id,
+                "stepIndex": s.step_index,
+                "name": s.name,
+                "status": s.status,
+                "input": s.input,
+                "output": s.output,
+                "error": s.error,
+                "startedAt": s.started_at,
+                "completedAt": s.completed_at
+            })
+        }).collect();
+        Ok(serde_json::json!({
+            "id": w.id,
+            "name": w.name,
+            "status": w.status,
+            "input": w.input,
+            "output": w.output,
+            "metadata": w.metadata,
+            "createdAt": w.created_at,
+            "updatedAt": w.updated_at,
+            "steps": steps
+        }))
+    }
+
+    /// List workflows, optionally filtered by status.
+    #[napi]
+    pub fn list_workflows(
+        &self,
+        status_filter: Option<String>,
+    ) -> Result<Vec<serde_json::Value>> {
+        let workflows = self.db
+            .lock()
+            .unwrap()
+            .workflows()
+            .list_workflows(status_filter.as_deref())
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        Ok(workflows
+            .iter()
+            .map(|w| {
+                serde_json::json!({
+                    "id": w.id,
+                    "name": w.name,
+                    "status": w.status,
+                    "createdAt": w.created_at,
+                    "updatedAt": w.updated_at
+                })
+            })
+            .collect())
+    }
+
+    // ── Traces ───────────────────────────────────────────────────────
+
+    /// Record a reasoning trace entry. Returns the new trace ID.
+    #[napi]
+    pub fn add_trace(
+        &self,
+        trace_type: String,
+        content: String,
+        session_id: Option<String>,
+        parent_id: Option<String>,
+        metadata: Option<serde_json::Value>,
+    ) -> Result<String> {
+        self.db
+            .lock()
+            .unwrap()
+            .traces()
+            .add_trace(
+                session_id.as_deref(),
+                parent_id.as_deref(),
+                &trace_type,
+                &content,
+                metadata,
+            )
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Get all traces for a session in chronological order.
+    #[napi]
+    pub fn get_traces(&self, session_id: String) -> Result<Vec<serde_json::Value>> {
+        let traces = self.db
+            .lock()
+            .unwrap()
+            .traces()
+            .get_traces(&session_id)
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        Ok(traces
+            .iter()
+            .map(|t| {
+                serde_json::json!({
+                    "id": t.id,
+                    "sessionId": t.session_id,
+                    "parentId": t.parent_id,
+                    "traceType": t.trace_type,
+                    "content": t.content,
+                    "metadata": t.metadata,
+                    "createdAt": t.created_at
+                })
+            })
+            .collect())
+    }
+
+    /// Get a trace subtree rooted at the given trace ID.
+    #[napi]
+    pub fn get_trace_tree(&self, root_id: String) -> Result<Vec<serde_json::Value>> {
+        let traces = self.db
+            .lock()
+            .unwrap()
+            .traces()
+            .get_trace_tree(&root_id)
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        Ok(traces
+            .iter()
+            .map(|t| {
+                serde_json::json!({
+                    "id": t.id,
+                    "sessionId": t.session_id,
+                    "parentId": t.parent_id,
+                    "traceType": t.trace_type,
+                    "content": t.content,
+                    "metadata": t.metadata,
+                    "createdAt": t.created_at
+                })
+            })
+            .collect())
+    }
 }

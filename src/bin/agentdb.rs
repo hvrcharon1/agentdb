@@ -92,6 +92,12 @@ enum Commands {
     /// Print a full summary: stats + collections + recent nodes.
     Inspect { path: String },
 
+    /// Migrate a database to the current schema version.
+    ///
+    /// Re-runs the schema bootstrap to add any missing tables or indexes
+    /// introduced in newer versions of AgentDB. Existing data is preserved.
+    Migrate { path: String },
+
     /// Open an interactive SQL / dot-command REPL.
     ///
     /// SQL statements are terminated by a semicolon and may span multiple lines.
@@ -137,6 +143,7 @@ fn run(cli: Cli) -> agentdb::Result<()> {
         }) => cmd_search(&path, &collection, &vector, top_k),
         Some(Commands::Reindex { path }) => cmd_reindex(&path),
         Some(Commands::Inspect { path }) => cmd_inspect(&path),
+        Some(Commands::Migrate { path }) => cmd_migrate(&path),
         Some(Commands::Shell { path }) => cmd_shell(&path),
         None => {
             // Neither a subcommand nor -i was supplied — print help.
@@ -273,6 +280,45 @@ fn cmd_inspect(path: &str) -> agentdb::Result<()> {
         }
     }
 
+    Ok(())
+}
+
+fn cmd_migrate(path: &str) -> agentdb::Result<()> {
+    use rusqlite::Connection;
+
+    println!("Migrating: {path}");
+
+    let conn = Connection::open(path).map_err(agentdb::AgentDbError::Sqlite)?;
+
+    // Read current schema version before migration
+    let old_version: String = conn
+        .query_row(
+            "SELECT COALESCE(
+                (SELECT value FROM _adb_meta WHERE key = 'schema_version'),
+                '0'
+            )",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap_or_else(|_| "0".to_string());
+
+    println!("  current schema version: {old_version}");
+
+    // Re-run bootstrap — all CREATE TABLE/INDEX statements use IF NOT EXISTS,
+    // so this safely adds any new tables without affecting existing data.
+    agentdb::schema::bootstrap(&conn)?;
+
+    // Update the schema version to current
+    conn.execute_batch(&format!(
+        "UPDATE _adb_meta SET value = '{}' WHERE key = 'schema_version'",
+        agentdb::schema::SCHEMA_VERSION
+    ))?;
+
+    println!(
+        "  migrated to schema version: {}",
+        agentdb::schema::SCHEMA_VERSION
+    );
+    println!("done.");
     Ok(())
 }
 

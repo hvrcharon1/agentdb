@@ -66,6 +66,9 @@ pub mod traces;
 pub mod vectors;
 pub mod workflows;
 
+#[cfg(feature = "async")]
+pub mod async_api;
+
 #[cfg(feature = "ffi")]
 pub mod ffi;
 
@@ -84,3 +87,9 @@ pub use vectors::{
     BatchEntry, Collection, DistanceMetric, SearchOptions, SearchResult, VectorEntry, VectorStore,
 };
 pub use workflows::{Workflow, WorkflowStep, WorkflowStore};
+
+#[cfg(feature = "async")]
+pub use async_api::{
+    AsyncAgentDB, AsyncCollection, AsyncConversationStore, AsyncFullTextStore, AsyncMemoryGraph,
+    AsyncTraceStore, AsyncVectorStore, AsyncWorkflowStore,
+};
