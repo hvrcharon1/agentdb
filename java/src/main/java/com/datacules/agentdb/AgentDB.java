@@ -142,7 +142,8 @@ public class AgentDB implements Closeable {
      * @return JSON array string, or {@code null} on error
      */
     private static native String nativeHybridQuery(long handle, String anchorNode,
-            float[] embedding, String collection, int graphDepth, int topK, double alpha);
+            float[] embedding, String collection, int graphDepth, int topK, double alpha,
+            String filterJson);
 
     /**
      * Retrieve database statistics.
@@ -150,6 +151,34 @@ public class AgentDB implements Closeable {
      * @return JSON object string, or {@code null} on error
      */
     private static native String nativeStats(long handle);
+
+    /** @return 0 on success, -1 on error */
+    private static native int nativeVectorDelete(long handle, String collection, String id);
+
+    /** @return 0 on success, -1 on error */
+    private static native int nativeDropCollection(long handle, String collection);
+
+    /** @return 0 on success, -1 on error */
+    private static native int nativeReindex(long handle, String collection);
+
+    /** @return JSON object string, or {@code null} on error */
+    private static native String nativeGraphGetNode(long handle, String id);
+
+    /** @return 0 on success, -1 on error */
+    private static native int nativeGraphDeleteNode(long handle, String id);
+
+    /** @return 0 on success, -1 on error */
+    private static native int nativeGraphDeleteEdge(long handle, String src, String dst,
+            String relation);
+
+    /** @return 0 on success, -1 on error */
+    private static native int nativeFtsDelete(long handle, String collection, String vecId);
+
+    /** @return 0 on success, -1 on error */
+    private static native int nativeFtsOptimize(long handle, String collection);
+
+    /** @return 0 on success, -1 on error */
+    private static native int nativeWorkflowFail(long handle, String id, String error);
 
     /**
      * Retrieve the last native error message for the calling thread.
@@ -378,18 +407,160 @@ public class AgentDB implements Closeable {
      * @param graphDepth  maximum graph traversal depth
      * @param topK        results to return
      * @param alpha       blend factor: 0.0 = pure graph, 1.0 = pure vector
+     * @param filterJson  optional MongoDB-style metadata filter JSON, or {@code null}
      * @return JSON array of {@code {id, rank_score, vector_score, graph_weight}} objects
      * @throws AgentDBException on error
      */
     public String hybridQuery(String anchorNode, float[] embedding, String collection,
-            int graphDepth, int topK, double alpha) {
+            int graphDepth, int topK, double alpha, String filterJson) {
         checkOpen();
         String result = nativeHybridQuery(handle, anchorNode, embedding,
-                collection, graphDepth, topK, alpha);
+                collection, graphDepth, topK, alpha, filterJson);
         if (result == null) {
             throw new AgentDBException(requireLastError("agentdb_hybrid_query failed"));
         }
         return result;
+    }
+
+    // ── Additional vector operations ──────────────────────────────────────────
+
+    /**
+     * Delete a vector by id from collection.
+     *
+     * @param collection collection name
+     * @param id         vector identifier to delete
+     * @throws AgentDBException on error
+     */
+    public void vectorDelete(String collection, String id) {
+        checkOpen();
+        int rc = nativeVectorDelete(handle, collection, id);
+        if (rc != 0) {
+            throw new AgentDBException(requireLastError("agentdb_vector_delete failed"));
+        }
+    }
+
+    /**
+     * Drop a vector collection and all its data permanently.
+     *
+     * @param collection collection name
+     * @throws AgentDBException on error
+     */
+    public void dropCollection(String collection) {
+        checkOpen();
+        int rc = nativeDropCollection(handle, collection);
+        if (rc != 0) {
+            throw new AgentDBException(requireLastError("agentdb_drop_collection failed"));
+        }
+    }
+
+    /**
+     * Force a full HNSW index rebuild for collection.
+     *
+     * @param collection collection name
+     * @throws AgentDBException on error
+     */
+    public void reindex(String collection) {
+        checkOpen();
+        int rc = nativeReindex(handle, collection);
+        if (rc != 0) {
+            throw new AgentDBException(requireLastError("agentdb_reindex failed"));
+        }
+    }
+
+    // ── Additional graph operations ───────────────────────────────────────────
+
+    /**
+     * Get a single memory graph node by id.
+     *
+     * @param id node identifier
+     * @return JSON object string, or {@code null} if not found
+     * @throws AgentDBException on error
+     */
+    public String graphGetNode(String id) {
+        checkOpen();
+        String result = nativeGraphGetNode(handle, id);
+        if (result == null) {
+            throw new AgentDBException(requireLastError("agentdb_graph_get_node failed"));
+        }
+        return result;
+    }
+
+    /**
+     * Delete a node (and its incident edges) from the memory graph.
+     *
+     * @param id node identifier
+     * @throws AgentDBException on error
+     */
+    public void graphDeleteNode(String id) {
+        checkOpen();
+        int rc = nativeGraphDeleteNode(handle, id);
+        if (rc != 0) {
+            throw new AgentDBException(requireLastError("agentdb_graph_delete_node failed"));
+        }
+    }
+
+    /**
+     * Delete a directed edge from the memory graph.
+     *
+     * @param src      source node id
+     * @param dst      destination node id
+     * @param relation relation label
+     * @throws AgentDBException on error
+     */
+    public void graphDeleteEdge(String src, String dst, String relation) {
+        checkOpen();
+        int rc = nativeGraphDeleteEdge(handle, src, dst, relation);
+        if (rc != 0) {
+            throw new AgentDBException(requireLastError("agentdb_graph_delete_edge failed"));
+        }
+    }
+
+    // ── Additional FTS operations ─────────────────────────────────────────────
+
+    /**
+     * Delete a document from the FTS index.
+     *
+     * @param collection FTS collection name
+     * @param vecId      correlation key of the document to remove
+     * @throws AgentDBException on error
+     */
+    public void ftsDelete(String collection, String vecId) {
+        checkOpen();
+        int rc = nativeFtsDelete(handle, collection, vecId);
+        if (rc != 0) {
+            throw new AgentDBException(requireLastError("agentdb_fts_delete failed"));
+        }
+    }
+
+    /**
+     * Merge FTS index segments for better query performance.
+     *
+     * @param collection FTS collection name
+     * @throws AgentDBException on error
+     */
+    public void ftsOptimize(String collection) {
+        checkOpen();
+        int rc = nativeFtsOptimize(handle, collection);
+        if (rc != 0) {
+            throw new AgentDBException(requireLastError("agentdb_fts_optimize failed"));
+        }
+    }
+
+    // ── Additional workflow operations ────────────────────────────────────────
+
+    /**
+     * Mark a workflow as failed with an optional error message.
+     *
+     * @param id    workflow identifier
+     * @param error optional error description, or {@code null}
+     * @throws AgentDBException on error
+     */
+    public void workflowFail(String id, String error) {
+        checkOpen();
+        int rc = nativeWorkflowFail(handle, id, error);
+        if (rc != 0) {
+            throw new AgentDBException(requireLastError("agentdb_workflow_fail failed"));
+        }
     }
 
     // ── Stats ─────────────────────────────────────────────────────────────

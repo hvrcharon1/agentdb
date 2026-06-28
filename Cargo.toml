@@ -1,7 +1,7 @@
 # MSRV: 1.85.0 — all transitive deps pinned in Cargo.lock for compatibility.
 [package]
 name = "datacules-agentdb"
-version = "0.4.5"
+version = "0.5.0"
 edition = "2021"
 rust-version = "1.85"
 authors = ["Datacules LLC <hello@datacules.com>"]

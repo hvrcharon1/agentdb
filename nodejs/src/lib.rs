@@ -113,10 +113,15 @@ pub struct NeighborResult {
 #[napi(object)]
 #[derive(Clone)]
 pub struct DbStats {
-    pub collections: i64,
-    pub vectors:     i64,
-    pub nodes:       i64,
-    pub edges:       i64,
+    pub collections:    i64,
+    pub vectors:        i64,
+    pub nodes:          i64,
+    pub edges:          i64,
+    pub conversations:  i64,
+    pub messages:       i64,
+    pub workflows:      i64,
+    pub workflow_steps: i64,
+    pub traces:         i64,
 }
 
 // ── helpers ───────────────────────────────────────────────────────────
@@ -231,6 +236,27 @@ impl Collection {
     pub fn reindex(&self) -> Result<()> {
         self.inner.reindex().map_err(|e| Error::from_reason(e.to_string()))
     }
+
+    /// Delete a vector by id from this collection.
+    #[napi]
+    pub fn delete(&self, id: String) -> Result<()> {
+        self.inner.delete(&id).map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Upsert a vector together with a text document for FTS.
+    #[napi]
+    pub fn upsert_with_text(
+        &self,
+        id: String,
+        vector: Vec<f64>,
+        metadata: Option<serde_json::Value>,
+        text: String,
+    ) -> Result<()> {
+        let vec_f32: Vec<f32> = vector.iter().map(|&v| v as f32).collect();
+        self.inner
+            .upsert_with_text(VectorEntry { id, vector: vec_f32, metadata }, &text)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
 }
 
 // ── AgentDB ───────────────────────────────────────────────────────────
@@ -281,6 +307,17 @@ impl AgentDB {
             .vectors()
             .collection(&name, dim as usize)
             .map(|inner| Collection { inner })
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Drop a vector collection and all its data permanently.
+    #[napi]
+    pub fn drop_collection(&self, name: String) -> Result<()> {
+        self.db
+            .lock()
+            .unwrap()
+            .vectors()
+            .drop_collection(&name)
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 
@@ -350,6 +387,43 @@ impl AgentDB {
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 
+    /// Get a single memory graph node by id.
+    #[napi]
+    pub fn get_node(&self, id: String) -> Result<Option<serde_json::Value>> {
+        match self.db.lock().unwrap().memory().get_node(&id) {
+            Ok(node) => Ok(Some(serde_json::json!({
+                "id": node.id,
+                "kind": node.kind,
+                "data": node.data,
+                "createdAt": node.created_at,
+                "updatedAt": node.updated_at,
+            }))),
+            Err(_) => Ok(None),
+        }
+    }
+
+    /// Delete a node (and its incident edges) from the memory graph.
+    #[napi]
+    pub fn delete_node(&self, id: String) -> Result<()> {
+        self.db
+            .lock()
+            .unwrap()
+            .memory()
+            .delete_node(&id)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Delete a directed edge from the memory graph.
+    #[napi]
+    pub fn delete_edge(&self, src: String, dst: String, relation: String) -> Result<()> {
+        self.db
+            .lock()
+            .unwrap()
+            .memory()
+            .delete_edge(&src, &dst, &relation)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
     /// Index text for full-text search.
     #[napi]
     pub fn fts_index(
@@ -386,6 +460,28 @@ impl AgentDB {
                     .map(|r| FtsResult { id: r.id, snippet: r.snippet, rank: r.rank })
                     .collect()
             })
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Delete a document from the FTS index.
+    #[napi]
+    pub fn fts_delete(&self, collection: String, vec_id: String) -> Result<()> {
+        self.db
+            .lock()
+            .unwrap()
+            .fts()
+            .delete_text(&collection, &vec_id)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Merge FTS index segments for better query performance.
+    #[napi]
+    pub fn fts_optimize(&self, collection: String) -> Result<()> {
+        self.db
+            .lock()
+            .unwrap()
+            .fts()
+            .optimize(&collection)
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 
@@ -450,10 +546,15 @@ impl AgentDB {
             .unwrap()
             .stats()
             .map(|s| DbStats {
-                collections: s.collections,
-                vectors:     s.vectors,
-                nodes:       s.nodes,
-                edges:       s.edges,
+                collections:    s.collections,
+                vectors:        s.vectors,
+                nodes:          s.nodes,
+                edges:          s.edges,
+                conversations:  s.conversations,
+                messages:       s.messages,
+                workflows:      s.workflows,
+                workflow_steps: s.workflow_steps,
+                traces:         s.traces,
             })
             .map_err(|e| Error::from_reason(e.to_string()))
     }
@@ -619,6 +720,21 @@ impl AgentDB {
             .unwrap()
             .workflows()
             .complete_workflow(&id, output)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Mark a workflow as failed with an optional error message.
+    #[napi]
+    pub fn fail_workflow(
+        &self,
+        id: String,
+        error: Option<String>,
+    ) -> Result<()> {
+        self.db
+            .lock()
+            .unwrap()
+            .workflows()
+            .fail_workflow(&id, error.as_deref())
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 

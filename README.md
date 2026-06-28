@@ -335,8 +335,9 @@ A brief map of what's available. Full API documentation lives on [docs.rs](https
 | v0.3.0 — Universal Availability (C FFI, CLI, Python, Node.js, WASM) | ✅ Released |
 | v0.4.0 — AI-Native (Conversations, Workflows, Traces + Go/Java/.NET SDKs) | ✅ Released |
 | v0.4.5 — Dep upgrades (rusqlite 0.40, pyo3 0.29, bincode 2, thiserror 2), MSRV 1.85 | ✅ Released |
-| v0.4.6 — WASM Persistence (OPFS) + Ruby SDK | 🔜 Next |
-| v0.5.0 — Ecosystem (LangChain, LlamaIndex, MCP server, AgentDB Sync) | Planned |
+| v0.5.0 — API completeness: 9 new FFI ops, full SDK parity (Go/Node/Java/.NET), hybrid filter, fail_workflow, 9-field DbStats | ✅ Released |
+| v0.6.0 — WASM Persistence (OPFS) + Ruby SDK | 🔜 Next |
+| v1.0.0 — Ecosystem (LangChain, LlamaIndex, MCP server, AgentDB Sync) + Production Release | Planned |
 | v1.0.0 — Production Release | Planned |
 
 Full detail in [ROADMAP.md](ROADMAP.md).

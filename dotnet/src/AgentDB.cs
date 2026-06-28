@@ -127,7 +127,8 @@ namespace Datacules.AgentDB
             [MarshalAs(UnmanagedType.LPUTF8Str)] string collection,
             UIntPtr graphDepth,
             UIntPtr topK,
-            double alpha);
+            double alpha,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? filterJson);
 
         [DllImport(LibName, EntryPoint = "agentdb_stats",
             CallingConvention = CallingConvention.Cdecl)]
@@ -136,6 +137,65 @@ namespace Datacules.AgentDB
         [DllImport(LibName, EntryPoint = "agentdb_last_error",
             CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr NativeLastError();
+
+        [DllImport(LibName, EntryPoint = "agentdb_vector_delete",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern int NativeVectorDelete(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string collection,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string id);
+
+        [DllImport(LibName, EntryPoint = "agentdb_drop_collection",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern int NativeDropCollection(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string collection);
+
+        [DllImport(LibName, EntryPoint = "agentdb_reindex",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern int NativeReindex(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string collection);
+
+        [DllImport(LibName, EntryPoint = "agentdb_graph_get_node",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr NativeGraphGetNode(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string id);
+
+        [DllImport(LibName, EntryPoint = "agentdb_graph_delete_node",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern int NativeGraphDeleteNode(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string id);
+
+        [DllImport(LibName, EntryPoint = "agentdb_graph_delete_edge",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern int NativeGraphDeleteEdge(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string src,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string dst,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string relation);
+
+        [DllImport(LibName, EntryPoint = "agentdb_fts_delete",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern int NativeFtsDelete(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string collection,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string vecId);
+
+        [DllImport(LibName, EntryPoint = "agentdb_fts_optimize",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern int NativeFtsOptimize(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string collection);
+
+        [DllImport(LibName, EntryPoint = "agentdb_workflow_fail",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern int NativeWorkflowFail(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string id,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? error);
 
         [DllImport(LibName, EntryPoint = "agentdb_free_string",
             CallingConvention = CallingConvention.Cdecl)]
@@ -354,12 +414,15 @@ namespace Datacules.AgentDB
         /// <param name="alpha">
         ///   Blend factor: 0.0 = pure graph ranking, 1.0 = pure vector ranking.
         /// </param>
+        /// <param name="filterJson">
+        ///   Optional MongoDB-style metadata filter JSON, or <c>null</c>.
+        /// </param>
         /// <returns>
         ///   JSON array of <c>{"id", "rank_score", "vector_score", "graph_weight"}</c> objects.
         /// </returns>
         /// <exception cref="AgentDBException">Thrown on error.</exception>
         public string HybridQuery(string anchorNode, float[] embedding, string collection,
-            int graphDepth, int topK, double alpha)
+            int graphDepth, int topK, double alpha, string? filterJson = null)
         {
             CheckOpen();
             if (embedding is null || embedding.Length == 0)
@@ -367,8 +430,105 @@ namespace Datacules.AgentDB
 
             IntPtr ptr = NativeHybridQuery(_handle, anchorNode, embedding,
                 (UIntPtr)embedding.Length, collection,
-                (UIntPtr)graphDepth, (UIntPtr)topK, alpha);
+                (UIntPtr)graphDepth, (UIntPtr)topK, alpha, filterJson);
             return ConsumeStringPtr(ptr, "agentdb_hybrid_query failed");
+        }
+
+        // ── Additional vector operations ──────────────────────────────────────
+
+        /// <summary>Delete a vector by id from collection.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public void VectorDelete(string collection, string id)
+        {
+            CheckOpen();
+            int rc = NativeVectorDelete(_handle, collection, id);
+            if (rc != 0)
+                throw new AgentDBException(GetLastError("agentdb_vector_delete failed"));
+        }
+
+        /// <summary>Drop a vector collection and all its data permanently.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public void DropCollection(string collection)
+        {
+            CheckOpen();
+            int rc = NativeDropCollection(_handle, collection);
+            if (rc != 0)
+                throw new AgentDBException(GetLastError("agentdb_drop_collection failed"));
+        }
+
+        /// <summary>Force a full HNSW index rebuild for collection.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public void Reindex(string collection)
+        {
+            CheckOpen();
+            int rc = NativeReindex(_handle, collection);
+            if (rc != 0)
+                throw new AgentDBException(GetLastError("agentdb_reindex failed"));
+        }
+
+        // ── Additional graph operations ───────────────────────────────────────
+
+        /// <summary>Get a single memory graph node by id as a JSON object.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public string GraphGetNode(string id)
+        {
+            CheckOpen();
+            IntPtr ptr = NativeGraphGetNode(_handle, id);
+            return ConsumeStringPtr(ptr, "agentdb_graph_get_node failed");
+        }
+
+        /// <summary>Delete a node (and its incident edges) from the memory graph.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public void GraphDeleteNode(string id)
+        {
+            CheckOpen();
+            int rc = NativeGraphDeleteNode(_handle, id);
+            if (rc != 0)
+                throw new AgentDBException(GetLastError("agentdb_graph_delete_node failed"));
+        }
+
+        /// <summary>Delete a directed edge from the memory graph.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public void GraphDeleteEdge(string src, string dst, string relation)
+        {
+            CheckOpen();
+            int rc = NativeGraphDeleteEdge(_handle, src, dst, relation);
+            if (rc != 0)
+                throw new AgentDBException(GetLastError("agentdb_graph_delete_edge failed"));
+        }
+
+        // ── Additional FTS operations ─────────────────────────────────────────
+
+        /// <summary>Delete a document from the FTS index.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public void FtsDelete(string collection, string vecId)
+        {
+            CheckOpen();
+            int rc = NativeFtsDelete(_handle, collection, vecId);
+            if (rc != 0)
+                throw new AgentDBException(GetLastError("agentdb_fts_delete failed"));
+        }
+
+        /// <summary>Merge FTS index segments for better query performance.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public void FtsOptimize(string collection)
+        {
+            CheckOpen();
+            int rc = NativeFtsOptimize(_handle, collection);
+            if (rc != 0)
+                throw new AgentDBException(GetLastError("agentdb_fts_optimize failed"));
+        }
+
+        // ── Additional workflow operations ────────────────────────────────────
+
+        /// <summary>Mark a workflow as failed with an optional error message.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public void WorkflowFail(string id, string? error = null)
+        {
+            CheckOpen();
+            int rc = NativeWorkflowFail(_handle, id, error);
+            if (rc != 0)
+                throw new AgentDBException(GetLastError("agentdb_workflow_fail failed"));
         }
 
         // ── Stats ─────────────────────────────────────────────────────────

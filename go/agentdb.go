@@ -58,10 +58,15 @@ type DB struct {
 
 // Stats holds the snapshot statistics returned by [DB.Stats].
 type Stats struct {
-	Collections int64 `json:"collections"`
-	Vectors     int64 `json:"vectors"`
-	Nodes       int64 `json:"nodes"`
-	Edges       int64 `json:"edges"`
+	Collections   int64 `json:"collections"`
+	Vectors       int64 `json:"vectors"`
+	Nodes         int64 `json:"nodes"`
+	Edges         int64 `json:"edges"`
+	Conversations int64 `json:"conversations"`
+	Messages      int64 `json:"messages"`
+	Workflows     int64 `json:"workflows"`
+	WorkflowSteps int64 `json:"workflow_steps"`
+	Traces        int64 `json:"traces"`
 }
 
 // VectorResult is one entry returned by [DB.VectorSearch].
@@ -323,11 +328,18 @@ func (db *DB) FTSSearch(collection, query string, topK int) ([]FTSResult, error)
 // HybridQuery blends a graph traversal from anchorNode with a vector
 // similarity search in collection. alpha controls the blend:
 // 0.0 = pure graph ranking, 1.0 = pure vector ranking.
-func (db *DB) HybridQuery(anchorNode string, embedding []float32, collection string, graphDepth, topK int, alpha float64) ([]HybridResult, error) {
+// filterJSON is an optional MongoDB-style metadata filter (pass nil to skip).
+func (db *DB) HybridQuery(anchorNode string, embedding []float32, collection string, graphDepth, topK int, alpha float64, filterJSON []byte) ([]HybridResult, error) {
 	canchor := C.CString(anchorNode)
 	defer C.free(unsafe.Pointer(canchor))
 	ccol := C.CString(collection)
 	defer C.free(unsafe.Pointer(ccol))
+
+	var cfilter *C.char
+	if filterJSON != nil {
+		cfilter = C.CString(string(filterJSON))
+		defer C.free(unsafe.Pointer(cfilter))
+	}
 
 	if len(embedding) == 0 {
 		return nil, errors.New("embedding must not be empty")
@@ -340,6 +352,7 @@ func (db *DB) HybridQuery(anchorNode string, embedding []float32, collection str
 		ccol,
 		C.ulong(graphDepth), C.ulong(topK),
 		C.double(alpha),
+		cfilter,
 	)
 	if ptr == nil {
 		return nil, lastError("agentdb_hybrid_query failed")
@@ -644,4 +657,136 @@ func (db *DB) TraceGetTree(rootID string) (string, error) {
 	raw := C.GoString(ptr)
 	C.agentdb_free_string(ptr)
 	return raw, nil
+}
+
+// ── Additional vector operations ────────────────────────────────────────────
+
+// VectorDelete removes a vector by id from collection.
+func (db *DB) VectorDelete(collection, id string) error {
+	ccol := C.CString(collection)
+	defer C.free(unsafe.Pointer(ccol))
+	cid := C.CString(id)
+	defer C.free(unsafe.Pointer(cid))
+
+	rc := C.agentdb_vector_delete(db.handle, ccol, cid)
+	if rc != 0 {
+		return lastError("agentdb_vector_delete failed")
+	}
+	return nil
+}
+
+// DropCollection drops a vector collection and all its data.
+func (db *DB) DropCollection(collection string) error {
+	ccol := C.CString(collection)
+	defer C.free(unsafe.Pointer(ccol))
+
+	rc := C.agentdb_drop_collection(db.handle, ccol)
+	if rc != 0 {
+		return lastError("agentdb_drop_collection failed")
+	}
+	return nil
+}
+
+// Reindex forces a full HNSW index rebuild for collection.
+func (db *DB) Reindex(collection string) error {
+	ccol := C.CString(collection)
+	defer C.free(unsafe.Pointer(ccol))
+
+	rc := C.agentdb_reindex(db.handle, ccol)
+	if rc != 0 {
+		return lastError("agentdb_reindex failed")
+	}
+	return nil
+}
+
+// ── Additional graph operations ─────────────────────────────────────────────
+
+// GraphGetNode returns a single graph node as a JSON object, or "" if not found.
+func (db *DB) GraphGetNode(id string) (string, error) {
+	cid := C.CString(id)
+	defer C.free(unsafe.Pointer(cid))
+
+	ptr := C.agentdb_graph_get_node(db.handle, cid)
+	if ptr == nil {
+		return "", lastError("agentdb_graph_get_node failed")
+	}
+	raw := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return raw, nil
+}
+
+// GraphDeleteNode removes a node (and its incident edges) from the graph.
+func (db *DB) GraphDeleteNode(id string) error {
+	cid := C.CString(id)
+	defer C.free(unsafe.Pointer(cid))
+
+	rc := C.agentdb_graph_delete_node(db.handle, cid)
+	if rc != 0 {
+		return lastError("agentdb_graph_delete_node failed")
+	}
+	return nil
+}
+
+// GraphDeleteEdge removes a directed edge (src → dst) with the given relation.
+func (db *DB) GraphDeleteEdge(src, dst, relation string) error {
+	csrc := C.CString(src)
+	defer C.free(unsafe.Pointer(csrc))
+	cdst := C.CString(dst)
+	defer C.free(unsafe.Pointer(cdst))
+	crel := C.CString(relation)
+	defer C.free(unsafe.Pointer(crel))
+
+	rc := C.agentdb_graph_delete_edge(db.handle, csrc, cdst, crel)
+	if rc != 0 {
+		return lastError("agentdb_graph_delete_edge failed")
+	}
+	return nil
+}
+
+// ── Additional FTS operations ────────────────────────────────────────────────
+
+// FTSDelete removes a document from the FTS index.
+func (db *DB) FTSDelete(collection, vecID string) error {
+	ccol := C.CString(collection)
+	defer C.free(unsafe.Pointer(ccol))
+	cvid := C.CString(vecID)
+	defer C.free(unsafe.Pointer(cvid))
+
+	rc := C.agentdb_fts_delete(db.handle, ccol, cvid)
+	if rc != 0 {
+		return lastError("agentdb_fts_delete failed")
+	}
+	return nil
+}
+
+// FTSOptimize merges FTS index segments for better query performance.
+func (db *DB) FTSOptimize(collection string) error {
+	ccol := C.CString(collection)
+	defer C.free(unsafe.Pointer(ccol))
+
+	rc := C.agentdb_fts_optimize(db.handle, ccol)
+	if rc != 0 {
+		return lastError("agentdb_fts_optimize failed")
+	}
+	return nil
+}
+
+// ── Additional workflow operations ───────────────────────────────────────────
+
+// WorkflowFail marks a workflow as failed with an optional error message.
+func (db *DB) WorkflowFail(id, errMsg string) error {
+	cid := C.CString(id)
+	defer C.free(unsafe.Pointer(cid))
+
+	var cerr *C.char
+	if errMsg != "" {
+		cerr = C.CString(errMsg)
+		defer C.free(unsafe.Pointer(cerr))
+	}
+
+	rc := C.agentdb_workflow_fail(db.handle, cid, cerr)
+	if rc != 0 {
+		return lastError("agentdb_workflow_fail failed")
+	}
+	return nil
 }

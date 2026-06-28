@@ -66,7 +66,8 @@ char* agentdb_fts_search(AgentDbHandle* handle, const char* collection,
 
 char* agentdb_hybrid_query(AgentDbHandle* handle, const char* anchor_node,
           const float* embedding, size_t dim, const char* collection,
-          size_t graph_depth, size_t top_k, double alpha);
+          size_t graph_depth, size_t top_k, double alpha,
+          const char* filter_json);
 
 /* ── Stats ─────────────────────────────────────────────────────────── */
 
@@ -84,6 +85,26 @@ char* agentdb_conversation_get_messages(AgentDbHandle* handle,
 char* agentdb_conversation_list(AgentDbHandle* handle);
 int   agentdb_conversation_delete(AgentDbHandle* handle, const char* id);
 
+/* ── Additional vector operations ──────────────────────────────────── */
+
+int   agentdb_vector_delete(AgentDbHandle* handle, const char* collection,
+          const char* id);
+int   agentdb_drop_collection(AgentDbHandle* handle, const char* collection);
+int   agentdb_reindex(AgentDbHandle* handle, const char* collection);
+
+/* ── Additional graph operations ───────────────────────────────────── */
+
+char* agentdb_graph_get_node(AgentDbHandle* handle, const char* id);
+int   agentdb_graph_delete_node(AgentDbHandle* handle, const char* id);
+int   agentdb_graph_delete_edge(AgentDbHandle* handle, const char* src,
+          const char* dst, const char* relation);
+
+/* ── Additional FTS operations ─────────────────────────────────────── */
+
+int   agentdb_fts_delete(AgentDbHandle* handle, const char* collection,
+          const char* vec_id);
+int   agentdb_fts_optimize(AgentDbHandle* handle, const char* collection);
+
 /* ── Workflows ─────────────────────────────────────────────────────── */
 
 int   agentdb_workflow_create(AgentDbHandle* handle, const char* id,
@@ -95,6 +116,8 @@ int   agentdb_workflow_update_step(AgentDbHandle* handle,
           const char* output, const char* error);
 int   agentdb_workflow_complete(AgentDbHandle* handle,
           const char* id, const char* output);
+int   agentdb_workflow_fail(AgentDbHandle* handle,
+          const char* id, const char* error);
 char* agentdb_workflow_get(AgentDbHandle* handle, const char* id);
 char* agentdb_workflow_list(AgentDbHandle* handle, const char* status_filter);
 
