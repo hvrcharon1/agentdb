@@ -69,7 +69,7 @@ AgentDB runs `cargo audit` in CI on every push to `main`. The dependency surface
 
 | Dependency | Purpose |
 |---|---|
-| `rusqlite` | SQLite bindings (bundled C, SQLite 3.x security track) |
+| `rusqlite` | Embedded storage engine bindings |
 | `serde` / `serde_json` | Serialization |
 | `bincode` | HNSW index serialization |
 | `thiserror` | Error type derivation |

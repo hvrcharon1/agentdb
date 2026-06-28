@@ -71,7 +71,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
 feat(vectors): add euclidean distance metric
-fix(graph): fix CTE recursion depth limit on SQLite 3.39
+fix(graph): fix CTE recursion depth limit on deep graphs
 docs(python): add agent_memory.py quick-start example
 ci: remove hardcoded ref:main from CI lint job
 ```

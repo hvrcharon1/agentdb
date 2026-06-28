@@ -50,7 +50,7 @@
 - [x] Docker support (Linux, macOS, Windows, WSL)
 
 ## v0.4.1 — WASM Persistence + Ruby
-- [ ] OPFS (Origin Private File System) VFS adapter for SQLite — persistent browser storage
+- [ ] OPFS (Origin Private File System) adapter — persistent browser storage
 - [ ] Cloudflare Workers target (Durable Objects storage backend)
 - [ ] Ruby gem via `ffi` wrapping the C FFI layer
 - [ ] `BENCHMARKS.md` — baseline numbers (100k vectors, 10k nodes, all platforms)

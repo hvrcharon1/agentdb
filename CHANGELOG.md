@@ -186,7 +186,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Advanced metadata filtering** (`src/filter.rs`): `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$exists` operators against vector metadata JSON. Applied post-ANN with a 10× over-fetch.
 - **Hybrid queries** (`src/hybrid.rs`): single call combining recursive graph traversal (up to N hops from an anchor node) with ANN vector search, blended by alpha. Ranking formula: `rank = alpha × vector_similarity + (1 - alpha) × graph_weight`.
 - **Full-text search** (`src/fts.rs`): FTS5 virtual tables (one per collection), BM25 ranking, Porter stemmer, `snippet()` extraction, `optimize()` for segment merging.
-- **Batch upsert** (`col.upsert_batch()`): single SQLite transaction, full rollback on any failure, returns rows inserted.
+- **Batch upsert** (`col.upsert_batch()`): single atomic transaction, full rollback on any failure, returns rows inserted.
 - **Example** `examples/v020_query_power.rs`: demonstrates all four new features end-to-end.
 - **Tests** `tests/test_v020.rs`: 20 new integration tests.
 - `col.delete(id)` — delete a single vector by ID.
@@ -207,11 +207,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 - `AgentDB::open(path)` — open or create a single-file database.
-- **Relational SQL layer**: full SQLite SQL, transactions, indexes, JSON payloads, user-defined tables.
+- **Relational SQL layer**: full SQL, transactions, indexes, JSON payloads, user-defined tables.
 - **Vector store** (`src/vectors/`): pure-Rust HNSW (M=16, ef\_construction=200), cosine / euclidean / dot product, lazy index build serialized to `_adb_hnsw_index`.
 - **Memory graph** (`src/memory/`): typed nodes, weighted directed edges, recursive CTE traversal with depth and weight filters.
 - **Schema bootstrap** (`src/schema.rs`): `_adb_meta`, `_adb_collections`, `_adb_vectors`, `_adb_hnsw_index`, `_adb_nodes`, `_adb_edges`; WAL mode, foreign keys, `PRAGMA synchronous=NORMAL`.
-- **Error type** (`src/error.rs`): `AgentDbError` covering SQLite, serialization, dimension mismatch, node/edge not found, schema migration, corruption, invalid argument.
+- **Error type** (`src/error.rs`): `AgentDbError` covering storage errors, serialization, dimension mismatch, node/edge not found, schema migration, corruption, invalid argument.
 - **Examples**: `agent_memory`, `rag_pipeline`, `graph_traverse`.
 - **Tests**: 29 integration tests across `test_relational.rs`, `test_vectors.rs`, `test_memory_graph.rs`.
 - **Benchmarks**: `vector_search` and `graph_traverse` via Criterion.

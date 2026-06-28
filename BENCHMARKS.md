@@ -59,7 +59,7 @@ Build profile: `release` (`opt-level = 3`, `lto = true`, `codegen-units = 1`)
 | 100,000 nodes, 500,000 edges | 2 | 0.72 ms |
 | 100,000 nodes, 500,000 edges | 5 | 18.9 ms |
 
-Graph traversal uses a recursive CTE on an indexed `(src, dst, relation)` primary key. Deeper traversals read more rows but benefit from SQLite's B-tree cache.
+Graph traversal uses a recursive CTE on an indexed `(src, dst, relation)` primary key. Deeper traversals read more rows but benefit from the embedded engine's B-tree cache.
 
 ---
 
@@ -91,7 +91,7 @@ Graph traversal uses a recursive CTE on an indexed `(src, dst, relation)` primar
 
 ## 5. Relational SQL
 
-Pure SQLite throughput through `AgentDB::execute` / `AgentDB::query_json`:
+Pure relational throughput through `AgentDB::execute` / `AgentDB::query_json`:
 
 | Operation | Mean latency |
 |---|---|
@@ -113,7 +113,7 @@ The HNSW index is the dominant in-process memory consumer.
 | 10,000 vectors | 1,536 | ~140 MB |
 | 100,000 vectors | 1,536 | ~1.4 GB |
 
-The index is loaded lazily on first search and flushed to a bincode BLOB in SQLite on `close()`. On-disk size roughly equals the RAM figures above.
+The index is loaded lazily on first search and flushed to a persistent BLOB on `close()`. On-disk size roughly equals the RAM figures above.
 
 For memory-constrained deployments (edge, mobile), keep collections under 50k vectors at high dimensions until a disk-resident HNSW variant is added.
 

@@ -64,7 +64,7 @@ AgentDB is designed for developers who are building on top of AI models and need
 - Creating a **conversational application** that needs threaded message history with metadata
 - Running **multi-step agentic workflows** and need durable, resumable state
 - Shipping an **edge or offline-capable AI app** where network calls to external services aren't an option
-- A researcher or indie developer who wants the power of Chroma + Neo4j + SQLite **in one pip install**
+- A researcher or indie developer who wants the power of Chroma + Neo4j + a full relational database **in one pip install**
 
 ---
 
@@ -249,7 +249,7 @@ Modern AI agents have storage needs that today require five or more separate too
 
 | What your agent needs | Typical solution | The problem |
 |---|---|---|
-| Structured storage for sessions, logs, events | SQLite / Postgres | No vector search, no graph |
+| Structured storage for sessions, logs, events | Relational database | No vector search, no graph |
 | Semantic memory retrieval | ChromaDB, Qdrant, Pinecone | Separate service, network required |
 | Relationship and knowledge graph | Neo4j, custom solution | Heavy, not embeddable, not offline |
 | Keyword search over stored text | Elasticsearch, Typesense | Yet another service to operate |
@@ -258,30 +258,30 @@ Modern AI agents have storage needs that today require five or more separate too
 
 ### Full Feature Comparison
 
-| Feature | AgentDB | SQLite | ChromaDB | Qdrant | Neo4j |
-|---|---|---|---|---|---|
-| Embedded (no server) | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Single file | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Zero-configuration | ✅ | ✅ | ❌ | ❌ | ❌ |
-| ACID transactions + WAL | ✅ | ✅ | ❌ | ❌ | ✅ |
-| Relational SQL | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Vector / ANN search | ✅ | ❌ | ✅ | ✅ | ❌ |
-| Metadata filtering | ✅ | ❌ | ⚠️ | ✅ | ❌ |
-| Full-text search (BM25) | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Memory graph | ✅ | ❌ | ❌ | ❌ | ✅ |
-| Hybrid graph + vector query | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Conversation threading | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Workflow persistence | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Reasoning traces | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Python | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Node.js | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Go | ✅ | ✅ | ❌ | ✅ | ✅ |
-| Java | ✅ | ✅ | ❌ | ✅ | ✅ |
-| C# / .NET | ✅ | ✅ | ❌ | ✅ | ✅ |
-| C FFI | ✅ | ✅ | ❌ | ❌ | ❌ |
-| WASM / browser | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Works offline / on edge | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Free / open source | ✅ | ✅ | ✅ | ⚠️ | ⚠️ |
+| Feature | AgentDB | ChromaDB | Qdrant | Neo4j |
+|---|---|---|---|---|
+| Embedded (no server) | ✅ | ❌ | ❌ | ❌ |
+| Single file | ✅ | ❌ | ❌ | ❌ |
+| Zero-configuration | ✅ | ❌ | ❌ | ❌ |
+| ACID transactions + WAL | ✅ | ❌ | ❌ | ✅ |
+| Relational SQL | ✅ | ❌ | ❌ | ❌ |
+| Vector / ANN search | ✅ | ✅ | ✅ | ❌ |
+| Metadata filtering | ✅ | ⚠️ | ✅ | ❌ |
+| Full-text search (BM25) | ✅ | ❌ | ❌ | ❌ |
+| Memory graph | ✅ | ❌ | ❌ | ✅ |
+| Hybrid graph + vector query | ✅ | ❌ | ❌ | ❌ |
+| Conversation threading | ✅ | ❌ | ❌ | ❌ |
+| Workflow persistence | ✅ | ❌ | ❌ | ❌ |
+| Reasoning traces | ✅ | ❌ | ❌ | ❌ |
+| Python | ✅ | ✅ | ✅ | ✅ |
+| Node.js | ✅ | ✅ | ✅ | ✅ |
+| Go | ✅ | ❌ | ✅ | ✅ |
+| Java | ✅ | ❌ | ✅ | ✅ |
+| C# / .NET | ✅ | ❌ | ✅ | ✅ |
+| C FFI | ✅ | ❌ | ❌ | ❌ |
+| WASM / browser | ✅ | ❌ | ❌ | ❌ |
+| Works offline / on edge | ✅ | ❌ | ❌ | ❌ |
+| Free / open source | ✅ | ✅ | ⚠️ | ⚠️ |
 
 ---
 

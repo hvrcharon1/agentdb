@@ -2,8 +2,8 @@
 
 ## Overview
 
-AgentDB is built on eight storage layers that all live inside a single SQLite file.
-SQLite's proven storage engine, WAL mode, and ACID guarantees are the foundation.
+AgentDB is built on eight storage layers that all live inside a single `.agentdb` file.
+A proven embedded storage engine provides WAL mode and ACID guarantees as the foundation.
 AgentDB adds vector indexing, graph traversal, full-text search, conversation threading,
 workflow persistence, and reasoning traces as first-class citizens on top.
 
@@ -11,14 +11,14 @@ workflow persistence, and reasoning traces as first-class citizens on top.
 
 ## Layer 1 — Relational (SQL)
 
-- Direct SQLite access via `rusqlite` with WAL mode enabled
+- Embedded database access with WAL mode enabled
 - Users can create any tables they need alongside AgentDB's internal `agentdb_*` tables
 - Full SQL support: joins, CTEs, transactions, indexes
 
 ## Layer 2 — Vector Store
 
 - Collections stored in `agentdb_collections` (metadata) and `agentdb_vectors` (raw data)
-- Vectors serialized as little-endian `f32` byte arrays in SQLite BLOBs
+- Vectors serialized as little-endian `f32` byte arrays as BLOBs
 - HNSW index built lazily on first `search()` call, serialized via `bincode` into `agentdb_hnsw_index`
 - `is_dirty` flag triggers rebuild on close or manual `reindex()`
 - Supports cosine, euclidean, and dot-product distance metrics
@@ -27,7 +27,7 @@ workflow persistence, and reasoning traces as first-class citizens on top.
 
 - Nodes: `agentdb_graph_nodes` (id, kind, JSON data)
 - Edges: `agentdb_graph_edges` (src, dst, relation, weight)
-- Traversal via SQLite recursive CTEs — no in-memory graph library needed
+- Traversal via recursive CTEs — no in-memory graph library needed
 - Depth-limited, weight-filtered, relation-filtered traversal
 
 ## Layer 4 — Full-Text Search
@@ -51,7 +51,7 @@ workflow persistence, and reasoning traces as first-class citizens on top.
 ## Layer 7 — Reasoning Traces
 
 - `agentdb_traces` (id, parent_id, kind, data, timestamps) — tree-structured via parent_id
-- Subtree retrieval via SQLite recursive CTE; stores tool call logs, decision traces, chain-of-thought
+- Subtree retrieval via recursive CTE; stores tool call logs, decision traces, chain-of-thought
 - `TraceStore` API: `create`, `add_child`, `subtree`
 
 ## Layer 8 — Schema Version
@@ -84,9 +84,9 @@ agentdb_traces          -- reasoning trace nodes (tree via parent_id)
 
 | Decision | Rationale |
 |----------|-----------|
-| SQLite as storage | Proven, embedded, ACID, single-file, zero config |
+| Embedded storage engine | Proven, ACID, single-file, zero config |
 | WAL mode | Concurrent reads while writing |
 | Pure Rust HNSW | No C deps, memory safe, serializable |
-| Recursive CTEs for graph | Let SQLite do graph work, not Rust |
+| Recursive CTEs for graph | Let the storage engine do graph work, not Rust |
 | bincode for index blobs | Fast, compact binary serialization |
 | Lazy index build | Don't pay for indexing until first search |
