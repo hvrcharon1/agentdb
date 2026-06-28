@@ -1,7 +1,8 @@
 [package]
-name    = "datacules-agentdb-python"
-version = "0.5.0"
-edition = "2021"
+name         = "datacules-agentdb-python"
+version      = "0.5.0"
+edition      = "2021"
+rust-version = "1.87"
 
 [lib]
 name      = "agentdb"

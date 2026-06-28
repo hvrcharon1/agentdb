@@ -38,7 +38,7 @@ fn pyobj_to_json(obj: &Bound<'_, pyo3::PyAny>) -> PyResult<Option<Value>> {
     Ok(serde_json::from_str(&s).ok())
 }
 
-fn json_to_pyobj(py: Python, val: &Value) -> PyResult<PyObject> {
+fn json_to_pyobj(py: Python, val: &Value) -> PyResult<Py<PyAny>> {
     let json_mod = py.import("json")?;
     let s = val.to_string();
     Ok(json_mod.call_method1("loads", (s,))?.into_pyobject(py)?.into_any().unbind())
@@ -59,7 +59,7 @@ pub struct SearchResult {
 #[pymethods]
 impl SearchResult {
     #[getter]
-    fn metadata(&self, py: Python) -> PyResult<PyObject> {
+    fn metadata(&self, py: Python) -> PyResult<Py<PyAny>> {
         match &self.metadata_raw {
             Some(v) => json_to_pyobj(py, v),
             None => Ok(py.None()),
@@ -145,10 +145,9 @@ impl Collection {
     }
 
     fn upsert_batch(&self, entries: &Bound<'_, PyList>) -> PyResult<usize> {
-        let mut batch = Vec::with_capacity(entries.len()?);
-        for item in entries.iter()? {
-            let item = item?;
-            let d: Bound<'_, PyDict> = item.downcast_into()?;
+        let mut batch = Vec::with_capacity(entries.len());
+        for item in entries.iter() {
+            let d: Bound<'_, PyDict> = item.cast_into()?;
             let id: String = d
                 .get_item("id")?
                 .ok_or_else(|| to_py_err("missing 'id'"))?
@@ -178,7 +177,7 @@ impl Collection {
         query: Vec<f32>,
         top_k: usize,
         filter: Option<Bound<'_, pyo3::PyAny>>,
-    ) -> PyResult<Vec<PyObject>> {
+    ) -> PyResult<Vec<Py<PyAny>>> {
         let f = filter.as_ref().map(pyobj_to_json).transpose()?.flatten();
         let results = self
             .inner
@@ -235,7 +234,7 @@ impl AgentDB {
         self.db.lock().unwrap().execute(sql).map_err(to_py_err)
     }
 
-    fn query(&self, py: Python, sql: &str) -> PyResult<Vec<PyObject>> {
+    fn query(&self, py: Python, sql: &str) -> PyResult<Vec<Py<PyAny>>> {
         let rows = self.db.lock().unwrap().query_json(sql).map_err(to_py_err)?;
         rows.iter().map(|v| json_to_pyobj(py, v)).collect()
     }
@@ -275,7 +274,7 @@ impl AgentDB {
         node_id: &str,
         max_depth: usize,
         min_weight: f64,
-    ) -> PyResult<Vec<PyObject>> {
+    ) -> PyResult<Vec<Py<PyAny>>> {
         let opts = TraversalOptions {
             relation: None,
             max_depth,
@@ -324,7 +323,7 @@ impl AgentDB {
         collection: &str,
         query: &str,
         top_k: usize,
-    ) -> PyResult<Vec<PyObject>> {
+    ) -> PyResult<Vec<Py<PyAny>>> {
         let results = self
             .db
             .lock()
@@ -355,7 +354,7 @@ impl AgentDB {
         graph_depth: usize,
         top_k: usize,
         alpha: f64,
-    ) -> PyResult<Vec<PyObject>> {
+    ) -> PyResult<Vec<Py<PyAny>>> {
         let db = self.db.lock().unwrap();
         let q = HybridQuery {
             anchor_node,
@@ -381,7 +380,7 @@ impl AgentDB {
             .collect()
     }
 
-    fn stats(&self, py: Python) -> PyResult<PyObject> {
+    fn stats(&self, py: Python) -> PyResult<Py<PyAny>> {
         let s = self.db.lock().unwrap().stats().map_err(to_py_err)?;
         let v = serde_json::json!({
             "collections":    s.collections,
@@ -438,7 +437,7 @@ impl AgentDB {
         py: Python,
         conversation_id: &str,
         limit: Option<usize>,
-    ) -> PyResult<Vec<PyObject>> {
+    ) -> PyResult<Vec<Py<PyAny>>> {
         let msgs = self
             .db
             .lock()
@@ -461,7 +460,7 @@ impl AgentDB {
             .collect()
     }
 
-    fn list_conversations(&self, py: Python) -> PyResult<Vec<PyObject>> {
+    fn list_conversations(&self, py: Python) -> PyResult<Vec<Py<PyAny>>> {
         let convos = self
             .db
             .lock()
@@ -569,7 +568,7 @@ impl AgentDB {
             .map_err(to_py_err)
     }
 
-    fn get_workflow(&self, py: Python, id: &str) -> PyResult<PyObject> {
+    fn get_workflow(&self, py: Python, id: &str) -> PyResult<Py<PyAny>> {
         let w = self
             .db
             .lock()
@@ -609,7 +608,7 @@ impl AgentDB {
     }
 
     #[pyo3(signature = (status=None))]
-    fn list_workflows(&self, py: Python, status: Option<&str>) -> PyResult<Vec<PyObject>> {
+    fn list_workflows(&self, py: Python, status: Option<&str>) -> PyResult<Vec<Py<PyAny>>> {
         let workflows = self
             .db
             .lock()
@@ -652,7 +651,7 @@ impl AgentDB {
             .map_err(to_py_err)
     }
 
-    fn get_traces(&self, py: Python, session_id: &str) -> PyResult<Vec<PyObject>> {
+    fn get_traces(&self, py: Python, session_id: &str) -> PyResult<Vec<Py<PyAny>>> {
         let traces = self
             .db
             .lock()
@@ -677,7 +676,7 @@ impl AgentDB {
             .collect()
     }
 
-    fn get_trace_tree(&self, py: Python, root_id: &str) -> PyResult<Vec<PyObject>> {
+    fn get_trace_tree(&self, py: Python, root_id: &str) -> PyResult<Vec<Py<PyAny>>> {
         let traces = self
             .db
             .lock()
