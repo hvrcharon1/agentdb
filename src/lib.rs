@@ -75,7 +75,7 @@ pub mod ffi;
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
-pub use conversations::{Conversation, ConversationStore, Message};
+pub use conversations::{Conversation, ConversationStore, Message, MessageSearchResult};
 pub use db::{AgentDB, DbStats};
 pub use error::{AgentDbError, Result};
 pub use filter::matches as filter_matches;

@@ -443,6 +443,24 @@ impl AsyncConversationStore {
             .await
             .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
+
+    /// Full-text search over message content.
+    pub async fn search_messages(
+        &self,
+        query: &str,
+        top_k: usize,
+        conversation_id: Option<&str>,
+    ) -> Result<Vec<crate::conversations::MessageSearchResult>> {
+        let db = self.inner.clone();
+        let q = query.to_string();
+        let cid = conversation_id.map(|s| s.to_string());
+        task::spawn_blocking(move || {
+            db.conversations()
+                .search_messages(&q, top_k, cid.as_deref())
+        })
+        .await
+        .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
 }
 
 // ── Async Workflows ─────────────────────────────────────────────────────
@@ -572,11 +590,16 @@ impl AsyncTraceStore {
         .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
-    /// Get all traces for a session.
-    pub async fn get_traces(&self, session_id: &str) -> Result<Vec<Trace>> {
+    /// Get traces for a session with optional pagination.
+    pub async fn get_traces(
+        &self,
+        session_id: &str,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> Result<Vec<Trace>> {
         let db = self.inner.clone();
         let sid = session_id.to_string();
-        task::spawn_blocking(move || db.traces().get_traces(&sid))
+        task::spawn_blocking(move || db.traces().get_traces(&sid, limit, offset))
             .await
             .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }

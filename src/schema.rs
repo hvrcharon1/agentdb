@@ -1,7 +1,7 @@
 use crate::error::Result;
 use rusqlite::Connection;
 
-pub const SCHEMA_VERSION: &str = "3";
+pub const SCHEMA_VERSION: &str = "4";
 
 pub fn bootstrap(conn: &Connection) -> Result<()> {
     conn.execute_batch(
@@ -125,6 +125,15 @@ pub fn bootstrap(conn: &Connection) -> Result<()> {
         );
         CREATE INDEX IF NOT EXISTS idx_traces_session ON _adb_traces(session_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_traces_parent  ON _adb_traces(parent_id);
+
+        -- Message full-text search (schema v4)
+        CREATE VIRTUAL TABLE IF NOT EXISTS _adb_messages_fts
+        USING fts5(
+            message_id UNINDEXED,
+            conversation_id UNINDEXED,
+            content,
+            tokenize='porter ascii'
+        );
         ",
     )?;
 
@@ -170,7 +179,7 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     // Re-run bootstrap to create any tables introduced after the DB was first opened.
     bootstrap(conn)?;
 
-    // v2 → v3: add `error` column to _adb_workflows (was missing before v0.6.0).
+    // v2 → v3: add `error` column to _adb_workflows (was missing before v0.5.0).
     let _ = conn.execute_batch(
         "ALTER TABLE _adb_workflows ADD COLUMN error TEXT;"
     );
@@ -179,6 +188,9 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     let _ = conn.execute_batch(
         "ALTER TABLE _adb_vectors ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0;"
     );
+
+    // v3 → v4: message FTS virtual table (bootstrap already uses IF NOT EXISTS).
+    // No ALTER TABLE needed — new table is created by bootstrap() above.
 
     // Stamp the new version.
     conn.execute(

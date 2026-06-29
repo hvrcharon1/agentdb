@@ -107,6 +107,13 @@ export interface Message {
   createdAt:      number;
 }
 
+export interface MessageSearchResult {
+  messageId:      string;
+  conversationId: string;
+  snippet:        string;
+  rank:           number;
+}
+
 export interface Workflow {
   id:        string;
   name:      string;
@@ -117,6 +124,8 @@ export interface Workflow {
   metadata:  Record<string, unknown> | null;
   createdAt: number;
   updatedAt: number;
+  /** Total step count (always populated; full step objects only via `getWorkflow`). */
+  stepCount: number;
   steps:     WorkflowStep[];
 }
 
@@ -217,6 +226,9 @@ export class AgentDB {
   /** Delete a conversation and all its messages. */
   deleteConversation(id: string): void;
 
+  /** Full-text search over all message content. */
+  searchMessages(query: string, topK: number, conversationId?: string | null): MessageSearchResult[];
+
   // ── Workflows ──────────────────────────────────────────────────────
 
   /** Create a new workflow in pending status. */
@@ -245,8 +257,8 @@ export class AgentDB {
   /** Add a reasoning trace entry. Returns the trace ID. */
   addTrace(parentId: string | null, kind: string, data?: Record<string, unknown> | null, sessionId?: string | null, metadata?: Record<string, unknown> | null): string;
 
-  /** Get traces for a session. */
-  getTraces(sessionId: string): Trace[];
+  /** Get traces for a session with optional pagination. */
+  getTraces(sessionId: string, limit?: number | null, offset?: number | null): Trace[];
 
   /** Get a subtree of traces rooted at a trace ID. */
   getTraceTree(traceId: string): Trace[];

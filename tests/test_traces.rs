@@ -48,7 +48,7 @@ mod tests {
                 Some(json!({ "tool": "search", "query": "rust" })),
             )
             .unwrap();
-        let results = traces.get_traces("session-1").unwrap();
+        let results = traces.get_traces("session-1", None, None).unwrap();
         assert_eq!(results[0].metadata.as_ref().unwrap()["tool"], "search");
     }
 
@@ -64,7 +64,7 @@ mod tests {
         traces
             .add_trace(Some("session-1"), None, "observation", "Step 2", None)
             .unwrap();
-        let results = traces.get_traces("session-1").unwrap();
+        let results = traces.get_traces("session-1", None, None).unwrap();
         assert_eq!(results.len(), 2);
     }
 
@@ -78,10 +78,10 @@ mod tests {
         traces
             .add_trace(Some("session-B"), None, "thought", "B", None)
             .unwrap();
-        let results_a = traces.get_traces("session-A").unwrap();
+        let results_a = traces.get_traces("session-A", None, None).unwrap();
         assert_eq!(results_a.len(), 1);
         assert_eq!(results_a[0].content, "A");
-        let results_b = traces.get_traces("session-B").unwrap();
+        let results_b = traces.get_traces("session-B", None, None).unwrap();
         assert_eq!(results_b.len(), 1);
         assert_eq!(results_b[0].content, "B");
     }
@@ -96,7 +96,7 @@ mod tests {
         traces
             .add_trace(Some("session-1"), None, "thought", "second", None)
             .unwrap();
-        let results = traces.get_traces("session-1").unwrap();
+        let results = traces.get_traces("session-1", None, None).unwrap();
         assert_eq!(results.len(), 2);
         assert!(results[0].created_at <= results[1].created_at);
     }
@@ -108,7 +108,7 @@ mod tests {
         traces
             .add_trace(Some("session-1"), None, "tool_call", "Use hammer.", None)
             .unwrap();
-        let results = traces.get_traces("session-1").unwrap();
+        let results = traces.get_traces("session-1", None, None).unwrap();
         let t = &results[0];
         assert_eq!(t.session_id.as_deref(), Some("session-1"));
         assert_eq!(t.trace_type, "tool_call");
@@ -121,8 +121,45 @@ mod tests {
     #[test]
     fn test_get_traces_nonexistent_session_returns_empty() {
         let db = open();
-        let results = db.traces().get_traces("no-such-session").unwrap();
+        let results = db.traces().get_traces("no-such-session", None, None).unwrap();
         assert!(results.is_empty());
+    }
+
+    // ── pagination ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_get_traces_limit() {
+        let db = open();
+        let tr = db.traces();
+        for i in 0..5 {
+            tr.add_trace(Some("s"), None, "thought", &format!("msg {i}"), None).unwrap();
+        }
+        let page = tr.get_traces("s", Some(3), None).unwrap();
+        assert_eq!(page.len(), 3);
+    }
+
+    #[test]
+    fn test_get_traces_offset() {
+        let db = open();
+        let tr = db.traces();
+        for i in 0..5 {
+            tr.add_trace(Some("s"), None, "thought", &format!("msg {i}"), None).unwrap();
+        }
+        let all = tr.get_traces("s", None, None).unwrap();
+        let page = tr.get_traces("s", None, Some(2)).unwrap();
+        assert_eq!(page.len(), 3);
+        assert_eq!(page[0].content, all[2].content);
+    }
+
+    #[test]
+    fn test_get_traces_limit_and_offset() {
+        let db = open();
+        let tr = db.traces();
+        for i in 0..5 {
+            tr.add_trace(Some("s"), None, "thought", &format!("msg {i}"), None).unwrap();
+        }
+        let page = tr.get_traces("s", Some(2), Some(2)).unwrap();
+        assert_eq!(page.len(), 2);
     }
 
     // ── get_trace_tree ────────────────────────────────────────────────────────
@@ -294,7 +331,7 @@ mod tests {
                 None,
             )
             .unwrap();
-        let results = traces.get_traces("session-1").unwrap();
+        let results = traces.get_traces("session-1", None, None).unwrap();
         assert_eq!(results.len(), 3);
         let types: Vec<&str> = results.iter().map(|t| t.trace_type.as_str()).collect();
         assert!(types.contains(&"thought"));

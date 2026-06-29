@@ -162,7 +162,7 @@ fn main() -> agentdb::Result<()> {
         None,
     )?;
 
-    let session_traces = traces.get_traces("session-abc")?;
+    let session_traces = traces.get_traces("session-abc", None, None)?;
     println!(
         "   {} traces recorded for session-abc",
         session_traces.len()

@@ -27,6 +27,9 @@ pub struct Workflow {
     pub created_at: i64,
     /// Unix-millisecond timestamp of the most recent status change.
     pub updated_at: i64,
+    /// Number of steps in this workflow (populated by `list_workflows`; full
+    /// step objects are only fetched by `get_workflow`).
+    pub step_count: i64,
     /// Steps belonging to this workflow, ordered by `step_index`.
     pub steps: Vec<WorkflowStep>,
 }
@@ -203,35 +206,44 @@ impl WorkflowStore {
             .map_err(|_| AgentDbError::InvalidArgument(format!("workflow not found: {id}")))?
         };
         let steps = self.steps_for_workflow(id)?;
-        Ok(Workflow { steps, ..workflow })
+        let step_count = steps.len() as i64;
+        Ok(Workflow { steps, step_count, ..workflow })
     }
 
     /// List workflows, optionally filtered by status.
     ///
     /// Pass `None` to return all workflows. Results are ordered by `created_at`
-    /// descending (most recent first). Steps are **not** populated on list results
-    /// to keep the query lightweight; call [`get_workflow`] for step details.
+    /// descending (most recent first). The `step_count` field is populated.
+    /// Full step objects are only fetched by [`get_workflow`].
     pub fn list_workflows(&self, status_filter: Option<&str>) -> Result<Vec<Workflow>> {
         let conn = self.conn.lock().unwrap();
         let workflows: Vec<Workflow> = match status_filter {
             Some(s) => {
                 let mut stmt = conn.prepare(
-                    "SELECT id, name, status, input, output, error, metadata, created_at, updated_at
-                     FROM _adb_workflows
-                     WHERE status = ?1
-                     ORDER BY created_at DESC",
+                    "SELECT w.id, w.name, w.status, w.input, w.output, w.error,
+                            w.metadata, w.created_at, w.updated_at,
+                            COUNT(s.id) AS step_count
+                     FROM _adb_workflows w
+                     LEFT JOIN _adb_workflow_steps s ON s.workflow_id = w.id
+                     WHERE w.status = ?1
+                     GROUP BY w.id
+                     ORDER BY w.created_at DESC",
                 )?;
-                let rows = stmt.query_map(params![s], parse_workflow_row)?;
+                let rows = stmt.query_map(params![s], parse_workflow_row_with_count)?;
                 rows.map(|r| r.map_err(AgentDbError::Sqlite))
                     .collect::<Result<Vec<_>>>()?
             }
             None => {
                 let mut stmt = conn.prepare(
-                    "SELECT id, name, status, input, output, error, metadata, created_at, updated_at
-                     FROM _adb_workflows
-                     ORDER BY created_at DESC",
+                    "SELECT w.id, w.name, w.status, w.input, w.output, w.error,
+                            w.metadata, w.created_at, w.updated_at,
+                            COUNT(s.id) AS step_count
+                     FROM _adb_workflows w
+                     LEFT JOIN _adb_workflow_steps s ON s.workflow_id = w.id
+                     GROUP BY w.id
+                     ORDER BY w.created_at DESC",
                 )?;
-                let rows = stmt.query_map([], parse_workflow_row)?;
+                let rows = stmt.query_map([], parse_workflow_row_with_count)?;
                 rows.map(|r| r.map_err(AgentDbError::Sqlite))
                     .collect::<Result<Vec<_>>>()?
             }
@@ -257,6 +269,7 @@ impl WorkflowStore {
 
 // ── Row parsers ──────────────────────────────────────────────────────────────
 
+// Used by get_workflow (no step_count column in query)
 fn parse_workflow_row(row: &rusqlite::Row) -> rusqlite::Result<Workflow> {
     // Column order: id(0) name(1) status(2) input(3) output(4) error(5) metadata(6) created_at(7) updated_at(8)
     let input_str: Option<String> = row.get(3)?;
@@ -278,6 +291,33 @@ fn parse_workflow_row(row: &rusqlite::Row) -> rusqlite::Result<Workflow> {
             .and_then(|s| serde_json::from_str(s).ok()),
         created_at: row.get(7)?,
         updated_at: row.get(8)?,
+        step_count: 0,
+        steps: vec![],
+    })
+}
+
+// Used by list_workflows (includes step_count at column 9)
+fn parse_workflow_row_with_count(row: &rusqlite::Row) -> rusqlite::Result<Workflow> {
+    let input_str: Option<String> = row.get(3)?;
+    let output_str: Option<String> = row.get(4)?;
+    let meta_str: Option<String> = row.get(6)?;
+    Ok(Workflow {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        status: row.get(2)?,
+        input: input_str
+            .as_deref()
+            .and_then(|s| serde_json::from_str(s).ok()),
+        output: output_str
+            .as_deref()
+            .and_then(|s| serde_json::from_str(s).ok()),
+        error: row.get(5)?,
+        metadata: meta_str
+            .as_deref()
+            .and_then(|s| serde_json::from_str(s).ok()),
+        created_at: row.get(7)?,
+        updated_at: row.get(8)?,
+        step_count: row.get(9)?,
         steps: vec![],
     })
 }

@@ -278,4 +278,38 @@ mod tests {
         assert!(workflow.steps[0].started_at.is_some());
         assert!(workflow.steps[0].completed_at.is_some());
     }
+
+    // ── step_count ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_list_workflows_step_count_zero_no_steps() {
+        let db = open();
+        let wf = db.workflows();
+        wf.create_workflow("wf-1", "Pipeline", None, None).unwrap();
+        let list = wf.list_workflows(None).unwrap();
+        assert_eq!(list[0].step_count, 0);
+    }
+
+    #[test]
+    fn test_list_workflows_step_count_reflects_steps() {
+        let db = open();
+        let wf = db.workflows();
+        wf.create_workflow("wf-1", "Pipeline", None, None).unwrap();
+        wf.add_step("wf-1", "Step A", None).unwrap();
+        wf.add_step("wf-1", "Step B", None).unwrap();
+        let list = wf.list_workflows(None).unwrap();
+        assert_eq!(list[0].step_count, 2);
+    }
+
+    #[test]
+    fn test_get_workflow_step_count_matches_steps_len() {
+        let db = open();
+        let wf = db.workflows();
+        wf.create_workflow("wf-1", "Pipeline", None, None).unwrap();
+        wf.add_step("wf-1", "Step A", None).unwrap();
+        wf.add_step("wf-1", "Step B", None).unwrap();
+        let workflow = wf.get_workflow("wf-1").unwrap();
+        assert_eq!(workflow.step_count, workflow.steps.len() as i64);
+        assert_eq!(workflow.step_count, 2);
+    }
 }

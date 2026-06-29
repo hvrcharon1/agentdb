@@ -657,6 +657,33 @@ impl AgentDB {
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 
+    /// Full-text search over message content.
+    #[napi]
+    pub fn search_messages(
+        &self,
+        query: String,
+        top_k: i32,
+        conversation_id: Option<String>,
+    ) -> Result<Vec<serde_json::Value>> {
+        let results = self.db
+            .lock()
+            .unwrap()
+            .conversations()
+            .search_messages(&query, top_k as usize, conversation_id.as_deref())
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        Ok(results
+            .iter()
+            .map(|r| {
+                serde_json::json!({
+                    "messageId":      r.message_id,
+                    "conversationId": r.conversation_id,
+                    "snippet":        r.snippet,
+                    "rank":           r.rank
+                })
+            })
+            .collect())
+    }
+
     // ── Workflows ────────────────────────────────────────────────────
 
     /// Create a new workflow in pending status.
@@ -761,15 +788,16 @@ impl AgentDB {
             })
         }).collect();
         Ok(serde_json::json!({
-            "id": w.id,
-            "name": w.name,
-            "status": w.status,
-            "input": w.input,
-            "output": w.output,
-            "metadata": w.metadata,
+            "id":        w.id,
+            "name":      w.name,
+            "status":    w.status,
+            "input":     w.input,
+            "output":    w.output,
+            "metadata":  w.metadata,
+            "stepCount": w.step_count,
             "createdAt": w.created_at,
             "updatedAt": w.updated_at,
-            "steps": steps
+            "steps":     steps
         }))
     }
 
@@ -789,9 +817,10 @@ impl AgentDB {
             .iter()
             .map(|w| {
                 serde_json::json!({
-                    "id": w.id,
-                    "name": w.name,
-                    "status": w.status,
+                    "id":        w.id,
+                    "name":      w.name,
+                    "status":    w.status,
+                    "stepCount": w.step_count,
                     "createdAt": w.created_at,
                     "updatedAt": w.updated_at
                 })
@@ -832,7 +861,7 @@ impl AgentDB {
             .lock()
             .unwrap()
             .traces()
-            .get_traces(&session_id)
+            .get_traces(&session_id, None, None)
             .map_err(|e| Error::from_reason(e.to_string()))?;
         Ok(traces
             .iter()

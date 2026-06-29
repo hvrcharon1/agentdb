@@ -10,6 +10,27 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.5.1] — 2026-06-29 — Enhancement Pass
+
+### Added
+- **`search_messages(query, top_k, conversation_id?)`** on `ConversationStore` and `AsyncConversationStore` —
+  BM25 full-text search over all message content via a dedicated `_adb_messages_fts` FTS5 virtual table
+  (schema v4). Porter stemmer enabled. Supports optional per-conversation scope.
+  Exposed in Python (`search_messages`) and Node.js (`searchMessages`).
+- **`Workflow.step_count`** — `list_workflows()` now populates a `step_count` field via a single
+  `LEFT JOIN … COUNT` query; no extra round-trips. `get_workflow()` sets it from the fetched steps.
+  Surfaced in Node.js `listWorkflows()` / `getWorkflow()` as `stepCount`.
+- **`TraceStore::get_traces` pagination** — new `limit: Option<usize>` and `offset: Option<usize>`
+  parameters. Async wrapper `AsyncTraceStore::get_traces` updated to match. All bindings (Python,
+  Node.js, FFI) pass `None, None` for backward-compatible behaviour.
+- **`MessageSearchResult`** type re-exported from `agentdb` crate root.
+- **`nodejs/index.d.ts`**: `MessageSearchResult` interface, `Workflow.stepCount`, `searchMessages()`,
+  updated `getTraces(sessionId, limit?, offset?)`.
+- **Schema v4** — adds `_adb_messages_fts` FTS5 virtual table; `migrate()` handles upgrade.
+- New tests: trace pagination (3), message FTS search (5), workflow step_count (3).
+
+---
+
 ## [0.5.0] — 2026-06-29 — Quality & Correctness
 
 ### Fixed

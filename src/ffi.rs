@@ -1442,7 +1442,7 @@ pub unsafe extern "C" fn agentdb_trace_get_by_session(
             return std::ptr::null_mut();
         }
     };
-    match h.db.traces().get_traces(sid) {
+    match h.db.traces().get_traces(sid, None, None) {
         Ok(traces) => {
             let json: Vec<Value> = traces
                 .iter()

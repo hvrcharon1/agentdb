@@ -188,7 +188,7 @@ async fn async_traces() {
         .add_trace(Some("session-1"), Some(&root), "tool_call", "search", None)
         .await
         .unwrap();
-    let traces = tr.get_traces("session-1").await.unwrap();
+    let traces = tr.get_traces("session-1", None, None).await.unwrap();
     assert_eq!(traces.len(), 2);
     let tree = tr.get_trace_tree(&root).await.unwrap();
     assert!(!tree.is_empty());

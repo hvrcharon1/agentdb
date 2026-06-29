@@ -210,6 +210,27 @@ impl Collection {
     fn reindex(&self) -> PyResult<()> {
         self.inner.reindex().map_err(to_py_err)
     }
+
+    fn delete(&self, id: &str) -> PyResult<()> {
+        self.inner.delete(id).map_err(to_py_err)
+    }
+
+    fn upsert_with_text(
+        &self,
+        id: String,
+        vector: Vec<f32>,
+        text: &str,
+        metadata: Option<Bound<'_, pyo3::PyAny>>,
+    ) -> PyResult<()> {
+        let meta = metadata
+            .as_ref()
+            .map(pyobj_to_json)
+            .transpose()?
+            .flatten();
+        self.inner
+            .upsert_with_text(VectorEntry { id, vector, metadata: meta }, text)
+            .map_err(to_py_err)
+    }
 }
 
 // ── AgentDB ───────────────────────────────────────────────────────────
@@ -494,6 +515,37 @@ impl AgentDB {
             .map_err(to_py_err)
     }
 
+    #[pyo3(signature = (query, top_k, conversation_id=None))]
+    fn search_messages(
+        &self,
+        py: Python,
+        query: &str,
+        top_k: usize,
+        conversation_id: Option<&str>,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let results = self
+            .db
+            .lock()
+            .unwrap()
+            .conversations()
+            .search_messages(query, top_k, conversation_id)
+            .map_err(to_py_err)?;
+        results
+            .iter()
+            .map(|r| {
+                let v = serde_json::json!({
+                    "message_id":      r.message_id,
+                    "conversation_id": r.conversation_id,
+                    "snippet":         r.snippet,
+                    "rank":            r.rank
+                });
+                pythonize::pythonize(py, &v).map_err(|e| {
+                    pyo3::exceptions::PyRuntimeError::new_err(e.to_string())
+                })
+            })
+            .collect()
+    }
+
     // ── Workflows ─────────────────────────────────────────────────────
 
     #[pyo3(signature = (id, name, input=None))]
@@ -659,7 +711,7 @@ impl AgentDB {
             .lock()
             .unwrap()
             .traces()
-            .get_traces(session_id)
+            .get_traces(session_id, None, None)
             .map_err(to_py_err)?;
         traces
             .iter()

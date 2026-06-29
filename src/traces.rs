@@ -63,16 +63,27 @@ impl TraceStore {
         Ok(trace_id)
     }
 
-    /// Return all traces for a given session in chronological order.
-    pub fn get_traces(&self, session_id: &str) -> Result<Vec<Trace>> {
+    /// Return traces for a given session in chronological order.
+    ///
+    /// Use `limit` and `offset` for pagination. Pass `None` for both to
+    /// retrieve all traces.
+    pub fn get_traces(
+        &self,
+        session_id: &str,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> Result<Vec<Trace>> {
         let conn = self.conn.lock().unwrap();
+        let lim = limit.unwrap_or(usize::MAX) as i64;
+        let off = offset.unwrap_or(0) as i64;
         let mut stmt = conn.prepare(
             "SELECT id, session_id, parent_id, trace_type, content, metadata, created_at
              FROM _adb_traces
              WHERE session_id = ?1
-             ORDER BY created_at ASC",
+             ORDER BY created_at ASC
+             LIMIT ?2 OFFSET ?3",
         )?;
-        let rows = stmt.query_map(params![session_id], parse_trace)?;
+        let rows = stmt.query_map(params![session_id, lim, off], parse_trace)?;
         rows.map(|r| r.map_err(AgentDbError::Sqlite)).collect()
     }
 

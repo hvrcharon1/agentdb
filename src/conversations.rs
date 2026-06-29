@@ -6,6 +6,19 @@ use serde_json::Value;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
+/// A full-text search result for a message.
+#[derive(Debug, Clone)]
+pub struct MessageSearchResult {
+    /// ID of the matching message.
+    pub message_id: String,
+    /// ID of the conversation the message belongs to.
+    pub conversation_id: String,
+    /// BM25-ranked snippet of the matched content.
+    pub snippet: String,
+    /// BM25 rank score (lower is better; negate for descending sort).
+    pub rank: f64,
+}
+
 /// A conversation thread.
 #[derive(Debug, Clone)]
 pub struct Conversation {
@@ -94,6 +107,12 @@ impl ConversationStore {
             "UPDATE _adb_conversations SET updated_at = ?1 WHERE id = ?2",
             params![now, conversation_id],
         )?;
+        // Keep the FTS index in sync (ignore errors if virtual table doesn't exist yet)
+        let _ = conn.execute(
+            "INSERT INTO _adb_messages_fts (message_id, conversation_id, content)
+             VALUES (?1, ?2, ?3)",
+            params![&msg_id, conversation_id, content],
+        );
         Ok(msg_id)
     }
 
@@ -156,12 +175,77 @@ impl ConversationStore {
     /// Delete a conversation and all its messages (via ON DELETE CASCADE).
     pub fn delete_conversation(&self, id: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
+        // Remove FTS entries for all messages in this conversation first.
+        let _ = conn.execute(
+            "DELETE FROM _adb_messages_fts WHERE conversation_id = ?1",
+            params![id],
+        );
         conn.execute("DELETE FROM _adb_conversations WHERE id = ?1", params![id])?;
         Ok(())
+    }
+
+    /// Full-text search over all message content.
+    ///
+    /// Returns up to `top_k` results ranked by BM25 relevance.
+    /// Optionally filter to a single conversation with `conversation_id`.
+    pub fn search_messages(
+        &self,
+        query: &str,
+        top_k: usize,
+        conversation_id: Option<&str>,
+    ) -> Result<Vec<MessageSearchResult>> {
+        let conn = self.conn.lock().unwrap();
+        let rows = match conversation_id {
+            Some(cid) => {
+                let mut stmt = conn.prepare(
+                    "SELECT message_id, conversation_id,
+                            snippet(_adb_messages_fts, 2, '<b>', '</b>', '...', 10),
+                            rank
+                     FROM _adb_messages_fts
+                     WHERE _adb_messages_fts MATCH ?1
+                       AND conversation_id = ?2
+                     ORDER BY rank
+                     LIMIT ?3",
+                )?;
+                let rows = stmt.query_map(
+                    params![query, cid, top_k as i64],
+                    parse_message_search_result,
+                )?;
+                rows.map(|r| r.map_err(AgentDbError::Sqlite))
+                    .collect::<Result<Vec<_>>>()?
+            }
+            None => {
+                let mut stmt = conn.prepare(
+                    "SELECT message_id, conversation_id,
+                            snippet(_adb_messages_fts, 2, '<b>', '</b>', '...', 10),
+                            rank
+                     FROM _adb_messages_fts
+                     WHERE _adb_messages_fts MATCH ?1
+                     ORDER BY rank
+                     LIMIT ?2",
+                )?;
+                let rows = stmt.query_map(
+                    params![query, top_k as i64],
+                    parse_message_search_result,
+                )?;
+                rows.map(|r| r.map_err(AgentDbError::Sqlite))
+                    .collect::<Result<Vec<_>>>()?
+            }
+        };
+        Ok(rows)
     }
 }
 
 // ── Row parsers ──────────────────────────────────────────────────────────────
+
+fn parse_message_search_result(row: &rusqlite::Row) -> rusqlite::Result<MessageSearchResult> {
+    Ok(MessageSearchResult {
+        message_id:      row.get(0)?,
+        conversation_id: row.get(1)?,
+        snippet:         row.get(2)?,
+        rank:            row.get(3)?,
+    })
+}
 
 fn parse_conversation(row: &rusqlite::Row) -> rusqlite::Result<Conversation> {
     let meta_str: Option<String> = row.get(2)?;
