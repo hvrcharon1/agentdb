@@ -220,7 +220,7 @@ export class AgentDB {
   // ── Workflows ──────────────────────────────────────────────────────
 
   /** Create a new workflow in pending status. */
-  createWorkflow(id: string, name: string, input?: Record<string, unknown> | null): void;
+  createWorkflow(id: string, name: string, input?: Record<string, unknown> | null, metadata?: Record<string, unknown> | null): void;
 
   /** Add a step to a workflow. Returns the step ID. */
   addWorkflowStep(workflowId: string, name: string, input?: Record<string, unknown> | null): string;
