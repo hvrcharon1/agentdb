@@ -162,11 +162,16 @@ fn run(cli: Cli) -> agentdb::Result<()> {
 fn cmd_stats(path: &str) -> agentdb::Result<()> {
     let db = AgentDB::open(path)?;
     let s = db.stats()?;
-    println!("path:        {path}");
-    println!("collections: {}", s.collections);
-    println!("vectors:     {}", s.vectors);
-    println!("nodes:       {}", s.nodes);
-    println!("edges:       {}", s.edges);
+    println!("path:           {path}");
+    println!("collections:    {}", s.collections);
+    println!("vectors:        {}", s.vectors);
+    println!("nodes:          {}", s.nodes);
+    println!("edges:          {}", s.edges);
+    println!("conversations:  {}", s.conversations);
+    println!("messages:       {}", s.messages);
+    println!("workflows:      {}", s.workflows);
+    println!("workflow_steps: {}", s.workflow_steps);
+    println!("traces:         {}", s.traces);
     Ok(())
 }
 
@@ -250,10 +255,15 @@ fn cmd_inspect(path: &str) -> agentdb::Result<()> {
 
     let s = db.stats()?;
     println!("Statistics");
-    println!("  collections : {}", s.collections);
-    println!("  vectors     : {}", s.vectors);
-    println!("  nodes       : {}", s.nodes);
-    println!("  edges       : {}", s.edges);
+    println!("  collections    : {}", s.collections);
+    println!("  vectors        : {}", s.vectors);
+    println!("  nodes          : {}", s.nodes);
+    println!("  edges          : {}", s.edges);
+    println!("  conversations  : {}", s.conversations);
+    println!("  messages       : {}", s.messages);
+    println!("  workflows      : {}", s.workflows);
+    println!("  workflow_steps : {}", s.workflow_steps);
+    println!("  traces         : {}", s.traces);
     println!();
 
     let cols = db.vectors().list_collections()?;
@@ -290,7 +300,6 @@ fn cmd_migrate(path: &str) -> agentdb::Result<()> {
 
     let conn = Connection::open(path).map_err(agentdb::AgentDbError::Sqlite)?;
 
-    // Read current schema version before migration
     let old_version: String = conn
         .query_row(
             "SELECT COALESCE(
@@ -304,15 +313,7 @@ fn cmd_migrate(path: &str) -> agentdb::Result<()> {
 
     println!("  current schema version: {old_version}");
 
-    // Re-run bootstrap — all CREATE TABLE/INDEX statements use IF NOT EXISTS,
-    // so this safely adds any new tables without affecting existing data.
-    agentdb::schema::bootstrap(&conn)?;
-
-    // Update the schema version to current
-    conn.execute_batch(&format!(
-        "UPDATE _adb_meta SET value = '{}' WHERE key = 'schema_version'",
-        agentdb::schema::SCHEMA_VERSION
-    ))?;
+    agentdb::schema::migrate(&conn)?;
 
     println!(
         "  migrated to schema version: {}",
@@ -449,19 +450,32 @@ fn cmd_shell(path: &str) -> agentdb::Result<()> {
             let query = sql_buf.trim().to_string();
             sql_buf.clear();
 
-            match db.query_json(&query) {
-                Ok(rows) => {
-                    println!(
-                        "{}",
-                        serde_json::to_string_pretty(&rows).unwrap_or_default()
-                    );
-                    println!(
-                        "({} row{})",
-                        rows.len(),
-                        if rows.len() == 1 { "" } else { "s" }
-                    );
+            // Route non-SELECT statements to execute() so rows-affected is shown.
+            let upper = query.trim_start().to_ascii_uppercase();
+            let is_select = upper.starts_with("SELECT")
+                || upper.starts_with("WITH")
+                || upper.starts_with("PRAGMA")
+                || upper.starts_with("EXPLAIN");
+            if is_select {
+                match db.query_json(&query) {
+                    Ok(rows) => {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&rows).unwrap_or_default()
+                        );
+                        println!(
+                            "({} row{})",
+                            rows.len(),
+                            if rows.len() == 1 { "" } else { "s" }
+                        );
+                    }
+                    Err(e) => eprintln!("error: {e}"),
                 }
-                Err(e) => eprintln!("error: {e}"),
+            } else {
+                match db.execute(&query) {
+                    Ok(n) => println!("({n} row{} affected)", if n == 1 { "" } else { "s" }),
+                    Err(e) => eprintln!("error: {e}"),
+                }
             }
         }
     }

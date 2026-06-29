@@ -20,17 +20,17 @@ jobs:
     # rusqlite with features=["bundled"] compiles SQLite from C source.
     # The wasm32-unknown-unknown target lacks POSIX APIs (file I/O, threads)
     # that SQLite's C code requires, so the WASM build currently fails.
-    # A WASM-compatible SQLite VFS (OPFS) is tracked for v0.4.0.
-    # Mark as non-blocking so this doesn't gate PRs until fixed.
+    # OPFS persistent storage is not yet implemented.
+    # Mark as non-blocking so this doesn't gate PRs until the WASM VFS is added.
     continue-on-error: true
 
     steps:
       - uses: actions/checkout@v7
 
-      - name: Install Rust 1.75.0
+      - name: Install Rust 1.95.0
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: "1.75.0"
+          toolchain: "1.95.0"
           targets: wasm32-unknown-unknown
 
       - name: Cache
@@ -40,14 +40,14 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: wasm-cargo-1.75.0-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: wasm-cargo-1.75.0-
+          key: wasm-cargo-1.95.0-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: wasm-cargo-1.95.0-
 
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked
 
       # Build in-memory-only WASM package targeting the web bundler.
-      # OPFS persistent storage is tracked for v0.4.0; this job
+      # OPFS persistent storage is not yet implemented; this job
       # validates that the WASM feature compiles and the JS glue loads.
       - name: Build WASM package
         run: |

@@ -4,7 +4,8 @@ use serde_json::Value;
 ///
 /// Supports exact match, comparison, and logical operators:
 /// `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$exists`,
-/// `$regex` (substring match), `$and`, `$or`, `$not`.
+/// `$contains` (substring match), `$regex` (regex pattern match),
+/// `$and`, `$or`, `$not`.
 ///
 /// Field paths support dot notation: `{ "user.name": { "$eq": "alice" } }`.
 pub fn matches(metadata: &Value, filter: &Value) -> bool {
@@ -85,8 +86,16 @@ fn apply_op(op: &str, field: Option<&Value>, operand: &Value) -> bool {
             (Some(v), Value::Array(arr)) => !arr.contains(v),
             _ => true,
         },
-        "$regex" => match (field, operand.as_str()) {
+        // Substring containment check (literal, not a regex pattern).
+        "$contains" => match (field, operand.as_str()) {
             (Some(Value::String(s)), Some(pattern)) => s.contains(pattern),
+            _ => false,
+        },
+        // Regex pattern match. Invalid patterns never match (returns false).
+        "$regex" => match (field, operand.as_str()) {
+            (Some(Value::String(s)), Some(pattern)) => {
+                regex::Regex::new(pattern).map(|re| re.is_match(s)).unwrap_or(false)
+            }
             _ => false,
         },
         _ => false,

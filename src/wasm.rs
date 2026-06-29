@@ -1,10 +1,9 @@
-//! # AgentDB — WASM bindings (stub)
+//! # AgentDB — WASM bindings
 //!
-//! Status: in-progress. In-memory databases work today via wasm-pack.
-//! Persistent storage requires an OPFS (Origin Private File System) VFS
-//! adapter for SQLite, which is tracked in the v0.4.0 milestone.
+//! In-memory databases work today via wasm-pack. Persistent storage via OPFS
+//! (Origin Private File System) is not yet implemented.
 //!
-//! ## Building today (in-memory only)
+//! ## Building (in-memory only)
 //!
 //! ```bash
 //! cargo install wasm-pack
@@ -19,7 +18,7 @@
 //! const db = WasmAgentDB.open_memory();
 //! db.execute("CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT)");
 //! const stats = JSON.parse(db.stats());
-//! console.log(stats); // { collections: 0, vectors: 0, nodes: 0, edges: 0 }
+//! // { collections:0, vectors:0, nodes:0, edges:0, conversations:0, ... }
 //! ```
 
 use wasm_bindgen::prelude::*;
@@ -40,8 +39,6 @@ pub struct WasmAgentDB {
 #[wasm_bindgen]
 impl WasmAgentDB {
     /// Open an in-memory AgentDB database.
-    ///
-    /// Persistent file storage via OPFS is tracked for v0.4.0.
     #[wasm_bindgen(js_name = open_memory)]
     pub fn open_memory() -> Result<WasmAgentDB, JsValue> {
         AgentDB::open(":memory:")
@@ -156,10 +153,15 @@ impl WasmAgentDB {
             .stats()
             .map(|s| {
                 serde_json::json!({
-                    "collections": s.collections,
-                    "vectors": s.vectors,
-                    "nodes": s.nodes,
-                    "edges": s.edges
+                    "collections":   s.collections,
+                    "vectors":       s.vectors,
+                    "nodes":         s.nodes,
+                    "edges":         s.edges,
+                    "conversations": s.conversations,
+                    "messages":      s.messages,
+                    "workflows":     s.workflows,
+                    "workflowSteps": s.workflow_steps,
+                    "traces":        s.traces
                 })
                 .to_string()
             })

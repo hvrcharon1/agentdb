@@ -331,4 +331,104 @@ mod tests {
         // Ensure BatchEntry is importable (used in test_v020)
         let _: Option<agentdb::BatchEntry> = None;
     }
+
+    // ── T6: DotProduct vs Cosine distinctness ────────────────────────────
+
+    #[test]
+    fn test_dot_product_ranking_differs_from_cosine() {
+        // Use unnormalized vectors where magnitude matters for dot product
+        // but not for cosine.
+        //
+        // query = [4.0, 0.0]
+        // v_long  = [4.0, 0.0]  — large magnitude, same direction as query
+        // v_short = [0.5, 0.0]  — small magnitude, same direction as query
+        // v_perp  = [0.0, 1.0]  — perpendicular
+        //
+        // Cosine: v_long and v_short are tied (both perfect cosine = 1.0)
+        // DotProduct: v_long wins (4*4=16 > 4*0.5=2)
+        let db = open();
+        let dot_col = db
+            .vectors()
+            .collection_with_metric("dot_test", 2, DistanceMetric::DotProduct)
+            .unwrap();
+        dot_col
+            .upsert(VectorEntry {
+                id: "v_long".into(),
+                vector: vec![4.0, 0.0],
+                metadata: None,
+            })
+            .unwrap();
+        dot_col
+            .upsert(VectorEntry {
+                id: "v_short".into(),
+                vector: vec![0.5, 0.0],
+                metadata: None,
+            })
+            .unwrap();
+        dot_col
+            .upsert(VectorEntry {
+                id: "v_perp".into(),
+                vector: vec![0.0, 1.0],
+                metadata: None,
+            })
+            .unwrap();
+
+        let dot_results = dot_col
+            .search(
+                &[4.0, 0.0],
+                SearchOptions {
+                    top_k: 3,
+                    metric: DistanceMetric::DotProduct,
+                    filter: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(dot_results[0].id, "v_long", "dot product: long vector should rank first");
+
+        let cos_col = db
+            .vectors()
+            .collection_with_metric("cos_test", 2, DistanceMetric::Cosine)
+            .unwrap();
+        cos_col
+            .upsert(VectorEntry {
+                id: "v_long".into(),
+                vector: vec![4.0, 0.0],
+                metadata: None,
+            })
+            .unwrap();
+        cos_col
+            .upsert(VectorEntry {
+                id: "v_short".into(),
+                vector: vec![0.5, 0.0],
+                metadata: None,
+            })
+            .unwrap();
+
+        let cos_results = cos_col
+            .search(
+                &[4.0, 0.0],
+                SearchOptions {
+                    top_k: 2,
+                    metric: DistanceMetric::Cosine,
+                    filter: None,
+                },
+            )
+            .unwrap();
+        // Cosine: both vectors point in the same direction — both score ≈ 1.0
+        assert_eq!(cos_results.len(), 2, "both should appear in cosine results");
+        let cos_scores: Vec<f32> = cos_results.iter().map(|r| r.score).collect();
+        assert!(
+            (cos_scores[0] - cos_scores[1]).abs() < 0.01,
+            "cosine scores should be equal for same-direction vectors: {:?}",
+            cos_scores
+        );
+
+        // Dot product scores must NOT be equal — magnitude matters
+        let dot_scores: Vec<f32> = dot_results[..2].iter().map(|r| r.score).collect();
+        assert!(
+            (dot_scores[0] - dot_scores[1]).abs() > 0.5,
+            "dot product scores should differ significantly: {:?}",
+            dot_scores
+        );
+    }
 }

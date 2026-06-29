@@ -1,7 +1,7 @@
 use crate::error::Result;
 use rusqlite::Connection;
 
-pub const SCHEMA_VERSION: &str = "2";
+pub const SCHEMA_VERSION: &str = "3";
 
 pub fn bootstrap(conn: &Connection) -> Result<()> {
     conn.execute_batch(
@@ -30,6 +30,7 @@ pub fn bootstrap(conn: &Connection) -> Result<()> {
             vector        BLOB NOT NULL,
             metadata      TEXT,
             created_at    INTEGER NOT NULL,
+            updated_at    INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (id, collection_id),
             FOREIGN KEY (collection_id)
                 REFERENCES _adb_collections(id) ON DELETE CASCADE
@@ -92,6 +93,7 @@ pub fn bootstrap(conn: &Connection) -> Result<()> {
             status     TEXT NOT NULL DEFAULT 'pending',
             input      TEXT,
             output     TEXT,
+            error      TEXT,
             metadata   TEXT,
             created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
             updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
@@ -147,9 +149,44 @@ pub fn check_version(conn: &Connection) -> Result<()> {
         .ok();
     match version.as_deref() {
         Some(v) if v == SCHEMA_VERSION => Ok(()),
+        // Older or newer schema on disk: caller must run `agentdb migrate`
+        // (or call `schema::migrate(conn)` programmatically).
         Some(_) => Err(crate::error::AgentDbError::SchemaMigration),
-        None => Ok(()),
+        // Missing version key indicates a corrupt or pre-v0.1 database.
+        None => Err(crate::error::AgentDbError::SchemaMigration),
     }
+}
+
+/// Idempotent migration runner.
+///
+/// Re-runs `bootstrap()` (all DDL uses `CREATE … IF NOT EXISTS` so existing
+/// tables/columns are left intact), then stamps the current schema version.
+/// Safe to call on databases created by any prior version of AgentDB.
+///
+/// In addition to adding new tables, this applies additive `ALTER TABLE …
+/// ADD COLUMN` statements for columns introduced in later schema versions.
+/// SQLite ignores duplicate columns via `IF NOT EXISTS` semantics.
+pub fn migrate(conn: &Connection) -> Result<()> {
+    // Re-run bootstrap to create any tables introduced after the DB was first opened.
+    bootstrap(conn)?;
+
+    // v2 → v3: add `error` column to _adb_workflows (was missing before v0.6.0).
+    let _ = conn.execute_batch(
+        "ALTER TABLE _adb_workflows ADD COLUMN error TEXT;"
+    );
+
+    // v2 → v3: add `updated_at` column to _adb_vectors.
+    let _ = conn.execute_batch(
+        "ALTER TABLE _adb_vectors ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0;"
+    );
+
+    // Stamp the new version.
+    conn.execute(
+        "INSERT INTO _adb_meta (key, value) VALUES ('schema_version', ?1)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        rusqlite::params![SCHEMA_VERSION],
+    )?;
+    Ok(())
 }
 
 pub fn now_ms() -> i64 {

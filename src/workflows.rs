@@ -19,6 +19,8 @@ pub struct Workflow {
     pub input: Option<Value>,
     /// JSON output payload produced by the workflow.
     pub output: Option<Value>,
+    /// Error message if the workflow failed.
+    pub error: Option<String>,
     /// Arbitrary JSON metadata.
     pub metadata: Option<Value>,
     /// Unix-millisecond timestamp when the workflow was created.
@@ -65,14 +67,22 @@ impl WorkflowStore {
     }
 
     /// Create a new workflow in `pending` status.
-    pub fn create_workflow(&self, id: &str, name: &str, input: Option<Value>) -> Result<()> {
+    pub fn create_workflow(
+        &self,
+        id: &str,
+        name: &str,
+        input: Option<Value>,
+        metadata: Option<Value>,
+    ) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         let input_str = input.as_ref().map(|v| v.to_string());
+        let meta_str = metadata.as_ref().map(|v| v.to_string());
         let now = now_ms();
         conn.execute(
-            "INSERT INTO _adb_workflows (id, name, status, input, created_at, updated_at)
-             VALUES (?1, ?2, 'pending', ?3, ?4, ?5)",
-            params![id, name, input_str, now, now],
+            "INSERT INTO _adb_workflows
+                 (id, name, status, input, metadata, created_at, updated_at)
+             VALUES (?1, ?2, 'pending', ?3, ?4, ?5, ?6)",
+            params![id, name, input_str, meta_str, now, now],
         )?;
         Ok(())
     }
@@ -167,7 +177,7 @@ impl WorkflowStore {
         let now = now_ms();
         let changed = conn.execute(
             "UPDATE _adb_workflows
-             SET status = 'failed', output = COALESCE(?2, output), updated_at = ?3
+             SET status = 'failed', error = COALESCE(?2, error), updated_at = ?3
              WHERE id = ?1",
             params![id, error, now],
         )?;
@@ -184,7 +194,7 @@ impl WorkflowStore {
         let workflow = {
             let conn = self.conn.lock().unwrap();
             conn.query_row(
-                "SELECT id, name, status, input, output, metadata, created_at, updated_at
+                "SELECT id, name, status, input, output, error, metadata, created_at, updated_at
                  FROM _adb_workflows
                  WHERE id = ?1",
                 params![id],
@@ -206,7 +216,7 @@ impl WorkflowStore {
         let workflows: Vec<Workflow> = match status_filter {
             Some(s) => {
                 let mut stmt = conn.prepare(
-                    "SELECT id, name, status, input, output, metadata, created_at, updated_at
+                    "SELECT id, name, status, input, output, error, metadata, created_at, updated_at
                      FROM _adb_workflows
                      WHERE status = ?1
                      ORDER BY created_at DESC",
@@ -217,7 +227,7 @@ impl WorkflowStore {
             }
             None => {
                 let mut stmt = conn.prepare(
-                    "SELECT id, name, status, input, output, metadata, created_at, updated_at
+                    "SELECT id, name, status, input, output, error, metadata, created_at, updated_at
                      FROM _adb_workflows
                      ORDER BY created_at DESC",
                 )?;
@@ -248,9 +258,10 @@ impl WorkflowStore {
 // ── Row parsers ──────────────────────────────────────────────────────────────
 
 fn parse_workflow_row(row: &rusqlite::Row) -> rusqlite::Result<Workflow> {
+    // Column order: id(0) name(1) status(2) input(3) output(4) error(5) metadata(6) created_at(7) updated_at(8)
     let input_str: Option<String> = row.get(3)?;
     let output_str: Option<String> = row.get(4)?;
-    let meta_str: Option<String> = row.get(5)?;
+    let meta_str: Option<String> = row.get(6)?;
     Ok(Workflow {
         id: row.get(0)?,
         name: row.get(1)?,
@@ -261,11 +272,12 @@ fn parse_workflow_row(row: &rusqlite::Row) -> rusqlite::Result<Workflow> {
         output: output_str
             .as_deref()
             .and_then(|s| serde_json::from_str(s).ok()),
+        error: row.get(5)?,
         metadata: meta_str
             .as_deref()
             .and_then(|s| serde_json::from_str(s).ok()),
-        created_at: row.get(6)?,
-        updated_at: row.get(7)?,
+        created_at: row.get(7)?,
+        updated_at: row.get(8)?,
         steps: vec![],
     })
 }

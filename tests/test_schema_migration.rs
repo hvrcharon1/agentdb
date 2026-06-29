@@ -7,7 +7,7 @@ fn schema_version_matches_current() {
         .query_json("SELECT value FROM _adb_meta WHERE key = 'schema_version'")
         .unwrap();
     assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0]["value"], "2");
+    assert_eq!(rows[0]["value"], agentdb::schema::SCHEMA_VERSION);
 }
 
 #[test]

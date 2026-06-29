@@ -96,8 +96,8 @@ impl AgentDB {
     /// # use agentdb::AgentDB;
     /// let db = AgentDB::open(":memory:").unwrap();
     /// db.transaction(|tx| {
-    ///     tx.execute("INSERT INTO _adb_nodes (id, label, data) VALUES ('x','tag','{}')", [])?;
-    ///     tx.execute("INSERT INTO _adb_nodes (id, label, data) VALUES ('y','tag','{}')", [])?;
+    ///     tx.execute("INSERT INTO _adb_nodes (id, kind, data, created_at, updated_at) VALUES ('x','tag','{}',0,0)", [])?;
+    ///     tx.execute("INSERT INTO _adb_nodes (id, kind, data, created_at, updated_at) VALUES ('y','tag','{}',0,0)", [])?;
     ///     Ok(())
     /// }).unwrap();
     /// ```
@@ -123,8 +123,8 @@ impl AgentDB {
     /// # use agentdb::AgentDB;
     /// let db = AgentDB::open(":memory:").unwrap();
     /// db.execute_batch(
-    ///     "INSERT INTO _adb_nodes (id,label,data) VALUES ('a','t','{}');
-    ///      INSERT INTO _adb_nodes (id,label,data) VALUES ('b','t','{}');"
+    ///     "INSERT INTO _adb_nodes (id,kind,data,created_at,updated_at) VALUES ('a','t','{}',0,0);
+    ///      INSERT INTO _adb_nodes (id,kind,data,created_at,updated_at) VALUES ('b','t','{}',0,0);"
     /// ).unwrap();
     /// ```
     pub fn execute_batch(&self, sql: &str) -> Result<()> {
@@ -177,38 +177,36 @@ impl AgentDB {
         Ok(())
     }
 
-    /// Return database-wide statistics
+    /// Return database-wide statistics (single-query implementation).
     pub fn stats(&self) -> Result<DbStats> {
         let conn = self.conn.lock().unwrap();
-        let collections: i64 =
-            conn.query_row("SELECT COUNT(*) FROM _adb_collections", [], |r| r.get(0))?;
-        let vectors: i64 = conn.query_row(
-            "SELECT COALESCE(SUM(count), 0) FROM _adb_collections",
+        conn.query_row(
+            "SELECT
+                 (SELECT COUNT(*)           FROM _adb_collections)          AS collections,
+                 (SELECT COALESCE(SUM(count),0) FROM _adb_collections)      AS vectors,
+                 (SELECT COUNT(*)           FROM _adb_nodes)                 AS nodes,
+                 (SELECT COUNT(*)           FROM _adb_edges)                 AS edges,
+                 (SELECT COUNT(*)           FROM _adb_conversations)         AS conversations,
+                 (SELECT COUNT(*)           FROM _adb_messages)              AS messages,
+                 (SELECT COUNT(*)           FROM _adb_workflows)             AS workflows,
+                 (SELECT COUNT(*)           FROM _adb_workflow_steps)        AS workflow_steps,
+                 (SELECT COUNT(*)           FROM _adb_traces)                AS traces",
             [],
-            |r| r.get(0),
-        )?;
-        let nodes: i64 = conn.query_row("SELECT COUNT(*) FROM _adb_nodes", [], |r| r.get(0))?;
-        let edges: i64 = conn.query_row("SELECT COUNT(*) FROM _adb_edges", [], |r| r.get(0))?;
-        let conversations: i64 =
-            conn.query_row("SELECT COUNT(*) FROM _adb_conversations", [], |r| r.get(0))?;
-        let messages: i64 =
-            conn.query_row("SELECT COUNT(*) FROM _adb_messages", [], |r| r.get(0))?;
-        let workflows: i64 =
-            conn.query_row("SELECT COUNT(*) FROM _adb_workflows", [], |r| r.get(0))?;
-        let workflow_steps: i64 =
-            conn.query_row("SELECT COUNT(*) FROM _adb_workflow_steps", [], |r| r.get(0))?;
-        let traces: i64 = conn.query_row("SELECT COUNT(*) FROM _adb_traces", [], |r| r.get(0))?;
-        Ok(DbStats {
-            collections,
-            vectors,
-            nodes,
-            edges,
-            conversations,
-            messages,
-            workflows,
-            workflow_steps,
-            traces,
-        })
+            |r| {
+                Ok(DbStats {
+                    collections:    r.get(0)?,
+                    vectors:        r.get(1)?,
+                    nodes:          r.get(2)?,
+                    edges:          r.get(3)?,
+                    conversations:  r.get(4)?,
+                    messages:       r.get(5)?,
+                    workflows:      r.get(6)?,
+                    workflow_steps: r.get(7)?,
+                    traces:         r.get(8)?,
+                })
+            },
+        )
+        .map_err(crate::error::AgentDbError::Sqlite)
     }
 }
 
@@ -233,6 +231,35 @@ pub struct DbStats {
     pub workflow_steps: i64,
     /// Total number of reasoning trace entries.
     pub traces: i64,
+}
+
+impl Drop for AgentDB {
+    fn drop(&mut self) {
+        // Best-effort flush of any dirty HNSW indexes on drop.
+        // Errors are silently ignored so drop never panics.
+        if let Ok(collections) = self.vectors().list_collections() {
+            for (name, dim, _) in collections {
+                if let Ok(col) = self.vectors().collection(&name, dim) {
+                    let is_dirty: bool = {
+                        let conn = self.conn.lock().unwrap();
+                        conn.query_row(
+                            "SELECT COALESCE(
+                                (SELECT is_dirty FROM _adb_hnsw_index
+                                 WHERE collection_id =
+                                   (SELECT id FROM _adb_collections WHERE name = ?1)
+                                ), 0)",
+                            rusqlite::params![name],
+                            |r| r.get::<_, i64>(0),
+                        )
+                        .unwrap_or(0) == 1
+                    };
+                    if is_dirty {
+                        let _ = col.reindex();
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn rusqlite_value_to_json(val: rusqlite::types::Value) -> serde_json::Value {

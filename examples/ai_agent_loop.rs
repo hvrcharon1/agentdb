@@ -73,6 +73,7 @@ fn main() -> agentdb::Result<()> {
         "wf-rag-001",
         "RAG Pipeline",
         Some(json!({"query": "What is AgentDB?", "top_k": 5})),
+        None,
     )?;
 
     let step1 = wf.add_step("wf-rag-001", "Embed query", None)?;

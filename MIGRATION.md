@@ -14,28 +14,28 @@ This document covers API changes between AgentDB versions and how to update your
 
 ```rust
 // Conversation threading — create threads, append messages, query chronologically
-let store = db.conversations()?;
-let conv_id = store.create("My thread", None)?;
-store.append_message(conv_id, "user", "Hello", None)?;
-let msgs = store.messages(conv_id, None)?;
+let convs = db.conversations();
+let conv_id = "conv-1";
+convs.create_conversation(conv_id, Some("My thread"), None)?;
+convs.add_message(conv_id, "user", "Hello", None)?;
+let msgs = convs.get_messages(conv_id, None)?;
 
 // Workflow persistence — durable workflows with step tracking
-let wf = db.workflows()?;
-let wf_id = wf.create("my-pipeline", None)?;
-let step_id = wf.add_step(wf_id, "fetch", None)?;
-wf.update_step_status(step_id, "complete", None)?;
-wf.complete(wf_id, None)?;
+let wf = db.workflows();
+wf.create_workflow("wf-1", "my-pipeline", None, None)?;
+let step_id = wf.add_step("wf-1", "fetch", None)?;
+wf.update_step(&step_id, "running", None, None)?;
+wf.complete_workflow("wf-1", None)?;
 
 // Reasoning traces — tree-structured chain-of-thought, tool call logs
-let tr = db.traces()?;
-let root = tr.create("plan", None, None)?;
-let child = tr.add_child(root, "tool_call", Some(json!({"tool": "search"})))?;
-let tree = tr.subtree(root)?;
+let tr = db.traces();
+let root_id = tr.add_trace(None, "plan", None, None, None)?;
+let child_id = tr.add_trace(Some(&root_id), "tool_call", Some(json!({"tool": "search"})), None, None)?;
+let tree = tr.get_trace_tree(&root_id)?;
 
 // ACID transaction closure
 db.transaction(|tx| {
-    tx.execute("INSERT INTO t VALUES (?1)", ["x"])?;
-    tx.execute("UPDATE counters SET n = n + 1", [])?;
+    tx.execute("INSERT INTO t (id, kind, data, created_at, updated_at) VALUES ('x','t','{}',0,0)", [])?;
     Ok(())
 })?;
 
@@ -46,11 +46,23 @@ db.execute_batch("
 ")?;
 ```
 
-### Schema v2
+### Schema v2 / v3
 
-The database schema is automatically migrated from v1 to v2 on first open. Seven new tables are added transparently alongside the existing schema — no manual action required, and existing data is untouched.
+**v0.4.0** bumped the schema from v1 to v2, adding seven new tables. **v0.5.0** bumped to v3,
+adding the `error` column to `_adb_workflows` and `updated_at` to `_adb_vectors`.
 
-New tables: `agentdb_conversations`, `agentdb_messages`, `agentdb_workflows`, `agentdb_workflow_steps`, `agentdb_traces`, plus supporting FTS tables.
+Existing v2 databases must be migrated before opening with v0.5.0+. Run once per database file:
+
+```bash
+agentdb migrate /path/to/agent.agentdb
+```
+
+Or call from code:
+
+```rust
+let conn = rusqlite::Connection::open(path)?;
+agentdb::schema::migrate(&conn)?;
+```
 
 ---
 

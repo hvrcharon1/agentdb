@@ -10,6 +10,44 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.5.0] — 2026-06-29 — Quality & Correctness
+
+### Fixed
+- **`$regex` filter** was performing a substring match instead of real regex matching.
+  Real `regex::Regex` evaluation is now used; the old substring behaviour is preserved as the new `$contains` operator.
+- **`DotProduct` distance metric** was computing the same value as cosine (normalised dot product).
+  Now computes the raw dot product of unnormalised vectors.
+- **`fail_workflow()`** was writing the error message to the `output` column instead of `error`.
+  A dedicated `error TEXT` column has been added to `_adb_workflows` (schema v3).
+- **`AsyncAgentDB::close()`** was panicking when other `Arc` references existed.
+  Now returns `Err(InvalidArgument)` with the reference count.
+- **`schema::check_version`** was silently returning `Ok(())` when no schema version row existed.
+  Now returns `Err(SchemaMigration)` for missing or corrupt metadata.
+
+### Added
+- **`$contains` filter operator** — substring match, preserving the previous `$regex` behaviour.
+- **`error` column on `_adb_workflows`** (schema v3) — separates error messages from output payloads.
+- **`updated_at` column on `_adb_vectors`** (schema v3) — tracks when each vector was last upserted.
+- **`create_workflow` `metadata` parameter** — pass arbitrary JSON metadata at creation time.
+- **`schema::migrate(conn)`** — public function for in-place schema upgrades (`agentdb migrate <path>`).
+- **`impl Drop for AgentDB`** — best-effort flush of dirty HNSW indexes on drop.
+- **`DbStats` extended** to all 9 fields: conversations, messages, workflows, workflow_steps, traces.
+  Single-query implementation replaces 9 separate round-trips.
+- **WASM `stats()`** now returns all 9 fields (was 4).
+- **CLI `stats` and `inspect`** print all 9 stat fields.
+- **CLI shell** routes INSERT/UPDATE/DELETE/CREATE to `execute()` (shows "N rows affected") instead of silently returning an empty array.
+
+### Changed
+- Schema version bumped from 2 → 3. Existing v2 databases must be migrated:
+  `agentdb migrate <path>` or `agentdb::schema::migrate(&conn)`.
+- Python `__version__` updated to `"0.5.0"`.
+- `ROADMAP.md`: v0.5.0 milestone marked complete; ecosystem integrations moved to v0.6.0.
+- `ARCHITECTURE.md`: corrected all internal table names (`agentdb_*` → `_adb_*`), updated
+  API method names for layers 5–7, and corrected Layer 8 description.
+- `MIGRATION.md`: v0.3.x→v0.4.0 section updated to use real API method signatures.
+
+---
+
 ## [0.4.5] — 2026-06-19
 
 ### Fixed
@@ -220,7 +258,8 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-[Unreleased]: https://github.com/hvrcharon1/agentdb/compare/v0.4.5...HEAD
+[Unreleased]: https://github.com/hvrcharon1/agentdb/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/hvrcharon1/agentdb/compare/v0.4.5...v0.5.0
 [0.4.5]: https://github.com/hvrcharon1/agentdb/compare/v0.4.0...v0.4.5
 [0.4.4]: https://github.com/hvrcharon1/agentdb/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/hvrcharon1/agentdb/compare/v0.4.2...v0.4.3

@@ -31,19 +31,11 @@ fn euclidean_distance(a: &[f32], b: &[f32]) -> f32 {
 }
 
 fn dot_product_distance(a: &[f32], b: &[f32]) -> f32 {
-    // Normalize both vectors before computing the dot product so that
-    // 1 - dot(a_hat, b_hat) is a valid distance for non-unit-length inputs.
-    let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
-    let norm_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
-    if norm_a == 0.0 || norm_b == 0.0 {
-        return 1.0;
-    }
-    let dot: f32 = a
-        .iter()
-        .zip(b.iter())
-        .map(|(x, y)| (x / norm_a) * (y / norm_b))
-        .sum();
-    1.0 - dot.clamp(-1.0, 1.0)
+    // Raw dot product (no normalisation). A higher dot product means closer,
+    // so we negate to convert similarity into a distance.
+    // Callers that want cosine behaviour should use DistanceMetric::Cosine.
+    let dot: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
+    -dot
 }
 
 pub fn dist(a: &[f32], b: &[f32], metric: &DistanceMetric) -> f32 {

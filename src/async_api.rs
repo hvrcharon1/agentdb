@@ -5,7 +5,7 @@ use crate::fts::FtsResult;
 use crate::hybrid::{HybridQuery, HybridResult};
 use crate::memory::{TraversalOptions, TraversalResult};
 use crate::traces::Trace;
-use crate::vectors::{BatchEntry, Collection, SearchOptions, SearchResult, VectorEntry};
+use crate::vectors::{BatchEntry, Collection, DistanceMetric, SearchOptions, SearchResult, VectorEntry};
 use crate::workflows::Workflow;
 use serde_json::Value;
 use std::sync::Arc;
@@ -140,13 +140,17 @@ impl AsyncAgentDB {
     }
 
     /// Flush dirty indexes and close gracefully.
+    ///
+    /// Returns `Err(InvalidArgument)` if other `AsyncAgentDB` clones still
+    /// hold a reference to the same database — the caller must drop all clones
+    /// before calling `close()`.
     pub async fn close(self) -> Result<()> {
-        let db = Arc::try_unwrap(self.inner).unwrap_or_else(|arc| {
-            panic!(
-                "AsyncAgentDB::close called while {} other references exist",
+        let db = Arc::try_unwrap(self.inner).map_err(|arc| {
+            crate::error::AgentDbError::InvalidArgument(format!(
+                "AsyncAgentDB::close called while {} other reference(s) exist",
                 Arc::strong_count(&arc) - 1
-            )
-        });
+            ))
+        })?;
         task::spawn_blocking(move || db.close())
             .await
             .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
@@ -172,6 +176,41 @@ impl AsyncVectorStore {
         })
         .await
         .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Get or create a named collection with an explicit distance metric.
+    pub async fn collection_with_metric(
+        &self,
+        name: &str,
+        dim: usize,
+        metric: DistanceMetric,
+    ) -> Result<AsyncCollection> {
+        let db = self.inner.clone();
+        let name = name.to_string();
+        task::spawn_blocking(move || {
+            db.vectors()
+                .collection_with_metric(&name, dim, metric)
+                .map(|c| AsyncCollection { inner: Arc::new(c) })
+        })
+        .await
+        .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// List all collections as `(name, dim, count)` tuples.
+    pub async fn list_collections(&self) -> Result<Vec<(String, usize, i64)>> {
+        let db = self.inner.clone();
+        task::spawn_blocking(move || db.vectors().list_collections())
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Drop a collection and all its vectors.
+    pub async fn drop_collection(&self, name: &str) -> Result<()> {
+        let db = self.inner.clone();
+        let name = name.to_string();
+        task::spawn_blocking(move || db.vectors().drop_collection(&name))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 }
 
@@ -222,6 +261,23 @@ impl AsyncCollection {
     pub async fn reindex(&self) -> Result<()> {
         let col = self.inner.clone();
         task::spawn_blocking(move || col.reindex())
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Delete a vector by ID.
+    pub async fn delete(&self, id: &str) -> Result<()> {
+        let col = self.inner.clone();
+        let id = id.to_string();
+        task::spawn_blocking(move || col.delete(&id))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Upsert a vector and index its text content atomically.
+    pub async fn upsert_with_text(&self, entry: VectorEntry, text: String) -> Result<()> {
+        let col = self.inner.clone();
+        task::spawn_blocking(move || col.upsert_with_text(entry, &text))
             .await
             .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
@@ -398,11 +454,17 @@ pub struct AsyncWorkflowStore {
 
 impl AsyncWorkflowStore {
     /// Create a new workflow.
-    pub async fn create_workflow(&self, id: &str, name: &str, input: Option<Value>) -> Result<()> {
+    pub async fn create_workflow(
+        &self,
+        id: &str,
+        name: &str,
+        input: Option<Value>,
+        metadata: Option<Value>,
+    ) -> Result<()> {
         let db = self.inner.clone();
         let id = id.to_string();
         let name = name.to_string();
-        task::spawn_blocking(move || db.workflows().create_workflow(&id, &name, input))
+        task::spawn_blocking(move || db.workflows().create_workflow(&id, &name, input, metadata))
             .await
             .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }

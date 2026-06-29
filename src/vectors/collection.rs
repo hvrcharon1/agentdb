@@ -88,18 +88,20 @@ impl Collection {
         }
         let blob: Vec<u8> = entry.vector.iter().flat_map(|f| f.to_le_bytes()).collect();
         let meta = entry.metadata.as_ref().map(|m| m.to_string());
+        let now = now_ms();
         let conn = self.conn.lock().unwrap();
         // INSERT OR IGNORE returns changes()=1 for a new row, 0 for a duplicate.
         let inserted = conn.execute(
-            "INSERT OR IGNORE INTO _adb_vectors (id, collection_id, vector, metadata, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![entry.id, self.id, blob, meta, now_ms()],
+            "INSERT OR IGNORE INTO _adb_vectors
+                 (id, collection_id, vector, metadata, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
+            params![entry.id, self.id, blob, meta, now],
         )?;
         if inserted == 0 {
             conn.execute(
-                "UPDATE _adb_vectors SET vector = ?1, metadata = ?2
+                "UPDATE _adb_vectors SET vector = ?1, metadata = ?2, updated_at = ?5
                  WHERE id = ?3 AND collection_id = ?4",
-                params![blob, meta, entry.id, self.id],
+                params![blob, meta, entry.id, self.id, now],
             )?;
         }
         conn.execute(
@@ -138,18 +140,19 @@ impl Collection {
             for e in &entries {
                 let blob: Vec<u8> = e.vector.iter().flat_map(|f| f.to_le_bytes()).collect();
                 let meta = e.metadata.as_ref().map(|m| m.to_string());
+                let now = now_ms();
                 // INSERT OR IGNORE: changes()=1 for new, 0 for existing
                 let inserted = conn.execute(
                     "INSERT OR IGNORE INTO _adb_vectors
-                         (id, collection_id, vector, metadata, created_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5)",
-                    params![e.id, self.id, blob, meta, now_ms()],
+                         (id, collection_id, vector, metadata, created_at, updated_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
+                    params![e.id, self.id, blob, meta, now],
                 )?;
                 if inserted == 0 {
                     conn.execute(
-                        "UPDATE _adb_vectors SET vector = ?1, metadata = ?2
+                        "UPDATE _adb_vectors SET vector = ?1, metadata = ?2, updated_at = ?5
                          WHERE id = ?3 AND collection_id = ?4",
-                        params![blob, meta, e.id, self.id],
+                        params![blob, meta, e.id, self.id, now],
                     )?;
                 } else {
                     new_rows += 1;
@@ -246,10 +249,16 @@ impl Collection {
     /// Delete a vector by ID
     pub fn delete(&self, id: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
-        conn.execute(
+        let deleted = conn.execute(
             "DELETE FROM _adb_vectors WHERE id = ?1 AND collection_id = ?2",
             params![id, self.id],
         )?;
+        if deleted > 0 {
+            conn.execute(
+                "UPDATE _adb_collections SET count = MAX(0, count - 1) WHERE id = ?1",
+                params![self.id],
+            )?;
+        }
         conn.execute(
             "UPDATE _adb_hnsw_index SET is_dirty = 1 WHERE collection_id = ?1",
             params![self.id],

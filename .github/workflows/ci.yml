@@ -93,6 +93,13 @@ jobs:
       - name: Test
         run: cargo test --locked --lib --tests -- --nocapture
 
+      - name: Test (async feature)
+        run: cargo test --locked --features async --test test_async -- --nocapture
+
+      - name: Test (ffi feature)
+        if: runner.os == 'Linux'
+        run: cargo test --locked --features ffi --test test_ffi -- --nocapture
+
       - name: Run examples
         run: |
           cargo run --locked --example agent_memory
@@ -113,12 +120,7 @@ jobs:
         run: cargo install cargo-audit --locked
 
       - name: Audit
-        # cargo audit exits 1 on any advisory, including ones for optional features
-        # (pyo3, wasm-bindgen) that are never compiled by default. The output is
-        # still shown in CI logs; we set continue-on-error so the other jobs aren't
-        # blocked while we triage and bump affected crates.
         run: cargo audit
-        continue-on-error: true
 
   # ── Step 4: coverage ──────────────────────────────────────────────────
   coverage:

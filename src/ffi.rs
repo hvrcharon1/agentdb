@@ -1034,7 +1034,7 @@ pub unsafe extern "C" fn agentdb_workflow_create(
     match h
         .db
         .workflows()
-        .create_workflow(id_str, name_str, input_val)
+        .create_workflow(id_str, name_str, input_val, None)
     {
         Ok(()) => 0,
         Err(e) => {

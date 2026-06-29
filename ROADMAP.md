@@ -56,7 +56,22 @@
 - [ ] `BENCHMARKS.md` — baseline numbers (100k vectors, 10k nodes, all platforms)
 - [ ] Schema migration runner for future schema upgrades
 
-## v0.5.0 — Ecosystem Integrations
+## v0.5.0 — Quality & Correctness ✅
+- [x] Schema v3: `error` column on `_adb_workflows`; `updated_at` on `_adb_vectors`
+- [x] `create_workflow` now accepts optional `metadata` parameter
+- [x] `fail_workflow` correctly stores error message (was writing to `output` column)
+- [x] `DotProduct` distance metric fixed (was identical to cosine)
+- [x] `$regex` filter operator uses real regex matching (was substring match); `$contains` added for substring
+- [x] `AsyncAgentDB::close()` returns error instead of panicking when other references exist
+- [x] `schema::check_version` now errors on missing schema version
+- [x] `schema::migrate()` public function for in-place upgrades
+- [x] `DbStats` extended to all 9 fields; single-query implementation
+- [x] CLI `stats` and `inspect` print all 9 stat fields
+- [x] CLI shell routes INSERT/UPDATE/DELETE to `execute()` (shows rows affected)
+- [x] `impl Drop for AgentDB` flushes dirty HNSW indexes on drop
+- [x] WASM `stats()` returns all 9 fields
+
+## v0.6.0 — Ecosystem Integrations
 - [ ] `langchain-agentdb` Python package — implements `VectorStore` + `Memory` base classes
 - [ ] LlamaIndex storage adapter
 - [ ] MCP (Model Context Protocol) server wrapping all five layers

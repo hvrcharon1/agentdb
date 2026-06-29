@@ -123,6 +123,57 @@ mod tests {
             &json!({"lang":"en","score":{"$gte":8}})
         ));
     }
+
+    // ── $regex and $contains ─────────────────────────────────────────────
+
+    #[test]
+    fn test_regex_matches() {
+        assert!(filter_matches(
+            &json!({"tag": "hello_world"}),
+            &json!({"tag": {"$regex": "^hello"}})
+        ));
+    }
+
+    #[test]
+    fn test_regex_no_match() {
+        assert!(!filter_matches(
+            &json!({"tag": "goodbye_world"}),
+            &json!({"tag": {"$regex": "^hello"}})
+        ));
+    }
+
+    #[test]
+    fn test_regex_is_real_regex_not_substring() {
+        // "^hello" should NOT match "world_hello" (anchored)
+        assert!(!filter_matches(
+            &json!({"tag": "world_hello"}),
+            &json!({"tag": {"$regex": "^hello"}})
+        ));
+    }
+
+    #[test]
+    fn test_contains_substring_match() {
+        assert!(filter_matches(
+            &json!({"tag": "hello_world"}),
+            &json!({"tag": {"$contains": "llo_w"}})
+        ));
+    }
+
+    #[test]
+    fn test_contains_no_match() {
+        assert!(!filter_matches(
+            &json!({"tag": "hello_world"}),
+            &json!({"tag": {"$contains": "xyz"}})
+        ));
+    }
+
+    #[test]
+    fn test_contains_vs_regex_anchor_difference() {
+        // $contains finds "hello" anywhere; $regex "^hello" only at start
+        let doc = json!({"tag": "say_hello"});
+        assert!(filter_matches(&doc, &json!({"tag": {"$contains": "hello"}})));
+        assert!(!filter_matches(&doc, &json!({"tag": {"$regex": "^hello"}})));
+    }
 }
 
 #[cfg(test)]

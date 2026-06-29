@@ -13,7 +13,7 @@ mod tests {
     fn test_create_workflow_pending_status() {
         let db = open();
         let wf = db.workflows();
-        wf.create_workflow("wf-1", "My Pipeline", None).unwrap();
+        wf.create_workflow("wf-1", "My Pipeline", None, None).unwrap();
         let workflow = wf.get_workflow("wf-1").unwrap();
         assert_eq!(workflow.id, "wf-1");
         assert_eq!(workflow.name, "My Pipeline");
@@ -25,7 +25,7 @@ mod tests {
     fn test_create_workflow_with_input() {
         let db = open();
         let wf = db.workflows();
-        wf.create_workflow("wf-1", "Ingest", Some(json!({ "file": "data.csv" })))
+        wf.create_workflow("wf-1", "Ingest", Some(json!({ "file": "data.csv" })), None)
             .unwrap();
         let workflow = wf.get_workflow("wf-1").unwrap();
         assert_eq!(workflow.input.as_ref().unwrap()["file"], "data.csv");
@@ -44,8 +44,8 @@ mod tests {
     fn test_list_workflows_all() {
         let db = open();
         let wf = db.workflows();
-        wf.create_workflow("wf-1", "Alpha", None).unwrap();
-        wf.create_workflow("wf-2", "Beta", None).unwrap();
+        wf.create_workflow("wf-1", "Alpha", None, None).unwrap();
+        wf.create_workflow("wf-2", "Beta", None, None).unwrap();
         let list = wf.list_workflows(None).unwrap();
         assert_eq!(list.len(), 2);
     }
@@ -54,8 +54,8 @@ mod tests {
     fn test_list_workflows_status_filter() {
         let db = open();
         let wf = db.workflows();
-        wf.create_workflow("wf-1", "Alpha", None).unwrap();
-        wf.create_workflow("wf-2", "Beta", None).unwrap();
+        wf.create_workflow("wf-1", "Alpha", None, None).unwrap();
+        wf.create_workflow("wf-2", "Beta", None, None).unwrap();
         // Complete one workflow so we have a mix of statuses.
         wf.complete_workflow("wf-1", Some(json!({ "result": "ok" })))
             .unwrap();
@@ -73,7 +73,7 @@ mod tests {
     fn test_add_step_returns_id() {
         let db = open();
         let wf = db.workflows();
-        wf.create_workflow("wf-1", "Pipeline", None).unwrap();
+        wf.create_workflow("wf-1", "Pipeline", None, None).unwrap();
         let step_id = wf.add_step("wf-1", "Fetch", None).unwrap();
         assert!(!step_id.is_empty());
     }
@@ -82,7 +82,7 @@ mod tests {
     fn test_add_multiple_steps_indexed_sequentially() {
         let db = open();
         let wf = db.workflows();
-        wf.create_workflow("wf-1", "Pipeline", None).unwrap();
+        wf.create_workflow("wf-1", "Pipeline", None, None).unwrap();
         wf.add_step("wf-1", "Step A", None).unwrap();
         wf.add_step("wf-1", "Step B", None).unwrap();
         wf.add_step("wf-1", "Step C", None).unwrap();
@@ -99,7 +99,7 @@ mod tests {
     fn test_add_step_initial_status_is_pending() {
         let db = open();
         let wf = db.workflows();
-        wf.create_workflow("wf-1", "Pipeline", None).unwrap();
+        wf.create_workflow("wf-1", "Pipeline", None, None).unwrap();
         wf.add_step("wf-1", "Fetch", None).unwrap();
         let workflow = wf.get_workflow("wf-1").unwrap();
         assert_eq!(workflow.steps[0].status, "pending");
@@ -111,7 +111,7 @@ mod tests {
     fn test_add_step_with_input() {
         let db = open();
         let wf = db.workflows();
-        wf.create_workflow("wf-1", "Pipeline", None).unwrap();
+        wf.create_workflow("wf-1", "Pipeline", None, None).unwrap();
         wf.add_step("wf-1", "Transform", Some(json!({ "format": "json" })))
             .unwrap();
         let workflow = wf.get_workflow("wf-1").unwrap();
@@ -124,7 +124,7 @@ mod tests {
     fn test_update_step_to_running_sets_started_at() {
         let db = open();
         let wf = db.workflows();
-        wf.create_workflow("wf-1", "Pipeline", None).unwrap();
+        wf.create_workflow("wf-1", "Pipeline", None, None).unwrap();
         let step_id = wf.add_step("wf-1", "Run", None).unwrap();
         wf.update_step(&step_id, "running", None, None).unwrap();
         let workflow = wf.get_workflow("wf-1").unwrap();
@@ -138,7 +138,7 @@ mod tests {
     fn test_update_step_to_completed_sets_completed_at() {
         let db = open();
         let wf = db.workflows();
-        wf.create_workflow("wf-1", "Pipeline", None).unwrap();
+        wf.create_workflow("wf-1", "Pipeline", None, None).unwrap();
         let step_id = wf.add_step("wf-1", "Run", None).unwrap();
         wf.update_step(&step_id, "running", None, None).unwrap();
         wf.update_step(&step_id, "completed", Some(json!({ "rows": 42 })), None)
@@ -154,7 +154,7 @@ mod tests {
     fn test_update_step_to_failed_records_error() {
         let db = open();
         let wf = db.workflows();
-        wf.create_workflow("wf-1", "Pipeline", None).unwrap();
+        wf.create_workflow("wf-1", "Pipeline", None, None).unwrap();
         let step_id = wf.add_step("wf-1", "Run", None).unwrap();
         wf.update_step(&step_id, "failed", None, Some("timeout"))
             .unwrap();
@@ -180,7 +180,7 @@ mod tests {
     fn test_complete_workflow_sets_status_and_output() {
         let db = open();
         let wf = db.workflows();
-        wf.create_workflow("wf-1", "Pipeline", None).unwrap();
+        wf.create_workflow("wf-1", "Pipeline", None, None).unwrap();
         wf.complete_workflow("wf-1", Some(json!({ "summary": "done" })))
             .unwrap();
         let workflow = wf.get_workflow("wf-1").unwrap();
@@ -192,7 +192,7 @@ mod tests {
     fn test_complete_workflow_without_output() {
         let db = open();
         let wf = db.workflows();
-        wf.create_workflow("wf-1", "Pipeline", None).unwrap();
+        wf.create_workflow("wf-1", "Pipeline", None, None).unwrap();
         wf.complete_workflow("wf-1", None).unwrap();
         let workflow = wf.get_workflow("wf-1").unwrap();
         assert_eq!(workflow.status, "completed");
@@ -212,7 +212,7 @@ mod tests {
     fn test_get_workflow_includes_steps() {
         let db = open();
         let wf = db.workflows();
-        wf.create_workflow("wf-1", "Pipeline", None).unwrap();
+        wf.create_workflow("wf-1", "Pipeline", None, None).unwrap();
         wf.add_step("wf-1", "Alpha", None).unwrap();
         wf.add_step("wf-1", "Beta", None).unwrap();
         let workflow = wf.get_workflow("wf-1").unwrap();
@@ -232,7 +232,7 @@ mod tests {
     fn test_list_workflows_steps_not_populated() {
         let db = open();
         let wf = db.workflows();
-        wf.create_workflow("wf-1", "Pipeline", None).unwrap();
+        wf.create_workflow("wf-1", "Pipeline", None, None).unwrap();
         wf.add_step("wf-1", "Step", None).unwrap();
         // list_workflows is documented to NOT populate steps for performance.
         let list = wf.list_workflows(None).unwrap();
@@ -248,7 +248,7 @@ mod tests {
         let wf = db.workflows();
 
         // Create
-        wf.create_workflow("wf-run", "E2E Test", Some(json!({ "input": 1 })))
+        wf.create_workflow("wf-run", "E2E Test", Some(json!({ "input": 1 })), None)
             .unwrap();
 
         // Add steps

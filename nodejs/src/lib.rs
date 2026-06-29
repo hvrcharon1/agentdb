@@ -671,7 +671,7 @@ impl AgentDB {
             .lock()
             .unwrap()
             .workflows()
-            .create_workflow(&id, &name, input)
+            .create_workflow(&id, &name, input, None)
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 

@@ -282,6 +282,7 @@ dependencies = [
  "criterion",
  "pyo3",
  "rand",
+ "regex",
  "rusqlite",
  "serde",
  "serde_json",

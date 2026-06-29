@@ -344,7 +344,7 @@ impl AgentDB {
             .collect()
     }
 
-    #[pyo3(signature = (anchor_node, embedding, collection, graph_depth=2, top_k=10, alpha=0.6))]
+    #[pyo3(signature = (anchor_node, embedding, collection, graph_depth=2, top_k=10, alpha=0.6, filter=None))]
     fn hybrid_query(
         &self,
         py: Python,
@@ -354,7 +354,9 @@ impl AgentDB {
         graph_depth: usize,
         top_k: usize,
         alpha: f64,
+        filter: Option<Bound<'_, pyo3::PyAny>>,
     ) -> PyResult<Vec<Py<PyAny>>> {
+        let filter_val = filter.as_ref().map(pyobj_to_json).transpose()?.flatten();
         let db = self.db.lock().unwrap();
         let q = HybridQuery {
             anchor_node,
@@ -363,7 +365,7 @@ impl AgentDB {
             graph_depth,
             top_k,
             alpha,
-            filter: None,
+            filter: filter_val,
         };
         db.hybrid_query(q)
             .map_err(to_py_err)?
@@ -506,7 +508,7 @@ impl AgentDB {
             .lock()
             .unwrap()
             .workflows()
-            .create_workflow(id, name, inp)
+            .create_workflow(id, name, inp, None)
             .map_err(to_py_err)
     }
 
