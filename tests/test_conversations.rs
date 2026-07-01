@@ -242,8 +242,12 @@ mod tests {
         let db = open();
         let convs = db.conversations();
         convs.create_conversation("c1", None, None).unwrap();
-        convs.add_message("c1", "user", "The quick brown fox", None).unwrap();
-        convs.add_message("c1", "assistant", "It jumps over the lazy dog", None).unwrap();
+        convs
+            .add_message("c1", "user", "The quick brown fox", None)
+            .unwrap();
+        convs
+            .add_message("c1", "assistant", "It jumps over the lazy dog", None)
+            .unwrap();
         let results = convs.search_messages("fox", 10, None).unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].conversation_id, "c1");
@@ -254,7 +258,9 @@ mod tests {
         let db = open();
         let convs = db.conversations();
         convs.create_conversation("c1", None, None).unwrap();
-        convs.add_message("c1", "user", "Hello world", None).unwrap();
+        convs
+            .add_message("c1", "user", "Hello world", None)
+            .unwrap();
         let results = convs.search_messages("xyz_not_present", 10, None).unwrap();
         assert!(results.is_empty());
     }
@@ -265,8 +271,12 @@ mod tests {
         let convs = db.conversations();
         convs.create_conversation("c1", None, None).unwrap();
         convs.create_conversation("c2", None, None).unwrap();
-        convs.add_message("c1", "user", "apple banana", None).unwrap();
-        convs.add_message("c2", "user", "apple orange", None).unwrap();
+        convs
+            .add_message("c1", "user", "apple banana", None)
+            .unwrap();
+        convs
+            .add_message("c2", "user", "apple orange", None)
+            .unwrap();
         let all = convs.search_messages("apple", 10, None).unwrap();
         assert_eq!(all.len(), 2);
         let c1_only = convs.search_messages("apple", 10, Some("c1")).unwrap();
@@ -279,10 +289,24 @@ mod tests {
         let db = open();
         let convs = db.conversations();
         convs.create_conversation("c1", None, None).unwrap();
-        convs.add_message("c1", "user", "unique_term_xyz", None).unwrap();
-        assert_eq!(convs.search_messages("unique_term_xyz", 10, None).unwrap().len(), 1);
+        convs
+            .add_message("c1", "user", "unique_term_xyz", None)
+            .unwrap();
+        assert_eq!(
+            convs
+                .search_messages("unique_term_xyz", 10, None)
+                .unwrap()
+                .len(),
+            1
+        );
         convs.delete_conversation("c1").unwrap();
-        assert_eq!(convs.search_messages("unique_term_xyz", 10, None).unwrap().len(), 0);
+        assert_eq!(
+            convs
+                .search_messages("unique_term_xyz", 10, None)
+                .unwrap()
+                .len(),
+            0
+        );
     }
 
     #[test]
@@ -291,7 +315,9 @@ mod tests {
         let convs = db.conversations();
         convs.create_conversation("c1", None, None).unwrap();
         for i in 0..8 {
-            convs.add_message("c1", "user", &format!("token query word {i}"), None).unwrap();
+            convs
+                .add_message("c1", "user", &format!("token query word {i}"), None)
+                .unwrap();
         }
         let results = convs.search_messages("query", 3, None).unwrap();
         assert!(results.len() <= 3);

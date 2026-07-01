@@ -234,15 +234,15 @@ impl AgentDB {
             [],
             |r| {
                 Ok(DbStats {
-                    collections:    r.get(0)?,
-                    vectors:        r.get(1)?,
-                    nodes:          r.get(2)?,
-                    edges:          r.get(3)?,
-                    conversations:  r.get(4)?,
-                    messages:       r.get(5)?,
-                    workflows:      r.get(6)?,
+                    collections: r.get(0)?,
+                    vectors: r.get(1)?,
+                    nodes: r.get(2)?,
+                    edges: r.get(3)?,
+                    conversations: r.get(4)?,
+                    messages: r.get(5)?,
+                    workflows: r.get(6)?,
                     workflow_steps: r.get(7)?,
-                    traces:         r.get(8)?,
+                    traces: r.get(8)?,
                 })
             },
         )
@@ -292,7 +292,8 @@ impl Drop for AgentDB {
                             rusqlite::params![name],
                             |r| r.get::<_, i64>(0),
                         )
-                        .unwrap_or(0) == 1
+                        .unwrap_or(0)
+                            == 1
                     };
                     if is_dirty {
                         let _ = col.reindex();

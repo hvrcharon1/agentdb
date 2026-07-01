@@ -121,7 +121,10 @@ mod tests {
     #[test]
     fn test_get_traces_nonexistent_session_returns_empty() {
         let db = open();
-        let results = db.traces().get_traces("no-such-session", None, None).unwrap();
+        let results = db
+            .traces()
+            .get_traces("no-such-session", None, None)
+            .unwrap();
         assert!(results.is_empty());
     }
 
@@ -132,7 +135,8 @@ mod tests {
         let db = open();
         let tr = db.traces();
         for i in 0..5 {
-            tr.add_trace(Some("s"), None, "thought", &format!("msg {i}"), None).unwrap();
+            tr.add_trace(Some("s"), None, "thought", &format!("msg {i}"), None)
+                .unwrap();
         }
         let page = tr.get_traces("s", Some(3), None).unwrap();
         assert_eq!(page.len(), 3);
@@ -143,7 +147,8 @@ mod tests {
         let db = open();
         let tr = db.traces();
         for i in 0..5 {
-            tr.add_trace(Some("s"), None, "thought", &format!("msg {i}"), None).unwrap();
+            tr.add_trace(Some("s"), None, "thought", &format!("msg {i}"), None)
+                .unwrap();
         }
         let all = tr.get_traces("s", None, None).unwrap();
         let page = tr.get_traces("s", None, Some(2)).unwrap();
@@ -156,7 +161,8 @@ mod tests {
         let db = open();
         let tr = db.traces();
         for i in 0..5 {
-            tr.add_trace(Some("s"), None, "thought", &format!("msg {i}"), None).unwrap();
+            tr.add_trace(Some("s"), None, "thought", &format!("msg {i}"), None)
+                .unwrap();
         }
         let page = tr.get_traces("s", Some(2), Some(2)).unwrap();
         assert_eq!(page.len(), 2);

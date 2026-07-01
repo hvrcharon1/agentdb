@@ -5,7 +5,9 @@ use crate::fts::FtsResult;
 use crate::hybrid::{HybridQuery, HybridResult};
 use crate::memory::{TraversalOptions, TraversalResult};
 use crate::traces::Trace;
-use crate::vectors::{BatchEntry, Collection, DistanceMetric, SearchOptions, SearchResult, VectorEntry};
+use crate::vectors::{
+    BatchEntry, Collection, DistanceMetric, SearchOptions, SearchResult, VectorEntry,
+};
 use crate::workflows::Workflow;
 use serde_json::Value;
 use std::sync::Arc;

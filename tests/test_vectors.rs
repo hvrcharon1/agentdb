@@ -383,7 +383,10 @@ mod tests {
                 },
             )
             .unwrap();
-        assert_eq!(dot_results[0].id, "v_long", "dot product: long vector should rank first");
+        assert_eq!(
+            dot_results[0].id, "v_long",
+            "dot product: long vector should rank first"
+        );
 
         let cos_col = db
             .vectors()

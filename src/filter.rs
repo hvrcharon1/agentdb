@@ -93,9 +93,9 @@ fn apply_op(op: &str, field: Option<&Value>, operand: &Value) -> bool {
         },
         // Regex pattern match. Invalid patterns never match (returns false).
         "$regex" => match (field, operand.as_str()) {
-            (Some(Value::String(s)), Some(pattern)) => {
-                regex::Regex::new(pattern).map(|re| re.is_match(s)).unwrap_or(false)
-            }
+            (Some(Value::String(s)), Some(pattern)) => regex::Regex::new(pattern)
+                .map(|re| re.is_match(s))
+                .unwrap_or(false),
             _ => false,
         },
         _ => false,

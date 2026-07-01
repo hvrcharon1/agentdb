@@ -533,7 +533,10 @@ pub unsafe extern "C" fn agentdb_graph_neighbors(
     let relation_str: Option<String> = if relation.is_null() {
         None
     } else {
-        CStr::from_ptr(relation).to_str().ok().map(|s| s.to_string())
+        CStr::from_ptr(relation)
+            .to_str()
+            .ok()
+            .map(|s| s.to_string())
     };
     let opts = crate::memory::TraversalOptions {
         relation: relation_str,

@@ -193,10 +193,7 @@ impl HnswIndex {
             }
         }
 
-        let mut out: Vec<(usize, f32)> = result
-            .into_iter()
-            .map(|(OrdF32(d), i)| (i, d))
-            .collect();
+        let mut out: Vec<(usize, f32)> = result.into_iter().map(|(OrdF32(d), i)| (i, d)).collect();
         out.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
         out.truncate(k);
         out

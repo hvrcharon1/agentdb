@@ -222,10 +222,8 @@ impl ConversationStore {
                      ORDER BY rank
                      LIMIT ?2",
                 )?;
-                let rows = stmt.query_map(
-                    params![query, top_k as i64],
-                    parse_message_search_result,
-                )?;
+                let rows =
+                    stmt.query_map(params![query, top_k as i64], parse_message_search_result)?;
                 rows.map(|r| r.map_err(AgentDbError::Sqlite))
                     .collect::<Result<Vec<_>>>()?
             }
@@ -238,10 +236,10 @@ impl ConversationStore {
 
 fn parse_message_search_result(row: &rusqlite::Row) -> rusqlite::Result<MessageSearchResult> {
     Ok(MessageSearchResult {
-        message_id:      row.get(0)?,
+        message_id: row.get(0)?,
         conversation_id: row.get(1)?,
-        snippet:         row.get(2)?,
-        rank:            row.get(3)?,
+        snippet: row.get(2)?,
+        rank: row.get(3)?,
     })
 }
 

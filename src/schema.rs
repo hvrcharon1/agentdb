@@ -180,13 +180,11 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     bootstrap(conn)?;
 
     // v2 → v3: add `error` column to _adb_workflows (was missing before v0.5.0).
-    let _ = conn.execute_batch(
-        "ALTER TABLE _adb_workflows ADD COLUMN error TEXT;"
-    );
+    let _ = conn.execute_batch("ALTER TABLE _adb_workflows ADD COLUMN error TEXT;");
 
     // v2 → v3: add `updated_at` column to _adb_vectors.
     let _ = conn.execute_batch(
-        "ALTER TABLE _adb_vectors ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0;"
+        "ALTER TABLE _adb_vectors ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0;",
     );
 
     // v3 → v4: message FTS virtual table (bootstrap already uses IF NOT EXISTS).

@@ -13,7 +13,8 @@ mod tests {
     fn test_create_workflow_pending_status() {
         let db = open();
         let wf = db.workflows();
-        wf.create_workflow("wf-1", "My Pipeline", None, None).unwrap();
+        wf.create_workflow("wf-1", "My Pipeline", None, None)
+            .unwrap();
         let workflow = wf.get_workflow("wf-1").unwrap();
         assert_eq!(workflow.id, "wf-1");
         assert_eq!(workflow.name, "My Pipeline");

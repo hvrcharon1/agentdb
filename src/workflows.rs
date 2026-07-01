@@ -207,7 +207,11 @@ impl WorkflowStore {
         };
         let steps = self.steps_for_workflow(id)?;
         let step_count = steps.len() as i64;
-        Ok(Workflow { steps, step_count, ..workflow })
+        Ok(Workflow {
+            steps,
+            step_count,
+            ..workflow
+        })
     }
 
     /// List workflows, optionally filtered by status.

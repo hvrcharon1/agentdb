@@ -171,7 +171,10 @@ mod tests {
     fn test_contains_vs_regex_anchor_difference() {
         // $contains finds "hello" anywhere; $regex "^hello" only at start
         let doc = json!({"tag": "say_hello"});
-        assert!(filter_matches(&doc, &json!({"tag": {"$contains": "hello"}})));
+        assert!(filter_matches(
+            &doc,
+            &json!({"tag": {"$contains": "hello"}})
+        ));
         assert!(!filter_matches(&doc, &json!({"tag": {"$regex": "^hello"}})));
     }
 }

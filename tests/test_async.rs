@@ -40,10 +40,7 @@ async fn async_execute_and_query() {
     db.execute("CREATE TABLE t (id TEXT PRIMARY KEY, v INTEGER)")
         .await
         .unwrap();
-    let n = db
-        .execute("INSERT INTO t VALUES ('x', 42)")
-        .await
-        .unwrap();
+    let n = db.execute("INSERT INTO t VALUES ('x', 42)").await.unwrap();
     assert_eq!(n, 1);
     let rows = db.query_json("SELECT * FROM t").await.unwrap();
     assert_eq!(rows.len(), 1);
