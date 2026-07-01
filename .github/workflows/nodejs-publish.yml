@@ -53,7 +53,7 @@ jobs:
         run: npm run build
 
       - name: Upload native addon
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: native-${{ matrix.os }}
           path: nodejs/*.node
