@@ -36,7 +36,6 @@ nested_type_naming = "inner"
 [defines]
 "feature:ffi" = "AGENTDB_FFI"
 
-documentation = true
 documentation_style = "doxy"
 
 [header]
