@@ -417,6 +417,185 @@ int32_t agentdb_fts_delete(struct AgentDbHandle *handle,
 int32_t agentdb_fts_optimize(struct AgentDbHandle *handle, const char *collection);
 
 /**
+ * Register or update a tool definition.
+ *
+ * `name`              — unique tool name
+ * `description`       — human-readable description (may be NULL)
+ * `parameters_schema` — JSON Schema string (may be NULL)
+ * `version`           — semver version string (may be NULL, defaults to "1.0.0")
+ *
+ * Returns the tool ID as a heap-allocated string, or NULL on error.
+ * Free with `agentdb_free_string`.
+ */
+char *agentdb_tool_register(struct AgentDbHandle *handle,
+                            const char *name,
+                            const char *description,
+                            const char *parameters_schema,
+                            const char *version);
+
+/**
+ * List all registered tools as a JSON array.
+ *
+ * Returns heap-allocated JSON string — free with `agentdb_free_string`.
+ */
+char *agentdb_tool_list(struct AgentDbHandle *handle);
+
+/**
+ * Log a tool call invocation.
+ *
+ * `session_id`    — optional session context (may be NULL)
+ * `tool_name`     — name of the tool called
+ * `arguments`     — JSON arguments (may be NULL)
+ * `result`        — JSON result (may be NULL)
+ * `error`         — error message (may be NULL)
+ * `latency_ms`    — execution time in milliseconds (-1 if unknown)
+ *
+ * Returns the tool call ID as a heap-allocated string, or NULL on error.
+ * Free with `agentdb_free_string`.
+ */
+char *agentdb_tool_log_call(struct AgentDbHandle *handle,
+                            const char *session_id,
+                            const char *tool_name,
+                            const char *arguments,
+                            const char *result,
+                            const char *error,
+                            int64_t latency_ms);
+
+/**
+ * Append an entry to the immutable audit log.
+ *
+ * `actor`      — who performed the action (may be NULL)
+ * `action`     — action type (e.g. "insert", "update", "delete")
+ * `table_name` — target table
+ * `record_id`  — target record ID
+ * `old_value`  — JSON of previous state (may be NULL)
+ * `new_value`  — JSON of new state (may be NULL)
+ * `reason`     — human-readable reason (may be NULL)
+ *
+ * Returns the audit entry ID, or NULL on error.
+ * Free with `agentdb_free_string`.
+ */
+char *agentdb_audit_log(struct AgentDbHandle *handle,
+                        const char *actor,
+                        const char *action,
+                        const char *table_name,
+                        const char *record_id,
+                        const char *old_value,
+                        const char *new_value,
+                        const char *reason);
+
+/**
+ * Query recent audit log entries as a JSON array.
+ *
+ * `limit` — max entries to return (0 = default 100).
+ *
+ * Returns heap-allocated JSON string — free with `agentdb_free_string`.
+ */
+char *agentdb_audit_query_recent(struct AgentDbHandle *handle, uintptr_t limit);
+
+/**
+ * Add an entry to the context window for a session.
+ *
+ * Returns the entry ID, or NULL on error.
+ * Free with `agentdb_free_string`.
+ */
+char *agentdb_context_add(struct AgentDbHandle *handle,
+                          const char *session_id,
+                          const char *source_type,
+                          const char *source_id,
+                          const char *content_preview,
+                          int64_t token_count,
+                          double relevance_score,
+                          int64_t priority);
+
+/**
+ * Build a token-budgeted context window for a session.
+ *
+ * Returns entries as a JSON array, filling up to `max_tokens`.
+ * Free with `agentdb_free_string`.
+ */
+char *agentdb_context_build_window(struct AgentDbHandle *handle,
+                                   const char *session_id,
+                                   int64_t max_tokens);
+
+/**
+ * Clear all context entries for a session.
+ *
+ * Returns 0 on success, -1 on error.
+ */
+int32_t agentdb_context_clear(struct AgentDbHandle *handle, const char *session_id);
+
+/**
+ * Create a new version of a prompt template.
+ *
+ * `name`      — template name (versions auto-increment per name)
+ * `template`  — template body with {{placeholder}} syntax
+ * `model_hint`— suggested model (may be NULL)
+ * `max_tokens`— suggested max tokens (-1 if not set)
+ * `metadata`  — optional JSON metadata (may be NULL)
+ *
+ * Returns the template ID, or NULL on error.
+ * Free with `agentdb_free_string`.
+ */
+char *agentdb_prompt_create(struct AgentDbHandle *handle,
+                            const char *name,
+                            const char *template_,
+                            const char *model_hint,
+                            int64_t max_tokens,
+                            const char *metadata);
+
+/**
+ * Render a prompt template with variable substitution.
+ *
+ * `name`      — template name (uses latest version)
+ * `vars_json` — JSON object of key-value pairs for {{placeholder}} substitution
+ *
+ * Returns the rendered string, or NULL on error.
+ * Free with `agentdb_free_string`.
+ */
+char *agentdb_prompt_render(struct AgentDbHandle *handle, const char *name, const char *vars_json);
+
+/**
+ * Tag a record with a privacy/classification label.
+ *
+ * Returns 0 on success, -1 on error.
+ */
+int32_t agentdb_label_tag(struct AgentDbHandle *handle,
+                          const char *table_name,
+                          const char *record_id,
+                          const char *label,
+                          const char *tagged_by);
+
+/**
+ * Remove a specific label from a record.
+ *
+ * Returns 0 on success, -1 on error.
+ */
+int32_t agentdb_label_untag(struct AgentDbHandle *handle,
+                            const char *table_name,
+                            const char *record_id,
+                            const char *label);
+
+/**
+ * Get all labels for a record as a JSON array.
+ *
+ * Returns heap-allocated JSON string — free with `agentdb_free_string`.
+ */
+char *agentdb_label_get(struct AgentDbHandle *handle,
+                        const char *table_name,
+                        const char *record_id);
+
+/**
+ * Check if a record has a specific label.
+ *
+ * Returns 1 if true, 0 if false, -1 on error.
+ */
+int32_t agentdb_label_has(struct AgentDbHandle *handle,
+                          const char *table_name,
+                          const char *record_id,
+                          const char *label);
+
+/**
  * Get a trace subtree as a JSON array.
  *
  * Returns heap-allocated JSON string — free with `agentdb_free_string`.
