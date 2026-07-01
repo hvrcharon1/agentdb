@@ -7,6 +7,24 @@
 # Or via CI (see .github/workflows/ffi-header.yml)
 
 language = "C"
+documentation_style = "doxy"
+
+header = """
+/**
+ * AgentDB — C API
+ *
+ * Single-file embedded database for AI agents.
+ * SQL + Vector Search + Full-Text Search + Hybrid Queries + Memory Graphs.
+ *
+ * Memory contract:
+ *   - All strings returned by agentdb_* functions are heap-allocated.
+ *     Free them with agentdb_free_string(), never with free() or delete.
+ *   - Input const char* pointers are borrowed for the duration of the call.
+ *   - AgentDbHandle* is opaque. Close with agentdb_close().
+ *
+ * https://github.com/hvrcharon1/agentdb
+ */
+"""
 
 [parse]
 parse_deps = false
@@ -30,31 +48,5 @@ include = [
     "agentdb_stats",
 ]
 
-[layout]
-nested_type_naming = "inner"
-
 [defines]
 "feature:ffi" = "AGENTDB_FFI"
-
-documentation_style = "doxy"
-
-[header]
-preamble = """
-/**
- * AgentDB — C API
- *
- * Single-file embedded database for AI agents.
- * SQL + Vector Search + Full-Text Search + Hybrid Queries + Memory Graphs.
- *
- * Memory contract:
- *   - All strings returned by agentdb_* functions are heap-allocated.
- *     Free them with agentdb_free_string(), never with free() or delete.
- *   - Input const char* pointers are borrowed for the duration of the call.
- *   - AgentDbHandle* is opaque. Close with agentdb_close().
- *
- * https://github.com/hvrcharon1/agentdb
- */
-"""
-
-[trailer]
-epilogue = ""
