@@ -854,14 +854,21 @@ impl AgentDB {
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 
-    /// Get all traces for a session in chronological order.
+    /// Get traces for a session in chronological order with optional pagination.
     #[napi]
-    pub fn get_traces(&self, session_id: String) -> Result<Vec<serde_json::Value>> {
+    pub fn get_traces(
+        &self,
+        session_id: String,
+        limit: Option<i32>,
+        offset: Option<i32>,
+    ) -> Result<Vec<serde_json::Value>> {
+        let lim = limit.and_then(|v| if v > 0 { Some(v as usize) } else { None });
+        let off = offset.and_then(|v| if v > 0 { Some(v as usize) } else { None });
         let traces = self.db
             .lock()
             .unwrap()
             .traces()
-            .get_traces(&session_id, None, None)
+            .get_traces(&session_id, lim, off)
             .map_err(|e| Error::from_reason(e.to_string()))?;
         Ok(traces
             .iter()

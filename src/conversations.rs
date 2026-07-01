@@ -107,12 +107,11 @@ impl ConversationStore {
             "UPDATE _adb_conversations SET updated_at = ?1 WHERE id = ?2",
             params![now, conversation_id],
         )?;
-        // Keep the FTS index in sync (ignore errors if virtual table doesn't exist yet)
-        let _ = conn.execute(
+        conn.execute(
             "INSERT INTO _adb_messages_fts (message_id, conversation_id, content)
              VALUES (?1, ?2, ?3)",
             params![&msg_id, conversation_id, content],
-        );
+        )?;
         Ok(msg_id)
     }
 
@@ -175,11 +174,10 @@ impl ConversationStore {
     /// Delete a conversation and all its messages (via ON DELETE CASCADE).
     pub fn delete_conversation(&self, id: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
-        // Remove FTS entries for all messages in this conversation first.
-        let _ = conn.execute(
+        conn.execute(
             "DELETE FROM _adb_messages_fts WHERE conversation_id = ?1",
             params![id],
-        );
+        )?;
         conn.execute("DELETE FROM _adb_conversations WHERE id = ?1", params![id])?;
         Ok(())
     }

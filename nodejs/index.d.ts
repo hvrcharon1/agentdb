@@ -144,13 +144,12 @@ export interface WorkflowStep {
 
 export interface Trace {
   id:        string;
-  parentId:  string | null;
   sessionId: string | null;
-  kind:      string;
-  data:      Record<string, unknown> | null;
+  parentId:  string | null;
+  traceType: string;
+  content:   string;
   metadata:  Record<string, unknown> | null;
   createdAt: number;
-  children:  Trace[];
 }
 
 /** A vector collection handle. */
@@ -191,20 +190,42 @@ export class AgentDB {
   /** Get or create a vector collection with the given dimensionality. */
   collection(name: string, dim: number): Collection;
 
+  /** Drop a vector collection by name. */
+  dropCollection(name: string): void;
+
+  // ── Memory Graph ──────────────────────────────────────────────────
+
   /** Add or update a memory graph node. */
   addNode(id: string, kind: string, data?: Record<string, unknown> | null): void;
+
+  /** Get a single node by ID, or null if it doesn't exist. */
+  getNode(id: string): Record<string, unknown> | null;
+
+  /** Delete a node and its edges. */
+  deleteNode(id: string): void;
 
   /** Add or update a directed edge in the memory graph. */
   addEdge(src: string, dst: string, relation: string, weight: number): void;
 
+  /** Delete a specific edge. */
+  deleteEdge(src: string, dst: string, relation: string): void;
+
   /** Traverse the memory graph from a node. */
   neighbors(nodeId: string, maxDepth?: number, minWeight?: number): NeighborResult[];
+
+  // ── Full-Text Search ──────────────────────────────────────────────
 
   /** Index text for full-text search. */
   ftsIndex(collection: string, id: string, collectionId: string, text: string): void;
 
   /** Full-text search over a collection. */
   ftsSearch(collection: string, query: string, topK: number): FtsResult[];
+
+  /** Delete a text entry from the FTS index. */
+  ftsDelete(collection: string, id: string): void;
+
+  /** Run FTS5 optimize on a collection. */
+  ftsOptimize(collection: string): void;
 
   /** Run a hybrid graph + vector query (synchronous). */
   hybridQuery(anchorNode: string, embedding: number[], collection: string, options?: HybridOptions): HybridResult[];
@@ -255,7 +276,7 @@ export class AgentDB {
   // ── Traces ─────────────────────────────────────────────────────────
 
   /** Add a reasoning trace entry. Returns the trace ID. */
-  addTrace(parentId: string | null, kind: string, data?: Record<string, unknown> | null, sessionId?: string | null, metadata?: Record<string, unknown> | null): string;
+  addTrace(traceType: string, content: string, sessionId?: string | null, parentId?: string | null, metadata?: Record<string, unknown> | null): string;
 
   /** Get traces for a session with optional pagination. */
   getTraces(sessionId: string, limit?: number | null, offset?: number | null): Trace[];

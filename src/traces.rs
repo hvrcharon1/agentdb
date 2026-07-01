@@ -74,8 +74,8 @@ impl TraceStore {
         offset: Option<usize>,
     ) -> Result<Vec<Trace>> {
         let conn = self.conn.lock().unwrap();
-        let lim = limit.unwrap_or(usize::MAX) as i64;
-        let off = offset.unwrap_or(0) as i64;
+        let lim: i64 = limit.map(|n| n as i64).unwrap_or(i64::MAX);
+        let off: i64 = offset.map(|n| n as i64).unwrap_or(0);
         let mut stmt = conn.prepare(
             "SELECT id, session_id, parent_id, trace_type, content, metadata, created_at
              FROM _adb_traces

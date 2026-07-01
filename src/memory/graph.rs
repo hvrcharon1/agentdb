@@ -165,23 +165,26 @@ impl MemoryGraph {
 
         let results = if let Some(ref relation) = opts.relation {
             let sql = "
-                WITH RECURSIVE traverse(node_id, depth, weight) AS (
-                    SELECT dst, 1, weight
+                WITH RECURSIVE traverse(node_id, depth, weight, visited) AS (
+                    SELECT dst, 1, weight, ',' || ?1 || ',' || dst || ','
                     FROM _adb_edges
                     WHERE src = ?1 AND relation = ?2 AND weight >= ?4
                     UNION ALL
-                    SELECT e.dst, t.depth + 1, e.weight
+                    SELECT e.dst, t.depth + 1, e.weight,
+                           t.visited || e.dst || ','
                     FROM _adb_edges e
                     JOIN traverse t ON e.src = t.node_id
                     WHERE t.depth < ?3
                       AND e.relation = ?2
                       AND e.weight >= ?4
+                      AND INSTR(t.visited, ',' || e.dst || ',') = 0
                 )
-                SELECT DISTINCT n.id, n.kind, n.data, n.created_at, n.updated_at,
-                       t.depth, t.weight
+                SELECT n.id, n.kind, n.data, n.created_at, n.updated_at,
+                       MIN(t.depth) AS depth, MAX(t.weight) AS weight
                 FROM traverse t
                 JOIN _adb_nodes n ON n.id = t.node_id
-                ORDER BY t.depth ASC, t.weight DESC
+                GROUP BY n.id
+                ORDER BY depth ASC, weight DESC
             ";
             let mut stmt = conn.prepare(sql)?;
             let rows =
@@ -190,22 +193,25 @@ impl MemoryGraph {
                 .collect::<Result<Vec<_>>>()?
         } else {
             let sql = "
-                WITH RECURSIVE traverse(node_id, depth, weight) AS (
-                    SELECT dst, 1, weight
+                WITH RECURSIVE traverse(node_id, depth, weight, visited) AS (
+                    SELECT dst, 1, weight, ',' || ?1 || ',' || dst || ','
                     FROM _adb_edges
                     WHERE src = ?1 AND weight >= ?3
                     UNION ALL
-                    SELECT e.dst, t.depth + 1, e.weight
+                    SELECT e.dst, t.depth + 1, e.weight,
+                           t.visited || e.dst || ','
                     FROM _adb_edges e
                     JOIN traverse t ON e.src = t.node_id
                     WHERE t.depth < ?2
                       AND e.weight >= ?3
+                      AND INSTR(t.visited, ',' || e.dst || ',') = 0
                 )
-                SELECT DISTINCT n.id, n.kind, n.data, n.created_at, n.updated_at,
-                       t.depth, t.weight
+                SELECT n.id, n.kind, n.data, n.created_at, n.updated_at,
+                       MIN(t.depth) AS depth, MAX(t.weight) AS weight
                 FROM traverse t
                 JOIN _adb_nodes n ON n.id = t.node_id
-                ORDER BY t.depth ASC, t.weight DESC
+                GROUP BY n.id
+                ORDER BY depth ASC, weight DESC
             ";
             let mut stmt = conn.prepare(sql)?;
             let rows = stmt.query_map(params![node_id, max_depth, min_weight], parse_row)?;

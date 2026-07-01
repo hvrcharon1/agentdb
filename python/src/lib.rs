@@ -539,9 +539,7 @@ impl AgentDB {
                     "snippet":         r.snippet,
                     "rank":            r.rank
                 });
-                pythonize::pythonize(py, &v).map_err(|e| {
-                    pyo3::exceptions::PyRuntimeError::new_err(e.to_string())
-                })
+                json_to_pyobj(py, &v)
             })
             .collect()
     }

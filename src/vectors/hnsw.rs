@@ -4,6 +4,25 @@ use serde::{Deserialize, Serialize};
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 
+#[derive(Clone, Copy)]
+struct OrdF32(f32);
+impl PartialEq for OrdF32 {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.total_cmp(&other.0) == std::cmp::Ordering::Equal
+    }
+}
+impl Eq for OrdF32 {}
+impl PartialOrd for OrdF32 {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for OrdF32 {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.total_cmp(&other.0)
+    }
+}
+
 /// Distance metric used for vector similarity
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DistanceMetric {
@@ -76,11 +95,8 @@ impl HnswIndex {
     fn random_level(&self) -> usize {
         let mut rng = rand::thread_rng();
         let m_l = 1.0 / (self.m as f64).ln();
-        let mut level = 0usize;
-        while level < 16 && rng.gen::<f64>() < (-1.0_f64 / m_l).exp() {
-            level += 1;
-        }
-        level
+        let level = (-rng.gen::<f64>().ln() * m_l).floor() as usize;
+        level.min(16)
     }
 
     pub fn insert(&mut self, id: &str, vector: Vec<f32>) {
@@ -145,17 +161,19 @@ impl HnswIndex {
         level: usize,
     ) -> Vec<(usize, f32)> {
         let mut visited: HashSet<usize> = HashSet::new();
-        let mut candidates: BinaryHeap<Reverse<(u32, usize)>> = BinaryHeap::new();
-        let mut result: BinaryHeap<(u32, usize)> = BinaryHeap::new();
+        // Min-heap of candidates (closest first)
+        let mut candidates: BinaryHeap<Reverse<(OrdF32, usize)>> = BinaryHeap::new();
+        // Max-heap of results (worst/farthest at top for eviction)
+        let mut result: BinaryHeap<(OrdF32, usize)> = BinaryHeap::new();
 
         let d0 = dist(query, &self.vectors[entry], &self.metric);
-        candidates.push(Reverse((d0.to_bits(), entry)));
-        result.push((d0.to_bits(), entry));
+        candidates.push(Reverse((OrdF32(d0), entry)));
+        result.push((OrdF32(d0), entry));
         visited.insert(entry);
 
-        while let Some(Reverse((d_bits, curr))) = candidates.pop() {
-            if let Some(&(worst_bits, _)) = result.peek() {
-                if d_bits > worst_bits && result.len() >= k {
+        while let Some(Reverse((OrdF32(d_curr), curr))) = candidates.pop() {
+            if let Some(&(OrdF32(worst), _)) = result.peek() {
+                if d_curr > worst && result.len() >= k {
                     break;
                 }
             }
@@ -164,9 +182,8 @@ impl HnswIndex {
                     for &nb in neighbours {
                         if visited.insert(nb) {
                             let nd = dist(query, &self.vectors[nb], &self.metric);
-                            let nd_bits = nd.to_bits();
-                            candidates.push(Reverse((nd_bits, nb)));
-                            result.push((nd_bits, nb));
+                            candidates.push(Reverse((OrdF32(nd), nb)));
+                            result.push((OrdF32(nd), nb));
                             while result.len() > k * 2 {
                                 result.pop();
                             }
@@ -178,7 +195,7 @@ impl HnswIndex {
 
         let mut out: Vec<(usize, f32)> = result
             .into_iter()
-            .map(|(bits, i)| (i, f32::from_bits(bits)))
+            .map(|(OrdF32(d), i)| (i, d))
             .collect();
         out.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
         out.truncate(k);

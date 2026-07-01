@@ -10,6 +10,43 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.5.2] — 2026-07-01 — Critical Fixes
+
+### Fixed
+- **DotProduct ANN results were inverted.** The HNSW search heap used `f32::to_bits()` as `u32` for
+  ordering — negative distances (from DotProduct's `-dot` formula) had their sign bit set, making
+  them appear "largest" in the max-heap so the best matches were discarded first. Replaced with
+  a proper `Ord`-implementing float wrapper that uses `f32::total_cmp()`.
+- **HNSW `random_level()` formula was non-standard.** Used a geometric loop instead of the standard
+  `floor(-ln(uniform) * m_l)`. This produced a biased level distribution degrading ANN recall.
+  Now uses the paper-standard formula capped at level 16.
+- **Node.js `addTrace` parameter order was wrong.** TypeScript declared `(parentId, kind, data,
+  sessionId)` but the Rust binding takes `(traceType, content, sessionId, parentId)`. Every
+  positional caller was scrambling all fields. Fixed the TypeScript declaration.
+- **Node.js `Trace` interface had phantom field names.** Declared `kind`, `data`, `children` — the
+  actual serialized fields are `traceType`, `content`, and no `children`. Fixed to match output.
+- **Node.js `getTraces` pagination params were ignored.** TypeScript declared `limit`/`offset` but
+  the binding hardcoded `None, None`. Now passes them through.
+- **FTS insert/delete in `ConversationStore` silently swallowed errors** (`let _ = ...`). Messages
+  could be stored but not indexed, or ghost FTS entries remained after deletion. Both now propagate
+  errors.
+- **Cyclic memory graphs caused exponential CTE row explosion.** The recursive traversal used
+  `UNION ALL` without visit tracking — bidirectional edges at `max_depth=20` generated 2^20
+  intermediate rows. Replaced with an `INSTR`-based visited-path string that prevents revisiting
+  nodes. Outer query now uses `GROUP BY n.id` (min depth, max weight) instead of broken `DISTINCT`.
+- **`usize::MAX as i64` in traces pagination** — on 64-bit this produced -1, relying on SQLite
+  implementation detail. Replaced with `i64::MAX`.
+- **Python `search_messages()` called `pythonize` crate which wasn't in Cargo.toml** — broke the
+  entire Python binding build. Replaced with the existing `json_to_pyobj` helper.
+
+### Added
+- `AsyncMemoryGraph`: `get_node()`, `delete_node()`, `delete_edge()`, `nodes_by_kind()`.
+- `AsyncFullTextStore`: `delete_text()`, `optimize()`.
+- `nodejs/index.d.ts`: `dropCollection`, `getNode`, `deleteNode`, `deleteEdge`, `ftsDelete`,
+  `ftsOptimize` declarations (methods already existed in the binding, just undeclared in types).
+
+---
+
 ## [0.5.1] — 2026-06-29 — Enhancement Pass
 
 ### Added

@@ -324,6 +324,44 @@ impl AsyncMemoryGraph {
             .await
             .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
+
+    /// Get a single node by ID.
+    pub async fn get_node(&self, id: &str) -> Result<crate::memory::Node> {
+        let db = self.inner.clone();
+        let id = id.to_string();
+        task::spawn_blocking(move || db.memory().get_node(&id))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Delete a node and its edges.
+    pub async fn delete_node(&self, id: &str) -> Result<()> {
+        let db = self.inner.clone();
+        let id = id.to_string();
+        task::spawn_blocking(move || db.memory().delete_node(&id))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Delete a specific edge.
+    pub async fn delete_edge(&self, src: &str, dst: &str, relation: &str) -> Result<()> {
+        let db = self.inner.clone();
+        let src = src.to_string();
+        let dst = dst.to_string();
+        let relation = relation.to_string();
+        task::spawn_blocking(move || db.memory().delete_edge(&src, &dst, &relation))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Return all nodes of a given kind.
+    pub async fn nodes_by_kind(&self, kind: &str) -> Result<Vec<crate::memory::Node>> {
+        let db = self.inner.clone();
+        let kind = kind.to_string();
+        task::spawn_blocking(move || db.memory().nodes_by_kind(&kind))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
 }
 
 // ── Async Full-Text Search ──────────────────────────────────────────────
@@ -363,6 +401,25 @@ impl AsyncFullTextStore {
         let collection = collection.to_string();
         let query = query.to_string();
         task::spawn_blocking(move || db.fts().search(&collection, &query, top_k))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Delete a text entry from the FTS index.
+    pub async fn delete_text(&self, collection: &str, id: &str) -> Result<()> {
+        let db = self.inner.clone();
+        let collection = collection.to_string();
+        let id = id.to_string();
+        task::spawn_blocking(move || db.fts().delete_text(&collection, &id))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Optimize the FTS5 index for a collection.
+    pub async fn optimize(&self, collection: &str) -> Result<()> {
+        let db = self.inner.clone();
+        let collection = collection.to_string();
+        task::spawn_blocking(move || db.fts().optimize(&collection))
             .await
             .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
