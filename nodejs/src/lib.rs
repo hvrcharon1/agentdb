@@ -298,6 +298,19 @@ impl AgentDB {
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 
+    /// Query with positional parameters and return rows as plain JavaScript objects.
+    ///
+    /// Use this for user-supplied values to prevent SQL injection.
+    /// Parameters are bound as `?1`, `?2`, etc.
+    #[napi]
+    pub fn query_params(&self, sql: String, params: Vec<String>) -> Result<Vec<serde_json::Value>> {
+        let db = self.db.lock().unwrap();
+        let param_refs: Vec<&dyn rusqlite::ToSql> =
+            params.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+        db.query_json_params(&sql, &param_refs)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
     /// Get or create a named vector collection with the given dimensionality.
     #[napi]
     pub fn collection(&self, name: String, dim: u32) -> Result<Collection> {
@@ -361,9 +374,10 @@ impl AgentDB {
         node_id: String,
         max_depth: Option<u32>,
         min_weight: Option<f64>,
+        relation: Option<String>,
     ) -> Result<Vec<NeighborResult>> {
         let opts = TraversalOptions {
-            relation:   None,
+            relation,
             max_depth:  max_depth.unwrap_or(2) as usize,
             min_weight: Some(min_weight.unwrap_or(0.0)),
         };
@@ -693,12 +707,13 @@ impl AgentDB {
         id: String,
         name: String,
         input: Option<serde_json::Value>,
+        metadata: Option<serde_json::Value>,
     ) -> Result<()> {
         self.db
             .lock()
             .unwrap()
             .workflows()
-            .create_workflow(&id, &name, input, None)
+            .create_workflow(&id, &name, input, metadata)
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 

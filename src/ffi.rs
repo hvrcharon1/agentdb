@@ -38,7 +38,7 @@ use std::os::raw::c_char;
 // ── Thread-local last error ───────────────────────────────────────────
 
 thread_local! {
-    static LAST_ERROR: RefCell<Option<String>> = RefCell::new(None);
+    static LAST_ERROR: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
 fn set_last_error(msg: impl Into<String>) {
@@ -87,15 +87,13 @@ pub struct AgentDbHandle {
 /// Returns an opaque handle on success, or NULL on failure.
 /// Check `agentdb_last_error()` on NULL.
 #[no_mangle]
-pub extern "C" fn agentdb_open(path: *const c_char) -> *mut AgentDbHandle {
+pub unsafe extern "C" fn agentdb_open(path: *const c_char) -> *mut AgentDbHandle {
     clear_last_error();
-    let path_str = unsafe {
-        match path.as_ref().and_then(|p| CStr::from_ptr(p).to_str().ok()) {
-            Some(s) => s,
-            None => {
-                set_last_error("agentdb_open: invalid path string");
-                return std::ptr::null_mut();
-            }
+    let path_str = match path.as_ref().and_then(|p| CStr::from_ptr(p).to_str().ok()) {
+        Some(s) => s,
+        None => {
+            set_last_error("agentdb_open: invalid path string");
+            return std::ptr::null_mut();
         }
     };
     match AgentDB::open(path_str) {
@@ -175,6 +173,66 @@ pub unsafe extern "C" fn agentdb_query_json(
         }
     };
     match h.db.query_json(sql_str) {
+        Ok(rows) => {
+            let json = Value::Array(rows).to_string();
+            CString::new(json)
+                .map(|s| s.into_raw())
+                .unwrap_or(std::ptr::null_mut())
+        }
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// Query with positional parameters and return all rows as a JSON array string.
+///
+/// `params_json` is a JSON array of parameter values (e.g. `["alice", 42]`).
+/// Returns a heap-allocated JSON string — free with `agentdb_free_string`.
+/// Returns NULL on error; check `agentdb_last_error()`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_query_json_params(
+    handle: *mut AgentDbHandle,
+    sql: *const c_char,
+    params_json: *const c_char,
+) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("agentdb_query_json_params: null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    let sql_str = match CStr::from_ptr(sql).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("agentdb_query_json_params: invalid SQL");
+            return std::ptr::null_mut();
+        }
+    };
+    let params: Vec<String> = if params_json.is_null() {
+        vec![]
+    } else {
+        match CStr::from_ptr(params_json).to_str() {
+            Ok(s) => serde_json::from_str::<Vec<serde_json::Value>>(s)
+                .unwrap_or_default()
+                .iter()
+                .map(|v| match v {
+                    serde_json::Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                })
+                .collect(),
+            Err(_) => {
+                set_last_error("agentdb_query_json_params: invalid params");
+                return std::ptr::null_mut();
+            }
+        }
+    };
+    let param_refs: Vec<&dyn rusqlite::ToSql> =
+        params.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+    match h.db.query_json_params(sql_str, &param_refs) {
         Ok(rows) => {
             let json = Value::Array(rows).to_string();
             CString::new(json)
@@ -446,6 +504,7 @@ pub unsafe extern "C" fn agentdb_graph_add_edge(
 ///
 /// `max_depth`  — maximum hops from the anchor node
 /// `min_weight` — minimum edge weight to traverse (0.0 = all edges)
+/// `relation`   — optional edge relation filter (NULL = all relations)
 ///
 /// Returns heap-allocated JSON string — free with `agentdb_free_string`.
 #[no_mangle]
@@ -454,6 +513,7 @@ pub unsafe extern "C" fn agentdb_graph_neighbors(
     node_id: *const c_char,
     max_depth: usize,
     min_weight: f64,
+    relation: *const c_char,
 ) -> *mut c_char {
     clear_last_error();
     let h = match handle.as_ref() {
@@ -470,8 +530,13 @@ pub unsafe extern "C" fn agentdb_graph_neighbors(
             return std::ptr::null_mut();
         }
     };
+    let relation_str: Option<String> = if relation.is_null() {
+        None
+    } else {
+        CStr::from_ptr(relation).to_str().ok().map(|s| s.to_string())
+    };
     let opts = crate::memory::TraversalOptions {
-        relation: None,
+        relation: relation_str,
         max_depth,
         min_weight: Some(min_weight),
     };
@@ -989,9 +1054,10 @@ pub unsafe extern "C" fn agentdb_conversation_delete(
 
 /// Create a new workflow in `pending` status.
 ///
-/// `id`    — unique workflow identifier
-/// `name`  — human-readable workflow name
-/// `input` — optional JSON input (may be NULL)
+/// `id`       — unique workflow identifier
+/// `name`     — human-readable workflow name
+/// `input`    — optional JSON input (may be NULL)
+/// `metadata` — optional JSON metadata (may be NULL)
 ///
 /// Returns 0 on success, -1 on error.
 #[no_mangle]
@@ -1000,6 +1066,7 @@ pub unsafe extern "C" fn agentdb_workflow_create(
     id: *const c_char,
     name: *const c_char,
     input: *const c_char,
+    metadata: *const c_char,
 ) -> i32 {
     clear_last_error();
     let h = match handle.as_ref() {
@@ -1031,10 +1098,18 @@ pub unsafe extern "C" fn agentdb_workflow_create(
             .ok()
             .and_then(|s| serde_json::from_str(s).ok())
     };
+    let metadata_val: Option<Value> = if metadata.is_null() {
+        None
+    } else {
+        CStr::from_ptr(metadata)
+            .to_str()
+            .ok()
+            .and_then(|s| serde_json::from_str(s).ok())
+    };
     match h
         .db
         .workflows()
-        .create_workflow(id_str, name_str, input_val, None)
+        .create_workflow(id_str, name_str, input_val, metadata_val)
     {
         Ok(()) => 0,
         Err(e) => {

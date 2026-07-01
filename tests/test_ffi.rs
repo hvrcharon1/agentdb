@@ -167,7 +167,7 @@ fn ffi_graph_add_node_and_edge_and_neighbors() {
         );
         assert_eq!(rc3, 0);
 
-        let nb_ptr = agentdb_graph_neighbors(h, cstr("s1").as_ptr(), 2, 0.0);
+        let nb_ptr = agentdb_graph_neighbors(h, cstr("s1").as_ptr(), 2, 0.0, std::ptr::null());
         assert!(!nb_ptr.is_null(), "neighbors failed: {:?}", last_error());
         let nb = free_str(nb_ptr);
         assert!(nb.contains("c1"), "c1 not in neighbors: {nb}");

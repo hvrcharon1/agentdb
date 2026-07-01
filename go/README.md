@@ -94,7 +94,7 @@ func main() {
     _ = db.GraphAddNode("concept:llm", "concept", nil)
     _ = db.GraphAddEdge("session:s1", "concept:llm", "mentions", 0.9)
 
-    neighbors, err := db.GraphNeighbors("session:s1", 2, 0.5)
+    neighbors, err := db.GraphNeighbors("session:s1", 2, 0.5, "")
     if err != nil {
         log.Fatal(err)
     }
@@ -121,7 +121,7 @@ func main() {
 | `db.VectorSearch(col, query, topK, filter)` | Approximate nearest-neighbour search. |
 | `db.GraphAddNode(id, kind, data)` | Add/update a memory-graph node. |
 | `db.GraphAddEdge(src, dst, relation, weight)` | Add/update a directed edge. |
-| `db.GraphNeighbors(id, depth, minWeight)` | BFS/DFS traversal from a node. |
+| `db.GraphNeighbors(id, depth, minWeight, relation)` | BFS/DFS traversal from a node. |
 | `db.FTSIndex(col, vecID, colID, text)` | Index text for full-text search. |
 | `db.FTSSearch(col, query, topK)` | Full-text search with snippet highlights. |
 | `db.HybridQuery(anchor, emb, col, depth, k, α)` | Blended graph + vector ranking. |

@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 /// A single reasoning trace entry.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Trace {
     /// Unique identifier for this trace entry.
     pub id: String,

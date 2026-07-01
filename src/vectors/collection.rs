@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 /// A single vector entry
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct VectorEntry {
     pub id: String,
     pub vector: Vec<f32>,
@@ -17,7 +17,7 @@ pub struct VectorEntry {
 }
 
 /// A single vector search result
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchResult {
     pub id: String,
     pub score: f32,
@@ -25,7 +25,7 @@ pub struct SearchResult {
 }
 
 /// Options controlling a vector search
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchOptions {
     pub top_k: usize,
     pub metric: DistanceMetric,
@@ -43,7 +43,7 @@ impl Default for SearchOptions {
 }
 
 /// An entry for batch upsert
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BatchEntry {
     pub id: String,
     pub vector: Vec<f32>,
@@ -202,21 +202,48 @@ impl Collection {
             opts.top_k
         };
         let raw = index.search(query, fetch_k);
+
+        if raw.is_empty() {
+            return Ok(vec![]);
+        }
+
         let conn = self.conn.lock().unwrap();
-        let mut out = Vec::new();
-        for (id, score) in raw {
-            let meta_str: Option<String> = conn
-                .query_row(
-                    "SELECT metadata FROM _adb_vectors
-                     WHERE id = ?1 AND collection_id = ?2",
-                    params![id, self.id],
-                    |r| r.get(0),
-                )
-                .ok()
-                .flatten();
+
+        // Batch-fetch metadata for all candidate IDs in one query.
+        let placeholders: String = (1..=raw.len())
+            .map(|i| format!("?{}", i))
+            .collect::<Vec<_>>()
+            .join(",");
+        let sql = format!(
+            "SELECT id, metadata FROM _adb_vectors WHERE collection_id = ?{} AND id IN ({})",
+            raw.len() + 1,
+            placeholders
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let mut param_values: Vec<Box<dyn rusqlite::ToSql>> = raw
+            .iter()
+            .map(|(id, _)| Box::new(id.clone()) as Box<dyn rusqlite::ToSql>)
+            .collect();
+        param_values.push(Box::new(self.id.clone()));
+        let param_refs: Vec<&dyn rusqlite::ToSql> =
+            param_values.iter().map(|p| p.as_ref()).collect();
+
+        let mut meta_map: std::collections::HashMap<String, Option<Value>> =
+            std::collections::HashMap::new();
+        let rows = stmt.query_map(param_refs.as_slice(), |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+        })?;
+        for row in rows {
+            let (id, meta_str) = row?;
             let meta: Option<Value> = meta_str
                 .as_deref()
                 .and_then(|s| serde_json::from_str(s).ok());
+            meta_map.insert(id, meta);
+        }
+
+        let mut out = Vec::new();
+        for (id, score) in raw {
+            let meta = meta_map.get(&id).cloned().unwrap_or(None);
             if let Some(ref f) = opts.filter {
                 match &meta {
                     Some(m) if filter::matches(m, f) => {}

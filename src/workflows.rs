@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 /// A workflow and its current state.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Workflow {
     /// Unique identifier for this workflow.
     pub id: String,
@@ -35,7 +35,7 @@ pub struct Workflow {
 }
 
 /// A single step within a workflow.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct WorkflowStep {
     /// Unique identifier for this step.
     pub id: String,

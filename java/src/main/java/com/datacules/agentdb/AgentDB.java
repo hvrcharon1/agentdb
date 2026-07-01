@@ -118,7 +118,7 @@ public class AgentDB implements Closeable {
      * @return JSON array string, or {@code null} on error
      */
     private static native String nativeGraphNeighbors(long handle, String nodeId,
-            int maxDepth, double minWeight);
+            int maxDepth, double minWeight, String relation);
 
     /**
      * Index a text document for full-text search.
@@ -346,12 +346,13 @@ public class AgentDB implements Closeable {
      * @param nodeId    anchor node identifier
      * @param maxDepth  maximum hops to traverse
      * @param minWeight minimum edge weight to follow (0.0 = follow all)
+     * @param relation  edge relation filter, or {@code null} for all relations
      * @return JSON array of {@code {id, kind, depth, weight, data}} objects
      * @throws AgentDBException on error
      */
-    public String graphNeighbors(String nodeId, int maxDepth, double minWeight) {
+    public String graphNeighbors(String nodeId, int maxDepth, double minWeight, String relation) {
         checkOpen();
-        String result = nativeGraphNeighbors(handle, nodeId, maxDepth, minWeight);
+        String result = nativeGraphNeighbors(handle, nodeId, maxDepth, minWeight, relation);
         if (result == null) {
             throw new AgentDBException(requireLastError("agentdb_graph_neighbors failed"));
         }

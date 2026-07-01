@@ -53,7 +53,7 @@ int   agentdb_graph_add_node(AgentDbHandle* handle, const char* id,
 int   agentdb_graph_add_edge(AgentDbHandle* handle, const char* src,
           const char* dst, const char* relation, double weight);
 char* agentdb_graph_neighbors(AgentDbHandle* handle, const char* node_id,
-          size_t max_depth, double min_weight);
+          size_t max_depth, double min_weight, const char* relation);
 
 /* ── Full-text search ──────────────────────────────────────────────── */
 
@@ -108,7 +108,7 @@ int   agentdb_fts_optimize(AgentDbHandle* handle, const char* collection);
 /* ── Workflows ─────────────────────────────────────────────────────── */
 
 int   agentdb_workflow_create(AgentDbHandle* handle, const char* id,
-          const char* name, const char* input);
+          const char* name, const char* input, const char* metadata);
 char* agentdb_workflow_add_step(AgentDbHandle* handle,
           const char* workflow_id, const char* name, const char* input);
 int   agentdb_workflow_update_step(AgentDbHandle* handle,

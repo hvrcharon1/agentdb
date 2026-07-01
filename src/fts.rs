@@ -5,7 +5,7 @@ use serde_json::Value;
 use std::sync::{Arc, Mutex};
 
 /// A full-text search result
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct FtsResult {
     pub id: String,
     pub collection_id: String,

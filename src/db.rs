@@ -8,11 +8,14 @@ use crate::traces::TraceStore;
 use crate::vectors::VectorStore;
 use crate::workflows::WorkflowStore;
 use rusqlite::Connection;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 /// The main AgentDB connection — your single-file AI database.
+#[derive(Clone)]
 pub struct AgentDB {
     conn: Arc<Mutex<Connection>>,
+    closed: Arc<AtomicBool>,
 }
 
 impl AgentDB {
@@ -23,6 +26,7 @@ impl AgentDB {
         schema::check_version(&conn)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
+            closed: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -152,7 +156,42 @@ impl AgentDB {
             .collect()
     }
 
-    /// Flush dirty HNSW indexes and close gracefully
+    /// Query with parameters and return rows as JSON values.
+    ///
+    /// Use this for any query involving user-supplied values to prevent SQL injection.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use agentdb::AgentDB;
+    /// let db = AgentDB::open(":memory:").unwrap();
+    /// let rows = db.query_json_params(
+    ///     "SELECT * FROM _adb_nodes WHERE kind = ?1",
+    ///     &[&"session" as &dyn rusqlite::ToSql],
+    /// ).unwrap();
+    /// ```
+    pub fn query_json_params(
+        &self,
+        sql: &str,
+        params: &[&dyn rusqlite::ToSql],
+    ) -> Result<Vec<serde_json::Value>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(sql)?;
+        let col_names: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
+        let rows = stmt.query_map(params, |row| {
+            let mut map = serde_json::Map::new();
+            for (i, name) in col_names.iter().enumerate() {
+                let val: rusqlite::types::Value = row.get(i)?;
+                map.insert(name.clone(), rusqlite_value_to_json(val));
+            }
+            Ok(serde_json::Value::Object(map))
+        })?;
+        rows.map(|r| r.map_err(crate::error::AgentDbError::Sqlite))
+            .collect()
+    }
+
+    /// Flush dirty HNSW indexes and close gracefully.
+    ///
+    /// After this returns, the subsequent `Drop` is a no-op (no double flush).
     pub fn close(self) -> Result<()> {
         let collections = self.vectors().list_collections()?;
         for (name, dim, _) in collections {
@@ -174,6 +213,7 @@ impl AgentDB {
                 col.reindex()?;
             }
         }
+        self.closed.store(true, Ordering::Release);
         Ok(())
     }
 
@@ -211,7 +251,7 @@ impl AgentDB {
 }
 
 /// Database-wide statistics returned by [`AgentDB::stats`].
-#[derive(Debug)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DbStats {
     /// Number of named vector collections.
     pub collections: i64,
@@ -235,8 +275,9 @@ pub struct DbStats {
 
 impl Drop for AgentDB {
     fn drop(&mut self) {
-        // Best-effort flush of any dirty HNSW indexes on drop.
-        // Errors are silently ignored so drop never panics.
+        if self.closed.load(Ordering::Acquire) {
+            return;
+        }
         if let Ok(collections) = self.vectors().list_collections() {
             for (name, dim, _) in collections {
                 if let Ok(col) = self.vectors().collection(&name, dim) {

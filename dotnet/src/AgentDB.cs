@@ -98,7 +98,8 @@ namespace Datacules.AgentDB
             IntPtr handle,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string nodeId,
             UIntPtr maxDepth,
-            double minWeight);
+            double minWeight,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? relation);
 
         [DllImport(LibName, EntryPoint = "agentdb_fts_index",
             CallingConvention = CallingConvention.Cdecl)]
@@ -365,10 +366,10 @@ namespace Datacules.AgentDB
         /// <param name="minWeight">Minimum edge weight to follow (0.0 = follow all).</param>
         /// <returns>JSON array of <c>{"id", "kind", "depth", "weight", "data"}</c> objects.</returns>
         /// <exception cref="AgentDBException">Thrown on error.</exception>
-        public string GraphNeighbors(string nodeId, int maxDepth, double minWeight = 0.0)
+        public string GraphNeighbors(string nodeId, int maxDepth, double minWeight = 0.0, string? relation = null)
         {
             CheckOpen();
-            IntPtr ptr = NativeGraphNeighbors(_handle, nodeId, (UIntPtr)maxDepth, minWeight);
+            IntPtr ptr = NativeGraphNeighbors(_handle, nodeId, (UIntPtr)maxDepth, minWeight, relation);
             return ConsumeStringPtr(ptr, "agentdb_graph_neighbors failed");
         }
 

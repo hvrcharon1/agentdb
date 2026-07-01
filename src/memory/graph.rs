@@ -6,7 +6,7 @@ use serde_json::Value;
 use std::sync::{Arc, Mutex};
 
 /// A typed node in the memory graph.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Node {
     /// Unique identifier for this node.
     pub id: String,
@@ -21,7 +21,7 @@ pub struct Node {
 }
 
 /// A directed, weighted edge between two nodes in the memory graph.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Edge {
     /// ID of the source node.
     pub src: String,
@@ -36,7 +36,7 @@ pub struct Edge {
 }
 
 /// Options controlling how the memory graph is traversed.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct TraversalOptions {
     /// If set, only follow edges whose relation label matches this string.
     pub relation: Option<String>,
@@ -47,7 +47,7 @@ pub struct TraversalOptions {
 }
 
 /// A single node returned by a graph traversal, with path metadata.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TraversalResult {
     /// The reached node.
     pub node: Node,

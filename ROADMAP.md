@@ -71,6 +71,31 @@
 - [x] `impl Drop for AgentDB` flushes dirty HNSW indexes on drop
 - [x] WASM `stats()` returns all 9 fields
 
+## v0.5.1 — Enhancement Pass ✅
+- [x] `search_messages(query, top_k, conversation_id?)` — BM25 full-text search over messages
+- [x] Schema v4: `_adb_messages_fts` FTS5 virtual table
+- [x] `Workflow.step_count` populated via LEFT JOIN COUNT
+- [x] `TraceStore::get_traces` pagination (limit, offset)
+- [x] Python + Node.js bindings updated
+
+## v0.5.2 — Critical Fixes ✅
+- [x] DotProduct HNSW heap ordering fix (sign bit inversion)
+- [x] HNSW `random_level()` now uses paper-standard formula
+- [x] Node.js `addTrace` parameter order corrected
+- [x] Cyclic memory graph CTE explosion fixed (INSTR-based visit tracking)
+- [x] FTS insert/delete in ConversationStore now propagates errors
+- [x] Python `search_messages()` build fix (removed `pythonize` dependency)
+
+## v0.5.3 — API Ergonomics & Serde ✅
+- [x] `query_json_params()` — parameterized SQL queries (core, async, FFI, Node.js)
+- [x] `Clone` derive on `AgentDB`
+- [x] `Serialize`/`Deserialize` on all public data types
+- [x] `metadata` param on `create_workflow` (FFI, Node.js, Go)
+- [x] `relation` filter on graph traversal (FFI, Node.js, Go, Java, C#)
+- [x] `close()` / `Drop` double-flush eliminated (AtomicBool guard)
+- [x] Vector search N+1 metadata queries → single batch query
+- [x] Clippy-clean: `agentdb_open` marked `unsafe`, `const` thread_local
+
 ## v0.6.0 — Ecosystem Integrations
 - [ ] `langchain-agentdb` Python package — implements `VectorStore` + `Memory` base classes
 - [ ] LlamaIndex storage adapter

@@ -59,6 +59,19 @@ impl AsyncAgentDB {
             .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
+    /// Query with parameters and return rows as JSON values.
+    pub async fn query_json_params(&self, sql: &str, params: Vec<String>) -> Result<Vec<Value>> {
+        let db = self.inner.clone();
+        let sql = sql.to_string();
+        task::spawn_blocking(move || {
+            let param_refs: Vec<&dyn rusqlite::ToSql> =
+                params.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+            db.query_json_params(&sql, &param_refs)
+        })
+        .await
+        .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
     /// Return database-wide statistics.
     pub async fn stats(&self) -> Result<DbStats> {
         let db = self.inner.clone();

@@ -187,6 +187,9 @@ export class AgentDB {
   /** Query and return rows as an array of plain objects. */
   query(sql: string): Record<string, unknown>[];
 
+  /** Query with positional parameters (prevents SQL injection). Params bind as ?1, ?2, etc. */
+  queryParams(sql: string, params: string[]): Record<string, unknown>[];
+
   /** Get or create a vector collection with the given dimensionality. */
   collection(name: string, dim: number): Collection;
 
@@ -211,7 +214,7 @@ export class AgentDB {
   deleteEdge(src: string, dst: string, relation: string): void;
 
   /** Traverse the memory graph from a node. */
-  neighbors(nodeId: string, maxDepth?: number, minWeight?: number): NeighborResult[];
+  neighbors(nodeId: string, maxDepth?: number, minWeight?: number, relation?: string): NeighborResult[];
 
   // ── Full-Text Search ──────────────────────────────────────────────
 

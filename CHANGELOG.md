@@ -10,6 +10,34 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.5.3] — 2026-07-01 — API Ergonomics & Serde
+
+### Added
+- **`query_json_params(sql, params)`** — parameterized SQL queries on core, async, FFI, and Node.js
+  APIs. Prevents SQL injection when interpolating user-supplied values.
+- **`metadata` parameter on `create_workflow`** — FFI (`agentdb_workflow_create`), Node.js
+  (`createWorkflow`), and Go (`WorkflowCreate`) now accept optional metadata JSON.
+- **`relation` filter on graph traversal** — FFI (`agentdb_graph_neighbors`), Node.js
+  (`neighbors`), Go (`GraphNeighbors`), Java (`graphNeighbors`), and C# (`GraphNeighbors`) now
+  accept an optional relation string to filter traversed edges.
+- **`Serialize`/`Deserialize` derives** on all public data types: `DbStats`, `VectorEntry`,
+  `SearchResult`, `SearchOptions`, `BatchEntry`, `Node`, `Edge`, `TraversalOptions`,
+  `TraversalResult`, `FtsResult`, `HybridResult`, `MessageSearchResult`, `Conversation`,
+  `Message`, `Workflow`, `WorkflowStep`, `Trace`.
+- **`Clone` derive on `AgentDB`** — enables sharing the database handle across threads/tasks.
+
+### Fixed
+- **`close()` / `Drop` double-flush** — calling `close()` then dropping no longer reindexes HNSW
+  indexes twice. An `AtomicBool` flag skips the redundant work in `Drop`.
+- **`agentdb_open` was not marked `unsafe`** — the only FFI function that dereferenced a raw
+  pointer without the `unsafe` qualifier. Now consistent with all other FFI exports.
+- **Vector search N+1 metadata queries** — replaced per-result SQL lookups with a single batch
+  `WHERE id IN (...)` query. Reduces search latency proportionally to result count.
+- **`thread_local!` initializer** — replaced runtime `RefCell::new(None)` with `const { ... }` to
+  satisfy clippy's `missing_const_for_thread_local` lint.
+
+---
+
 ## [0.5.2] — 2026-07-01 — Critical Fixes
 
 ### Fixed
@@ -316,7 +344,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-[Unreleased]: https://github.com/hvrcharon1/agentdb/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/hvrcharon1/agentdb/compare/v0.5.3...HEAD
+[0.5.3]: https://github.com/hvrcharon1/agentdb/compare/v0.5.2...v0.5.3
+[0.5.2]: https://github.com/hvrcharon1/agentdb/compare/v0.5.1...v0.5.2
+[0.5.1]: https://github.com/hvrcharon1/agentdb/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/hvrcharon1/agentdb/compare/v0.4.5...v0.5.0
 [0.4.5]: https://github.com/hvrcharon1/agentdb/compare/v0.4.0...v0.4.5
 [0.4.4]: https://github.com/hvrcharon1/agentdb/compare/v0.4.3...v0.4.4

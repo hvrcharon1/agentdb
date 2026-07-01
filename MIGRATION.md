@@ -29,8 +29,8 @@ wf.complete_workflow("wf-1", None)?;
 
 // Reasoning traces — tree-structured chain-of-thought, tool call logs
 let tr = db.traces();
-let root_id = tr.add_trace(None, "plan", None, None, None)?;
-let child_id = tr.add_trace(Some(&root_id), "tool_call", Some(json!({"tool": "search"})), None, None)?;
+let root_id = tr.add_trace(Some("session-1"), None, "plan", "Initial planning step", None)?;
+let child_id = tr.add_trace(Some("session-1"), Some(&root_id), "tool_call", "search", Some(json!({"tool": "search"})))?;
 let tree = tr.get_trace_tree(&root_id)?;
 
 // ACID transaction closure

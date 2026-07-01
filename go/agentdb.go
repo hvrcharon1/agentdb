@@ -262,11 +262,18 @@ func (db *DB) GraphAddEdge(src, dst, relation string, weight float64) error {
 
 // GraphNeighbors traverses the memory graph from nodeID up to maxDepth hops,
 // returning only edges whose weight is >= minWeight (use 0.0 for all edges).
-func (db *DB) GraphNeighbors(nodeID string, maxDepth int, minWeight float64) ([]GraphNode, error) {
+// Pass an empty string for relation to traverse all edge types.
+func (db *DB) GraphNeighbors(nodeID string, maxDepth int, minWeight float64, relation string) ([]GraphNode, error) {
 	cid := C.CString(nodeID)
 	defer C.free(unsafe.Pointer(cid))
 
-	ptr := C.agentdb_graph_neighbors(db.handle, cid, C.ulong(maxDepth), C.double(minWeight))
+	var crel *C.char
+	if relation != "" {
+		crel = C.CString(relation)
+		defer C.free(unsafe.Pointer(crel))
+	}
+
+	ptr := C.agentdb_graph_neighbors(db.handle, cid, C.ulong(maxDepth), C.double(minWeight), crel)
 	if ptr == nil {
 		return nil, lastError("agentdb_graph_neighbors failed")
 	}
@@ -477,8 +484,8 @@ func (db *DB) ConversationDelete(id string) error {
 
 // ── Workflows ───────────────────────────────────────────────────────────────
 
-// WorkflowCreate creates a new workflow. inputJSON is optional (pass nil to omit).
-func (db *DB) WorkflowCreate(id, name string, inputJSON []byte) error {
+// WorkflowCreate creates a new workflow. inputJSON and metadataJSON are optional (pass nil to omit).
+func (db *DB) WorkflowCreate(id, name string, inputJSON, metadataJSON []byte) error {
 	cid := C.CString(id)
 	defer C.free(unsafe.Pointer(cid))
 	cname := C.CString(name)
@@ -490,7 +497,13 @@ func (db *DB) WorkflowCreate(id, name string, inputJSON []byte) error {
 		defer C.free(unsafe.Pointer(cinput))
 	}
 
-	rc := C.agentdb_workflow_create(db.handle, cid, cname, cinput)
+	var cmeta *C.char
+	if metadataJSON != nil {
+		cmeta = C.CString(string(metadataJSON))
+		defer C.free(unsafe.Pointer(cmeta))
+	}
+
+	rc := C.agentdb_workflow_create(db.handle, cid, cname, cinput, cmeta)
 	if rc != 0 {
 		return lastError("agentdb_workflow_create failed")
 	}

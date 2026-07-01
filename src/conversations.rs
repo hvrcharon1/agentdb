@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 /// A full-text search result for a message.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MessageSearchResult {
     /// ID of the matching message.
     pub message_id: String,
@@ -20,7 +20,7 @@ pub struct MessageSearchResult {
 }
 
 /// A conversation thread.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Conversation {
     /// Unique identifier for this conversation.
     pub id: String,
@@ -35,7 +35,7 @@ pub struct Conversation {
 }
 
 /// A single message within a conversation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Message {
     /// Unique identifier for this message.
     pub id: String,
