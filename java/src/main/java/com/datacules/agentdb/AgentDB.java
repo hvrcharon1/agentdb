@@ -180,6 +180,68 @@ public class AgentDB implements Closeable {
     /** @return 0 on success, -1 on error */
     private static native int nativeWorkflowFail(long handle, String id, String error);
 
+    // ── Tool Registry ────────────────────────────────────────────────────
+
+    /** @return JSON string with tool id, or {@code null} on error */
+    private static native String nativeToolRegister(long handle, String name,
+            String description, String parametersSchema, String version);
+
+    /** @return JSON array string of tools, or {@code null} on error */
+    private static native String nativeToolList(long handle);
+
+    /** @return JSON string with tool call id, or {@code null} on error */
+    private static native String nativeToolLogCall(long handle, String sessionId,
+            String toolName, String arguments, String result, String error, long latencyMs);
+
+    // ── Audit Log ────────────────────────────────────────────────────────
+
+    /** @return JSON string with entry id, or {@code null} on error */
+    private static native String nativeAuditLog(long handle, String actor, String action,
+            String tableName, String recordId, String oldValue, String newValue, String reason);
+
+    /** @return JSON array string of entries, or {@code null} on error */
+    private static native String nativeAuditQueryRecent(long handle, long limit);
+
+    // ── Context Window ───────────────────────────────────────────────────
+
+    /** @return JSON string with entry id, or {@code null} on error */
+    private static native String nativeContextAdd(long handle, String sessionId,
+            String sourceType, String sourceId, String contentPreview,
+            long tokenCount, double relevanceScore, long priority);
+
+    /** @return JSON array string of window entries, or {@code null} on error */
+    private static native String nativeContextBuildWindow(long handle, String sessionId,
+            long maxTokens);
+
+    /** @return 0 on success, -1 on error */
+    private static native int nativeContextClear(long handle, String sessionId);
+
+    // ── Prompt Templates ─────────────────────────────────────────────────
+
+    /** @return JSON string with template id, or {@code null} on error */
+    private static native String nativePromptCreate(long handle, String name,
+            String template, String modelHint, long maxTokens, String metadata);
+
+    /** @return rendered string, or {@code null} on error */
+    private static native String nativePromptRender(long handle, String name, String varsJson);
+
+    // ── Data Labels (Privacy) ────────────────────────────────────────────
+
+    /** @return 0 on success, -1 on error */
+    private static native int nativeLabelTag(long handle, String tableName,
+            String recordId, String label, String taggedBy);
+
+    /** @return 0 on success, -1 on error */
+    private static native int nativeLabelUntag(long handle, String tableName,
+            String recordId, String label);
+
+    /** @return JSON array string of labels, or {@code null} on error */
+    private static native String nativeLabelGet(long handle, String tableName, String recordId);
+
+    /** @return 1 if has label, 0 if not, -1 on error */
+    private static native int nativeLabelHas(long handle, String tableName,
+            String recordId, String label);
+
     /**
      * Retrieve the last native error message for the calling thread.
      *
@@ -562,6 +624,275 @@ public class AgentDB implements Closeable {
         if (rc != 0) {
             throw new AgentDBException(requireLastError("agentdb_workflow_fail failed"));
         }
+    }
+
+    // ── Tool Registry ────────────────────────────────────────────────────
+
+    /**
+     * Register or update a tool definition.
+     *
+     * @param name             tool name (unique)
+     * @param description      optional tool description, or {@code null}
+     * @param parametersSchema optional JSON Schema for parameters, or {@code null}
+     * @param version          optional version string, or {@code null}
+     * @return JSON string containing the tool ID
+     * @throws AgentDBException on error
+     */
+    public String toolRegister(String name, String description, String parametersSchema,
+            String version) {
+        checkOpen();
+        String result = nativeToolRegister(handle, name, description, parametersSchema, version);
+        if (result == null) {
+            throw new AgentDBException(requireLastError("agentdb_tool_register failed"));
+        }
+        return result;
+    }
+
+    /**
+     * List all registered tools.
+     *
+     * @return JSON array string of tool objects
+     * @throws AgentDBException on error
+     */
+    public String toolList() {
+        checkOpen();
+        String result = nativeToolList(handle);
+        if (result == null) {
+            throw new AgentDBException(requireLastError("agentdb_tool_list failed"));
+        }
+        return result;
+    }
+
+    /**
+     * Log a tool call invocation.
+     *
+     * @param sessionId optional session ID, or {@code null}
+     * @param toolName  name of the tool called
+     * @param arguments optional JSON arguments, or {@code null}
+     * @param result    optional JSON result, or {@code null}
+     * @param error     optional error string, or {@code null}
+     * @param latencyMs latency in milliseconds (0 if unknown)
+     * @return JSON string containing the tool call ID
+     * @throws AgentDBException on error
+     */
+    public String toolLogCall(String sessionId, String toolName, String arguments,
+            String result, String error, long latencyMs) {
+        checkOpen();
+        String res = nativeToolLogCall(handle, sessionId, toolName, arguments, result,
+                error, latencyMs);
+        if (res == null) {
+            throw new AgentDBException(requireLastError("agentdb_tool_log_call failed"));
+        }
+        return res;
+    }
+
+    // ── Audit Log ────────────────────────────────────────────────────────
+
+    /**
+     * Append an entry to the immutable audit log.
+     *
+     * @param actor     optional actor identifier, or {@code null}
+     * @param action    action performed (e.g. "insert", "delete")
+     * @param tableName target table name
+     * @param recordId  target record identifier
+     * @param oldValue  optional JSON of old state, or {@code null}
+     * @param newValue  optional JSON of new state, or {@code null}
+     * @param reason    optional reason string, or {@code null}
+     * @return JSON string containing the audit entry ID
+     * @throws AgentDBException on error
+     */
+    public String auditLog(String actor, String action, String tableName,
+            String recordId, String oldValue, String newValue, String reason) {
+        checkOpen();
+        String res = nativeAuditLog(handle, actor, action, tableName, recordId,
+                oldValue, newValue, reason);
+        if (res == null) {
+            throw new AgentDBException(requireLastError("agentdb_audit_log failed"));
+        }
+        return res;
+    }
+
+    /**
+     * Query recent audit log entries.
+     *
+     * @param limit maximum number of entries to return
+     * @return JSON array string of audit entries
+     * @throws AgentDBException on error
+     */
+    public String auditQueryRecent(long limit) {
+        checkOpen();
+        String result = nativeAuditQueryRecent(handle, limit);
+        if (result == null) {
+            throw new AgentDBException(requireLastError("agentdb_audit_query_recent failed"));
+        }
+        return result;
+    }
+
+    // ── Context Window ───────────────────────────────────────────────────
+
+    /**
+     * Add an entry to the context window.
+     *
+     * @param sessionId      session identifier
+     * @param sourceType     type of source (e.g. "message", "tool_result")
+     * @param sourceId       identifier of the source record
+     * @param contentPreview optional content preview, or {@code null}
+     * @param tokenCount     number of tokens this entry uses
+     * @param relevanceScore relevance score (0.0–1.0)
+     * @param priority       priority level (higher = included first)
+     * @return JSON string containing the entry ID
+     * @throws AgentDBException on error
+     */
+    public String contextAdd(String sessionId, String sourceType, String sourceId,
+            String contentPreview, long tokenCount, double relevanceScore, long priority) {
+        checkOpen();
+        String result = nativeContextAdd(handle, sessionId, sourceType, sourceId,
+                contentPreview, tokenCount, relevanceScore, priority);
+        if (result == null) {
+            throw new AgentDBException(requireLastError("agentdb_context_add failed"));
+        }
+        return result;
+    }
+
+    /**
+     * Build a token-budgeted context window for a session.
+     *
+     * @param sessionId session identifier
+     * @param maxTokens maximum token budget
+     * @return JSON array string of context entries included in the window
+     * @throws AgentDBException on error
+     */
+    public String contextBuildWindow(String sessionId, long maxTokens) {
+        checkOpen();
+        String result = nativeContextBuildWindow(handle, sessionId, maxTokens);
+        if (result == null) {
+            throw new AgentDBException(requireLastError("agentdb_context_build_window failed"));
+        }
+        return result;
+    }
+
+    /**
+     * Clear all context entries for a session.
+     *
+     * @param sessionId session identifier
+     * @throws AgentDBException on error
+     */
+    public void contextClear(String sessionId) {
+        checkOpen();
+        int rc = nativeContextClear(handle, sessionId);
+        if (rc != 0) {
+            throw new AgentDBException(requireLastError("agentdb_context_clear failed"));
+        }
+    }
+
+    // ── Prompt Templates ─────────────────────────────────────────────────
+
+    /**
+     * Create a new version of a prompt template.
+     *
+     * @param name      template name (versions auto-increment)
+     * @param template  template content with {{placeholder}} syntax
+     * @param modelHint optional model hint, or {@code null}
+     * @param maxTokens max tokens hint (0 if unspecified)
+     * @param metadata  optional JSON metadata, or {@code null}
+     * @return JSON string containing the template ID
+     * @throws AgentDBException on error
+     */
+    public String promptCreate(String name, String template, String modelHint,
+            long maxTokens, String metadata) {
+        checkOpen();
+        String result = nativePromptCreate(handle, name, template, modelHint, maxTokens, metadata);
+        if (result == null) {
+            throw new AgentDBException(requireLastError("agentdb_prompt_create failed"));
+        }
+        return result;
+    }
+
+    /**
+     * Render a prompt template with {{placeholder}} substitution.
+     *
+     * @param name     template name (uses latest version)
+     * @param varsJson JSON object mapping placeholder names to values
+     * @return rendered template string
+     * @throws AgentDBException on error
+     */
+    public String promptRender(String name, String varsJson) {
+        checkOpen();
+        String result = nativePromptRender(handle, name, varsJson);
+        if (result == null) {
+            throw new AgentDBException(requireLastError("agentdb_prompt_render failed"));
+        }
+        return result;
+    }
+
+    // ── Data Labels (Privacy) ────────────────────────────────────────────
+
+    /**
+     * Tag a record with a privacy/classification label.
+     *
+     * @param tableName table containing the record
+     * @param recordId  record identifier
+     * @param label     classification label (e.g. "PII", "sensitive")
+     * @param taggedBy  optional identifier of who tagged it, or {@code null}
+     * @throws AgentDBException on error
+     */
+    public void labelTag(String tableName, String recordId, String label, String taggedBy) {
+        checkOpen();
+        int rc = nativeLabelTag(handle, tableName, recordId, label, taggedBy);
+        if (rc != 0) {
+            throw new AgentDBException(requireLastError("agentdb_label_tag failed"));
+        }
+    }
+
+    /**
+     * Remove a specific label from a record.
+     *
+     * @param tableName table containing the record
+     * @param recordId  record identifier
+     * @param label     label to remove
+     * @throws AgentDBException on error
+     */
+    public void labelUntag(String tableName, String recordId, String label) {
+        checkOpen();
+        int rc = nativeLabelUntag(handle, tableName, recordId, label);
+        if (rc != 0) {
+            throw new AgentDBException(requireLastError("agentdb_label_untag failed"));
+        }
+    }
+
+    /**
+     * Get all labels for a record.
+     *
+     * @param tableName table containing the record
+     * @param recordId  record identifier
+     * @return JSON array string of label objects
+     * @throws AgentDBException on error
+     */
+    public String labelGet(String tableName, String recordId) {
+        checkOpen();
+        String result = nativeLabelGet(handle, tableName, recordId);
+        if (result == null) {
+            throw new AgentDBException(requireLastError("agentdb_label_get failed"));
+        }
+        return result;
+    }
+
+    /**
+     * Check if a record has a specific label.
+     *
+     * @param tableName table containing the record
+     * @param recordId  record identifier
+     * @param label     label to check
+     * @return {@code true} if the record has the label
+     * @throws AgentDBException on error
+     */
+    public boolean labelHas(String tableName, String recordId, String label) {
+        checkOpen();
+        int rc = nativeLabelHas(handle, tableName, recordId, label);
+        if (rc == -1) {
+            throw new AgentDBException(requireLastError("agentdb_label_has failed"));
+        }
+        return rc == 1;
     }
 
     // ── Stats ─────────────────────────────────────────────────────────────

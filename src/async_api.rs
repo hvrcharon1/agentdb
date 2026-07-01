@@ -1,15 +1,21 @@
+use crate::audit::AuditEntry;
+use crate::context::ContextEntry;
 use crate::conversations::{Conversation, Message};
 use crate::db::{AgentDB, DbStats};
 use crate::error::Result;
 use crate::fts::FtsResult;
 use crate::hybrid::{HybridQuery, HybridResult};
+use crate::labels::DataLabel;
 use crate::memory::{TraversalOptions, TraversalResult};
+use crate::prompts::PromptTemplate;
+use crate::tools::{Tool, ToolCall};
 use crate::traces::Trace;
 use crate::vectors::{
     BatchEntry, Collection, DistanceMetric, SearchOptions, SearchResult, VectorEntry,
 };
 use crate::workflows::Workflow;
 use serde_json::Value;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::task;
 
@@ -120,6 +126,41 @@ impl AsyncAgentDB {
     /// Access the async trace layer.
     pub fn traces(&self) -> AsyncTraceStore {
         AsyncTraceStore {
+            inner: self.inner.clone(),
+        }
+    }
+
+    /// Access the async tool registry layer.
+    pub fn tools(&self) -> AsyncToolStore {
+        AsyncToolStore {
+            inner: self.inner.clone(),
+        }
+    }
+
+    /// Access the async audit log layer.
+    pub fn audit(&self) -> AsyncAuditStore {
+        AsyncAuditStore {
+            inner: self.inner.clone(),
+        }
+    }
+
+    /// Access the async context window layer.
+    pub fn context(&self) -> AsyncContextStore {
+        AsyncContextStore {
+            inner: self.inner.clone(),
+        }
+    }
+
+    /// Access the async prompt templates layer.
+    pub fn prompts(&self) -> AsyncPromptStore {
+        AsyncPromptStore {
+            inner: self.inner.clone(),
+        }
+    }
+
+    /// Access the async data labels layer.
+    pub fn labels(&self) -> AsyncLabelStore {
+        AsyncLabelStore {
             inner: self.inner.clone(),
         }
     }
@@ -681,6 +722,397 @@ impl AsyncTraceStore {
         let db = self.inner.clone();
         let rid = root_id.to_string();
         task::spawn_blocking(move || db.traces().get_trace_tree(&rid))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+}
+
+// ── Async Tool Store ───────────────────────────────────────────────────
+
+/// Async wrapper for tool registry operations.
+pub struct AsyncToolStore {
+    inner: Arc<AgentDB>,
+}
+
+impl AsyncToolStore {
+    /// Register or update a tool definition.
+    pub async fn register_tool(
+        &self,
+        name: &str,
+        description: Option<&str>,
+        parameters_schema: Option<Value>,
+        version: Option<&str>,
+    ) -> Result<String> {
+        let db = self.inner.clone();
+        let name = name.to_string();
+        let desc = description.map(|s| s.to_string());
+        let ver = version.map(|s| s.to_string());
+        task::spawn_blocking(move || {
+            db.tools()
+                .register_tool(&name, desc.as_deref(), parameters_schema, ver.as_deref())
+        })
+        .await
+        .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Get a tool by name.
+    pub async fn get_tool(&self, name: &str) -> Result<Tool> {
+        let db = self.inner.clone();
+        let name = name.to_string();
+        task::spawn_blocking(move || db.tools().get_tool(&name))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// List all registered tools.
+    pub async fn list_tools(&self) -> Result<Vec<Tool>> {
+        let db = self.inner.clone();
+        task::spawn_blocking(move || db.tools().list_tools())
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Delete a tool by name.
+    pub async fn delete_tool(&self, name: &str) -> Result<()> {
+        let db = self.inner.clone();
+        let name = name.to_string();
+        task::spawn_blocking(move || db.tools().delete_tool(&name))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Log a tool call invocation.
+    pub async fn log_tool_call(
+        &self,
+        session_id: Option<&str>,
+        tool_name: &str,
+        arguments: Option<Value>,
+        result: Option<Value>,
+        error: Option<&str>,
+        latency_ms: Option<i64>,
+    ) -> Result<String> {
+        let db = self.inner.clone();
+        let sid = session_id.map(|s| s.to_string());
+        let name = tool_name.to_string();
+        let err = error.map(|s| s.to_string());
+        task::spawn_blocking(move || {
+            db.tools()
+                .log_tool_call(sid.as_deref(), &name, arguments, result, err.as_deref(), latency_ms)
+        })
+        .await
+        .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Get tool calls with optional filters.
+    pub async fn get_tool_calls(
+        &self,
+        session_id: Option<&str>,
+        tool_name: Option<&str>,
+        limit: Option<usize>,
+    ) -> Result<Vec<ToolCall>> {
+        let db = self.inner.clone();
+        let sid = session_id.map(|s| s.to_string());
+        let name = tool_name.map(|s| s.to_string());
+        task::spawn_blocking(move || {
+            db.tools()
+                .get_tool_calls(sid.as_deref(), name.as_deref(), limit)
+        })
+        .await
+        .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+}
+
+// ── Async Audit Store ──────────────────────────────────────────────────
+
+/// Async wrapper for audit log operations.
+pub struct AsyncAuditStore {
+    inner: Arc<AgentDB>,
+}
+
+impl AsyncAuditStore {
+    /// Append an entry to the immutable audit log.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn log(
+        &self,
+        actor: Option<&str>,
+        action: &str,
+        table_name: &str,
+        record_id: &str,
+        old_value: Option<Value>,
+        new_value: Option<Value>,
+        reason: Option<&str>,
+    ) -> Result<String> {
+        let db = self.inner.clone();
+        let actor = actor.map(|s| s.to_string());
+        let action = action.to_string();
+        let table = table_name.to_string();
+        let record = record_id.to_string();
+        let reason = reason.map(|s| s.to_string());
+        task::spawn_blocking(move || {
+            db.audit().log(
+                actor.as_deref(),
+                &action,
+                &table,
+                &record,
+                old_value,
+                new_value,
+                reason.as_deref(),
+            )
+        })
+        .await
+        .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Query audit entries by record.
+    pub async fn query_by_record(
+        &self,
+        table_name: &str,
+        record_id: &str,
+        limit: Option<usize>,
+    ) -> Result<Vec<AuditEntry>> {
+        let db = self.inner.clone();
+        let table = table_name.to_string();
+        let record = record_id.to_string();
+        task::spawn_blocking(move || db.audit().query_by_record(&table, &record, limit))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Query audit entries by actor.
+    pub async fn query_by_actor(&self, actor: &str, limit: Option<usize>) -> Result<Vec<AuditEntry>> {
+        let db = self.inner.clone();
+        let actor = actor.to_string();
+        task::spawn_blocking(move || db.audit().query_by_actor(&actor, limit))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Query recent audit entries.
+    pub async fn query_recent(&self, limit: Option<usize>) -> Result<Vec<AuditEntry>> {
+        let db = self.inner.clone();
+        task::spawn_blocking(move || db.audit().query_recent(limit))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+}
+
+// ── Async Context Store ────────────────────────────────────────────────
+
+/// Async wrapper for context window operations.
+pub struct AsyncContextStore {
+    inner: Arc<AgentDB>,
+}
+
+impl AsyncContextStore {
+    /// Add an entry to the context window.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn add_entry(
+        &self,
+        session_id: &str,
+        source_type: &str,
+        source_id: &str,
+        content_preview: Option<&str>,
+        token_count: i64,
+        relevance_score: f64,
+        priority: i64,
+    ) -> Result<String> {
+        let db = self.inner.clone();
+        let sid = session_id.to_string();
+        let st = source_type.to_string();
+        let si = source_id.to_string();
+        let cp = content_preview.map(|s| s.to_string());
+        task::spawn_blocking(move || {
+            db.context()
+                .add_entry(&sid, &st, &si, cp.as_deref(), token_count, relevance_score, priority)
+        })
+        .await
+        .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Build a token-budgeted context window.
+    pub async fn build_window(
+        &self,
+        session_id: &str,
+        max_tokens: i64,
+    ) -> Result<Vec<ContextEntry>> {
+        let db = self.inner.clone();
+        let sid = session_id.to_string();
+        task::spawn_blocking(move || db.context().build_window(&sid, max_tokens))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Get all context entries for a session.
+    pub async fn get_entries(&self, session_id: &str) -> Result<Vec<ContextEntry>> {
+        let db = self.inner.clone();
+        let sid = session_id.to_string();
+        task::spawn_blocking(move || db.context().get_entries(&sid))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Clear all context entries for a session.
+    pub async fn clear_session(&self, session_id: &str) -> Result<()> {
+        let db = self.inner.clone();
+        let sid = session_id.to_string();
+        task::spawn_blocking(move || db.context().clear_session(&sid))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Remove a single context entry by ID.
+    pub async fn remove_entry(&self, id: &str) -> Result<()> {
+        let db = self.inner.clone();
+        let id = id.to_string();
+        task::spawn_blocking(move || db.context().remove_entry(&id))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+}
+
+// ── Async Prompt Store ─────────────────────────────────────────────────
+
+/// Async wrapper for prompt template operations.
+pub struct AsyncPromptStore {
+    inner: Arc<AgentDB>,
+}
+
+impl AsyncPromptStore {
+    /// Create a new version of a prompt template.
+    pub async fn create_template(
+        &self,
+        name: &str,
+        template: &str,
+        model_hint: Option<&str>,
+        max_tokens: Option<i64>,
+        metadata: Option<Value>,
+    ) -> Result<String> {
+        let db = self.inner.clone();
+        let name = name.to_string();
+        let tmpl = template.to_string();
+        let hint = model_hint.map(|s| s.to_string());
+        task::spawn_blocking(move || {
+            db.prompts()
+                .create_template(&name, &tmpl, hint.as_deref(), max_tokens, metadata)
+        })
+        .await
+        .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Get the latest version of a template by name.
+    pub async fn get_template(&self, name: &str) -> Result<PromptTemplate> {
+        let db = self.inner.clone();
+        let name = name.to_string();
+        task::spawn_blocking(move || db.prompts().get_template(&name))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// List all prompt templates.
+    pub async fn list_templates(&self) -> Result<Vec<PromptTemplate>> {
+        let db = self.inner.clone();
+        task::spawn_blocking(move || db.prompts().list_templates())
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Render a prompt template with variable substitution.
+    pub async fn render(&self, name: &str, vars: HashMap<String, String>) -> Result<String> {
+        let db = self.inner.clone();
+        let name = name.to_string();
+        task::spawn_blocking(move || db.prompts().render(&name, &vars))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Delete a template and all its versions.
+    pub async fn delete_template(&self, name: &str) -> Result<()> {
+        let db = self.inner.clone();
+        let name = name.to_string();
+        task::spawn_blocking(move || db.prompts().delete_template(&name))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+}
+
+// ── Async Label Store ──────────────────────────────────────────────────
+
+/// Async wrapper for data label (privacy classification) operations.
+pub struct AsyncLabelStore {
+    inner: Arc<AgentDB>,
+}
+
+impl AsyncLabelStore {
+    /// Tag a record with a label.
+    pub async fn tag(
+        &self,
+        table_name: &str,
+        record_id: &str,
+        label: &str,
+        tagged_by: Option<&str>,
+    ) -> Result<()> {
+        let db = self.inner.clone();
+        let table = table_name.to_string();
+        let record = record_id.to_string();
+        let lbl = label.to_string();
+        let by = tagged_by.map(|s| s.to_string());
+        task::spawn_blocking(move || db.labels().tag(&table, &record, &lbl, by.as_deref()))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Remove a specific label from a record.
+    pub async fn untag(&self, table_name: &str, record_id: &str, label: &str) -> Result<()> {
+        let db = self.inner.clone();
+        let table = table_name.to_string();
+        let record = record_id.to_string();
+        let lbl = label.to_string();
+        task::spawn_blocking(move || db.labels().untag(&table, &record, &lbl))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Get all labels for a record.
+    pub async fn get_labels(&self, table_name: &str, record_id: &str) -> Result<Vec<DataLabel>> {
+        let db = self.inner.clone();
+        let table = table_name.to_string();
+        let record = record_id.to_string();
+        task::spawn_blocking(move || db.labels().get_labels(&table, &record))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Check if a record has a specific label.
+    pub async fn has_label(
+        &self,
+        table_name: &str,
+        record_id: &str,
+        label: &str,
+    ) -> Result<bool> {
+        let db = self.inner.clone();
+        let table = table_name.to_string();
+        let record = record_id.to_string();
+        let lbl = label.to_string();
+        task::spawn_blocking(move || db.labels().has_label(&table, &record, &lbl))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Find all records with a given label.
+    pub async fn find_by_label(&self, label: &str, limit: Option<usize>) -> Result<Vec<DataLabel>> {
+        let db = self.inner.clone();
+        let lbl = label.to_string();
+        task::spawn_blocking(move || db.labels().find_by_label(&lbl, limit))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
+    }
+
+    /// Clear all labels for a record.
+    pub async fn clear_record(&self, table_name: &str, record_id: &str) -> Result<()> {
+        let db = self.inner.clone();
+        let table = table_name.to_string();
+        let record = record_id.to_string();
+        task::spawn_blocking(move || db.labels().clear_record(&table, &record))
             .await
             .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }

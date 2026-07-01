@@ -786,15 +786,19 @@ pub unsafe extern "C" fn agentdb_stats(handle: *mut AgentDbHandle) -> *mut c_cha
     match h.db.stats() {
         Ok(s) => {
             let json = serde_json::json!({
-                "collections":    s.collections,
-                "vectors":        s.vectors,
-                "nodes":          s.nodes,
-                "edges":          s.edges,
-                "conversations":  s.conversations,
-                "messages":       s.messages,
-                "workflows":      s.workflows,
-                "workflow_steps": s.workflow_steps,
-                "traces":         s.traces
+                "collections":      s.collections,
+                "vectors":          s.vectors,
+                "nodes":            s.nodes,
+                "edges":            s.edges,
+                "conversations":    s.conversations,
+                "messages":         s.messages,
+                "workflows":        s.workflows,
+                "workflow_steps":   s.workflow_steps,
+                "traces":           s.traces,
+                "tools":            s.tools,
+                "tool_calls":       s.tool_calls,
+                "audit_entries":    s.audit_entries,
+                "prompt_templates": s.prompt_templates
             });
             CString::new(json.to_string())
                 .map(|c| c.into_raw())
@@ -1862,6 +1866,838 @@ pub unsafe extern "C" fn agentdb_fts_optimize(
     };
     match h.db.fts().optimize(col) {
         Ok(()) => 0,
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
+    }
+}
+
+// ── Tool Registry ────────────────────────────────────────────────────────
+
+/// Register or update a tool definition.
+///
+/// `name`              — unique tool name
+/// `description`       — human-readable description (may be NULL)
+/// `parameters_schema` — JSON Schema string (may be NULL)
+/// `version`           — semver version string (may be NULL, defaults to "1.0.0")
+///
+/// Returns the tool ID as a heap-allocated string, or NULL on error.
+/// Free with `agentdb_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_tool_register(
+    handle: *mut AgentDbHandle,
+    name: *const c_char,
+    description: *const c_char,
+    parameters_schema: *const c_char,
+    version: *const c_char,
+) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    let name_str = match CStr::from_ptr(name).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid name");
+            return std::ptr::null_mut();
+        }
+    };
+    let desc = if description.is_null() {
+        None
+    } else {
+        CStr::from_ptr(description).to_str().ok()
+    };
+    let schema: Option<Value> = if parameters_schema.is_null() {
+        None
+    } else {
+        CStr::from_ptr(parameters_schema)
+            .to_str()
+            .ok()
+            .and_then(|s| serde_json::from_str(s).ok())
+    };
+    let ver = if version.is_null() {
+        None
+    } else {
+        CStr::from_ptr(version).to_str().ok()
+    };
+    match h.db.tools().register_tool(name_str, desc, schema, ver) {
+        Ok(id) => CString::new(id)
+            .map(|s| s.into_raw())
+            .unwrap_or(std::ptr::null_mut()),
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// List all registered tools as a JSON array.
+///
+/// Returns heap-allocated JSON string — free with `agentdb_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_tool_list(handle: *mut AgentDbHandle) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    match h.db.tools().list_tools() {
+        Ok(tools) => {
+            let json: Vec<Value> = tools
+                .iter()
+                .map(|t| {
+                    serde_json::json!({
+                        "id": t.id,
+                        "name": t.name,
+                        "description": t.description,
+                        "parameters_schema": t.parameters_schema,
+                        "version": t.version,
+                        "created_at": t.created_at,
+                        "updated_at": t.updated_at
+                    })
+                })
+                .collect();
+            let s = Value::Array(json).to_string();
+            CString::new(s)
+                .map(|c| c.into_raw())
+                .unwrap_or(std::ptr::null_mut())
+        }
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// Log a tool call invocation.
+///
+/// `session_id`    — optional session context (may be NULL)
+/// `tool_name`     — name of the tool called
+/// `arguments`     — JSON arguments (may be NULL)
+/// `result`        — JSON result (may be NULL)
+/// `error`         — error message (may be NULL)
+/// `latency_ms`    — execution time in milliseconds (-1 if unknown)
+///
+/// Returns the tool call ID as a heap-allocated string, or NULL on error.
+/// Free with `agentdb_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_tool_log_call(
+    handle: *mut AgentDbHandle,
+    session_id: *const c_char,
+    tool_name: *const c_char,
+    arguments: *const c_char,
+    result: *const c_char,
+    error: *const c_char,
+    latency_ms: i64,
+) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    let sid = if session_id.is_null() {
+        None
+    } else {
+        CStr::from_ptr(session_id).to_str().ok()
+    };
+    let tn = match CStr::from_ptr(tool_name).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid tool_name");
+            return std::ptr::null_mut();
+        }
+    };
+    let args: Option<Value> = if arguments.is_null() {
+        None
+    } else {
+        CStr::from_ptr(arguments)
+            .to_str()
+            .ok()
+            .and_then(|s| serde_json::from_str(s).ok())
+    };
+    let res: Option<Value> = if result.is_null() {
+        None
+    } else {
+        CStr::from_ptr(result)
+            .to_str()
+            .ok()
+            .and_then(|s| serde_json::from_str(s).ok())
+    };
+    let err = if error.is_null() {
+        None
+    } else {
+        CStr::from_ptr(error).to_str().ok()
+    };
+    let lat = if latency_ms < 0 {
+        None
+    } else {
+        Some(latency_ms)
+    };
+    match h.db.tools().log_tool_call(sid, tn, args, res, err, lat) {
+        Ok(id) => CString::new(id)
+            .map(|s| s.into_raw())
+            .unwrap_or(std::ptr::null_mut()),
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+// ── Audit Log ────────────────────────────────────────────────────────────
+
+/// Append an entry to the immutable audit log.
+///
+/// `actor`      — who performed the action (may be NULL)
+/// `action`     — action type (e.g. "insert", "update", "delete")
+/// `table_name` — target table
+/// `record_id`  — target record ID
+/// `old_value`  — JSON of previous state (may be NULL)
+/// `new_value`  — JSON of new state (may be NULL)
+/// `reason`     — human-readable reason (may be NULL)
+///
+/// Returns the audit entry ID, or NULL on error.
+/// Free with `agentdb_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_audit_log(
+    handle: *mut AgentDbHandle,
+    actor: *const c_char,
+    action: *const c_char,
+    table_name: *const c_char,
+    record_id: *const c_char,
+    old_value: *const c_char,
+    new_value: *const c_char,
+    reason: *const c_char,
+) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    let actor_opt = if actor.is_null() {
+        None
+    } else {
+        CStr::from_ptr(actor).to_str().ok()
+    };
+    let action_str = match CStr::from_ptr(action).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid action");
+            return std::ptr::null_mut();
+        }
+    };
+    let tbl = match CStr::from_ptr(table_name).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid table_name");
+            return std::ptr::null_mut();
+        }
+    };
+    let rid = match CStr::from_ptr(record_id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid record_id");
+            return std::ptr::null_mut();
+        }
+    };
+    let old: Option<Value> = if old_value.is_null() {
+        None
+    } else {
+        CStr::from_ptr(old_value)
+            .to_str()
+            .ok()
+            .and_then(|s| serde_json::from_str(s).ok())
+    };
+    let new: Option<Value> = if new_value.is_null() {
+        None
+    } else {
+        CStr::from_ptr(new_value)
+            .to_str()
+            .ok()
+            .and_then(|s| serde_json::from_str(s).ok())
+    };
+    let reason_opt = if reason.is_null() {
+        None
+    } else {
+        CStr::from_ptr(reason).to_str().ok()
+    };
+    match h
+        .db
+        .audit()
+        .log(actor_opt, action_str, tbl, rid, old, new, reason_opt)
+    {
+        Ok(id) => CString::new(id)
+            .map(|s| s.into_raw())
+            .unwrap_or(std::ptr::null_mut()),
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// Query recent audit log entries as a JSON array.
+///
+/// `limit` — max entries to return (0 = default 100).
+///
+/// Returns heap-allocated JSON string — free with `agentdb_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_audit_query_recent(
+    handle: *mut AgentDbHandle,
+    limit: usize,
+) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    let lim = if limit == 0 { None } else { Some(limit) };
+    match h.db.audit().query_recent(lim) {
+        Ok(entries) => {
+            let json: Vec<Value> = entries
+                .iter()
+                .map(|e| {
+                    serde_json::json!({
+                        "id": e.id,
+                        "timestamp": e.timestamp,
+                        "actor": e.actor,
+                        "action": e.action,
+                        "table_name": e.table_name,
+                        "record_id": e.record_id,
+                        "old_value": e.old_value,
+                        "new_value": e.new_value,
+                        "reason": e.reason
+                    })
+                })
+                .collect();
+            let s = Value::Array(json).to_string();
+            CString::new(s)
+                .map(|c| c.into_raw())
+                .unwrap_or(std::ptr::null_mut())
+        }
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+// ── Context Window ───────────────────────────────────────────────────────
+
+/// Add an entry to the context window for a session.
+///
+/// Returns the entry ID, or NULL on error.
+/// Free with `agentdb_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_context_add(
+    handle: *mut AgentDbHandle,
+    session_id: *const c_char,
+    source_type: *const c_char,
+    source_id: *const c_char,
+    content_preview: *const c_char,
+    token_count: i64,
+    relevance_score: f64,
+    priority: i64,
+) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    let sid = match CStr::from_ptr(session_id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid session_id");
+            return std::ptr::null_mut();
+        }
+    };
+    let st = match CStr::from_ptr(source_type).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid source_type");
+            return std::ptr::null_mut();
+        }
+    };
+    let si = match CStr::from_ptr(source_id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid source_id");
+            return std::ptr::null_mut();
+        }
+    };
+    let preview = if content_preview.is_null() {
+        None
+    } else {
+        CStr::from_ptr(content_preview).to_str().ok()
+    };
+    match h
+        .db
+        .context()
+        .add_entry(sid, st, si, preview, token_count, relevance_score, priority)
+    {
+        Ok(id) => CString::new(id)
+            .map(|s| s.into_raw())
+            .unwrap_or(std::ptr::null_mut()),
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// Build a token-budgeted context window for a session.
+///
+/// Returns entries as a JSON array, filling up to `max_tokens`.
+/// Free with `agentdb_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_context_build_window(
+    handle: *mut AgentDbHandle,
+    session_id: *const c_char,
+    max_tokens: i64,
+) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    let sid = match CStr::from_ptr(session_id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid session_id");
+            return std::ptr::null_mut();
+        }
+    };
+    match h.db.context().build_window(sid, max_tokens) {
+        Ok(entries) => {
+            let json: Vec<Value> = entries
+                .iter()
+                .map(|e| {
+                    serde_json::json!({
+                        "id": e.id,
+                        "session_id": e.session_id,
+                        "source_type": e.source_type,
+                        "source_id": e.source_id,
+                        "content_preview": e.content_preview,
+                        "token_count": e.token_count,
+                        "relevance_score": e.relevance_score,
+                        "priority": e.priority,
+                        "included_at": e.included_at
+                    })
+                })
+                .collect();
+            let s = Value::Array(json).to_string();
+            CString::new(s)
+                .map(|c| c.into_raw())
+                .unwrap_or(std::ptr::null_mut())
+        }
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// Clear all context entries for a session.
+///
+/// Returns 0 on success, -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_context_clear(
+    handle: *mut AgentDbHandle,
+    session_id: *const c_char,
+) -> i32 {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
+    };
+    let sid = match CStr::from_ptr(session_id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid session_id");
+            return -1;
+        }
+    };
+    match h.db.context().clear_session(sid) {
+        Ok(()) => 0,
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
+    }
+}
+
+// ── Prompt Templates ─────────────────────────────────────────────────────
+
+/// Create a new version of a prompt template.
+///
+/// `name`      — template name (versions auto-increment per name)
+/// `template`  — template body with {{placeholder}} syntax
+/// `model_hint`— suggested model (may be NULL)
+/// `max_tokens`— suggested max tokens (-1 if not set)
+/// `metadata`  — optional JSON metadata (may be NULL)
+///
+/// Returns the template ID, or NULL on error.
+/// Free with `agentdb_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_prompt_create(
+    handle: *mut AgentDbHandle,
+    name: *const c_char,
+    template: *const c_char,
+    model_hint: *const c_char,
+    max_tokens: i64,
+    metadata: *const c_char,
+) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    let name_str = match CStr::from_ptr(name).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid name");
+            return std::ptr::null_mut();
+        }
+    };
+    let tmpl_str = match CStr::from_ptr(template).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid template");
+            return std::ptr::null_mut();
+        }
+    };
+    let model = if model_hint.is_null() {
+        None
+    } else {
+        CStr::from_ptr(model_hint).to_str().ok()
+    };
+    let max_tok = if max_tokens < 0 {
+        None
+    } else {
+        Some(max_tokens)
+    };
+    let meta: Option<Value> = if metadata.is_null() {
+        None
+    } else {
+        CStr::from_ptr(metadata)
+            .to_str()
+            .ok()
+            .and_then(|s| serde_json::from_str(s).ok())
+    };
+    match h
+        .db
+        .prompts()
+        .create_template(name_str, tmpl_str, model, max_tok, meta)
+    {
+        Ok(id) => CString::new(id)
+            .map(|s| s.into_raw())
+            .unwrap_or(std::ptr::null_mut()),
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// Render a prompt template with variable substitution.
+///
+/// `name`      — template name (uses latest version)
+/// `vars_json` — JSON object of key-value pairs for {{placeholder}} substitution
+///
+/// Returns the rendered string, or NULL on error.
+/// Free with `agentdb_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_prompt_render(
+    handle: *mut AgentDbHandle,
+    name: *const c_char,
+    vars_json: *const c_char,
+) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    let name_str = match CStr::from_ptr(name).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid name");
+            return std::ptr::null_mut();
+        }
+    };
+    let vars: std::collections::HashMap<String, String> = if vars_json.is_null() {
+        std::collections::HashMap::new()
+    } else {
+        match CStr::from_ptr(vars_json).to_str() {
+            Ok(s) => serde_json::from_str::<serde_json::Map<String, Value>>(s)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(k, v)| {
+                    (
+                        k,
+                        match v {
+                            Value::String(s) => s,
+                            other => other.to_string(),
+                        },
+                    )
+                })
+                .collect(),
+            Err(_) => {
+                set_last_error("invalid vars_json");
+                return std::ptr::null_mut();
+            }
+        }
+    };
+    match h.db.prompts().render(name_str, &vars) {
+        Ok(rendered) => CString::new(rendered)
+            .map(|s| s.into_raw())
+            .unwrap_or(std::ptr::null_mut()),
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+// ── Data Labels ──────────────────────────────────────────────────────────
+
+/// Tag a record with a privacy/classification label.
+///
+/// Returns 0 on success, -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_label_tag(
+    handle: *mut AgentDbHandle,
+    table_name: *const c_char,
+    record_id: *const c_char,
+    label: *const c_char,
+    tagged_by: *const c_char,
+) -> i32 {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
+    };
+    let tbl = match CStr::from_ptr(table_name).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid table_name");
+            return -1;
+        }
+    };
+    let rid = match CStr::from_ptr(record_id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid record_id");
+            return -1;
+        }
+    };
+    let lbl = match CStr::from_ptr(label).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid label");
+            return -1;
+        }
+    };
+    let by = if tagged_by.is_null() {
+        None
+    } else {
+        CStr::from_ptr(tagged_by).to_str().ok()
+    };
+    match h.db.labels().tag(tbl, rid, lbl, by) {
+        Ok(()) => 0,
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
+    }
+}
+
+/// Remove a specific label from a record.
+///
+/// Returns 0 on success, -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_label_untag(
+    handle: *mut AgentDbHandle,
+    table_name: *const c_char,
+    record_id: *const c_char,
+    label: *const c_char,
+) -> i32 {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
+    };
+    let tbl = match CStr::from_ptr(table_name).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid table_name");
+            return -1;
+        }
+    };
+    let rid = match CStr::from_ptr(record_id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid record_id");
+            return -1;
+        }
+    };
+    let lbl = match CStr::from_ptr(label).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid label");
+            return -1;
+        }
+    };
+    match h.db.labels().untag(tbl, rid, lbl) {
+        Ok(()) => 0,
+        Err(e) => {
+            set_last_error(e.to_string());
+            -1
+        }
+    }
+}
+
+/// Get all labels for a record as a JSON array.
+///
+/// Returns heap-allocated JSON string — free with `agentdb_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_label_get(
+    handle: *mut AgentDbHandle,
+    table_name: *const c_char,
+    record_id: *const c_char,
+) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    let tbl = match CStr::from_ptr(table_name).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid table_name");
+            return std::ptr::null_mut();
+        }
+    };
+    let rid = match CStr::from_ptr(record_id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid record_id");
+            return std::ptr::null_mut();
+        }
+    };
+    match h.db.labels().get_labels(tbl, rid) {
+        Ok(labels) => {
+            let json: Vec<Value> = labels
+                .iter()
+                .map(|l| {
+                    serde_json::json!({
+                        "table_name": l.table_name,
+                        "record_id": l.record_id,
+                        "label": l.label,
+                        "tagged_by": l.tagged_by,
+                        "tagged_at": l.tagged_at
+                    })
+                })
+                .collect();
+            let s = Value::Array(json).to_string();
+            CString::new(s)
+                .map(|c| c.into_raw())
+                .unwrap_or(std::ptr::null_mut())
+        }
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// Check if a record has a specific label.
+///
+/// Returns 1 if true, 0 if false, -1 on error.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_label_has(
+    handle: *mut AgentDbHandle,
+    table_name: *const c_char,
+    record_id: *const c_char,
+    label: *const c_char,
+) -> i32 {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return -1;
+        }
+    };
+    let tbl = match CStr::from_ptr(table_name).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid table_name");
+            return -1;
+        }
+    };
+    let rid = match CStr::from_ptr(record_id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid record_id");
+            return -1;
+        }
+    };
+    let lbl = match CStr::from_ptr(label).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("invalid label");
+            return -1;
+        }
+    };
+    match h.db.labels().has_label(tbl, rid, lbl) {
+        Ok(has) => {
+            if has {
+                1
+            } else {
+                0
+            }
+        }
         Err(e) => {
             set_last_error(e.to_string());
             -1

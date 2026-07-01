@@ -198,6 +198,130 @@ namespace Datacules.AgentDB
             [MarshalAs(UnmanagedType.LPUTF8Str)] string id,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string? error);
 
+        // ── Tool Registry ─────────────────────────────────────────────────
+
+        [DllImport(LibName, EntryPoint = "agentdb_tool_register",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr NativeToolRegister(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string name,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? description,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? parametersSchema,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? version);
+
+        [DllImport(LibName, EntryPoint = "agentdb_tool_list",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr NativeToolList(IntPtr handle);
+
+        [DllImport(LibName, EntryPoint = "agentdb_tool_log_call",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr NativeToolLogCall(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? sessionId,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string toolName,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? arguments,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? result,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? error,
+            long latencyMs);
+
+        // ── Audit Log ────────────────────────────────────────────────────
+
+        [DllImport(LibName, EntryPoint = "agentdb_audit_log",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr NativeAuditLog(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? actor,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string action,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string tableName,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string recordId,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? oldValue,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? newValue,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? reason);
+
+        [DllImport(LibName, EntryPoint = "agentdb_audit_query_recent",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr NativeAuditQueryRecent(IntPtr handle, UIntPtr limit);
+
+        // ── Context Window ───────────────────────────────────────────────
+
+        [DllImport(LibName, EntryPoint = "agentdb_context_add",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr NativeContextAdd(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string sessionId,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string sourceType,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string sourceId,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? contentPreview,
+            long tokenCount,
+            double relevanceScore,
+            long priority);
+
+        [DllImport(LibName, EntryPoint = "agentdb_context_build_window",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr NativeContextBuildWindow(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string sessionId,
+            long maxTokens);
+
+        [DllImport(LibName, EntryPoint = "agentdb_context_clear",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern int NativeContextClear(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string sessionId);
+
+        // ── Prompt Templates ─────────────────────────────────────────────
+
+        [DllImport(LibName, EntryPoint = "agentdb_prompt_create",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr NativePromptCreate(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string name,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string template,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? modelHint,
+            long maxTokens,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? metadata);
+
+        [DllImport(LibName, EntryPoint = "agentdb_prompt_render",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr NativePromptRender(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string name,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string varsJson);
+
+        // ── Data Labels (Privacy) ────────────────────────────────────────
+
+        [DllImport(LibName, EntryPoint = "agentdb_label_tag",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern int NativeLabelTag(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string tableName,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string recordId,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string label,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? taggedBy);
+
+        [DllImport(LibName, EntryPoint = "agentdb_label_untag",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern int NativeLabelUntag(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string tableName,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string recordId,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string label);
+
+        [DllImport(LibName, EntryPoint = "agentdb_label_get",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr NativeLabelGet(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string tableName,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string recordId);
+
+        [DllImport(LibName, EntryPoint = "agentdb_label_has",
+            CallingConvention = CallingConvention.Cdecl)]
+        private static extern int NativeLabelHas(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string tableName,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string recordId,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string label);
+
         [DllImport(LibName, EntryPoint = "agentdb_free_string",
             CallingConvention = CallingConvention.Cdecl)]
         private static extern void NativeFreeString(IntPtr ptr);
@@ -530,6 +654,158 @@ namespace Datacules.AgentDB
             int rc = NativeWorkflowFail(_handle, id, error);
             if (rc != 0)
                 throw new AgentDBException(GetLastError("agentdb_workflow_fail failed"));
+        }
+
+        // ── Tool Registry ────────────────────────────────────────────────────
+
+        /// <summary>Register or update a tool definition. Returns JSON with tool ID.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public string ToolRegister(string name, string? description = null,
+            string? parametersSchema = null, string? version = null)
+        {
+            CheckOpen();
+            IntPtr ptr = NativeToolRegister(_handle, name, description, parametersSchema, version);
+            return ConsumeStringPtr(ptr, "agentdb_tool_register failed");
+        }
+
+        /// <summary>List all registered tools as a JSON array.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public string ToolList()
+        {
+            CheckOpen();
+            IntPtr ptr = NativeToolList(_handle);
+            return ConsumeStringPtr(ptr, "agentdb_tool_list failed");
+        }
+
+        /// <summary>Log a tool call invocation. Returns JSON with tool call ID.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public string ToolLogCall(string toolName, string? sessionId = null,
+            string? arguments = null, string? result = null,
+            string? error = null, long latencyMs = 0)
+        {
+            CheckOpen();
+            IntPtr ptr = NativeToolLogCall(_handle, sessionId, toolName, arguments,
+                result, error, latencyMs);
+            return ConsumeStringPtr(ptr, "agentdb_tool_log_call failed");
+        }
+
+        // ── Audit Log ────────────────────────────────────────────────────────
+
+        /// <summary>Append an entry to the immutable audit log. Returns JSON with entry ID.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public string AuditLog(string action, string tableName, string recordId,
+            string? actor = null, string? oldValue = null,
+            string? newValue = null, string? reason = null)
+        {
+            CheckOpen();
+            IntPtr ptr = NativeAuditLog(_handle, actor, action, tableName, recordId,
+                oldValue, newValue, reason);
+            return ConsumeStringPtr(ptr, "agentdb_audit_log failed");
+        }
+
+        /// <summary>Query recent audit log entries as a JSON array.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public string AuditQueryRecent(int limit = 100)
+        {
+            CheckOpen();
+            IntPtr ptr = NativeAuditQueryRecent(_handle, (UIntPtr)limit);
+            return ConsumeStringPtr(ptr, "agentdb_audit_query_recent failed");
+        }
+
+        // ── Context Window ───────────────────────────────────────────────────
+
+        /// <summary>Add an entry to the context window. Returns JSON with entry ID.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public string ContextAdd(string sessionId, string sourceType, string sourceId,
+            string? contentPreview, long tokenCount, double relevanceScore, long priority)
+        {
+            CheckOpen();
+            IntPtr ptr = NativeContextAdd(_handle, sessionId, sourceType, sourceId,
+                contentPreview, tokenCount, relevanceScore, priority);
+            return ConsumeStringPtr(ptr, "agentdb_context_add failed");
+        }
+
+        /// <summary>Build a token-budgeted context window. Returns JSON array of entries.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public string ContextBuildWindow(string sessionId, long maxTokens)
+        {
+            CheckOpen();
+            IntPtr ptr = NativeContextBuildWindow(_handle, sessionId, maxTokens);
+            return ConsumeStringPtr(ptr, "agentdb_context_build_window failed");
+        }
+
+        /// <summary>Clear all context entries for a session.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public void ContextClear(string sessionId)
+        {
+            CheckOpen();
+            int rc = NativeContextClear(_handle, sessionId);
+            if (rc != 0)
+                throw new AgentDBException(GetLastError("agentdb_context_clear failed"));
+        }
+
+        // ── Prompt Templates ─────────────────────────────────────────────────
+
+        /// <summary>Create a new version of a prompt template. Returns JSON with template ID.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public string PromptCreate(string name, string template,
+            string? modelHint = null, long maxTokens = 0, string? metadata = null)
+        {
+            CheckOpen();
+            IntPtr ptr = NativePromptCreate(_handle, name, template, modelHint, maxTokens, metadata);
+            return ConsumeStringPtr(ptr, "agentdb_prompt_create failed");
+        }
+
+        /// <summary>Render a prompt template with placeholder substitution.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public string PromptRender(string name, string varsJson)
+        {
+            CheckOpen();
+            IntPtr ptr = NativePromptRender(_handle, name, varsJson);
+            return ConsumeStringPtr(ptr, "agentdb_prompt_render failed");
+        }
+
+        // ── Data Labels (Privacy) ────────────────────────────────────────────
+
+        /// <summary>Tag a record with a privacy/classification label.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public void LabelTag(string tableName, string recordId, string label,
+            string? taggedBy = null)
+        {
+            CheckOpen();
+            int rc = NativeLabelTag(_handle, tableName, recordId, label, taggedBy);
+            if (rc != 0)
+                throw new AgentDBException(GetLastError("agentdb_label_tag failed"));
+        }
+
+        /// <summary>Remove a specific label from a record.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public void LabelUntag(string tableName, string recordId, string label)
+        {
+            CheckOpen();
+            int rc = NativeLabelUntag(_handle, tableName, recordId, label);
+            if (rc != 0)
+                throw new AgentDBException(GetLastError("agentdb_label_untag failed"));
+        }
+
+        /// <summary>Get all labels for a record as a JSON array.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public string LabelGet(string tableName, string recordId)
+        {
+            CheckOpen();
+            IntPtr ptr = NativeLabelGet(_handle, tableName, recordId);
+            return ConsumeStringPtr(ptr, "agentdb_label_get failed");
+        }
+
+        /// <summary>Check if a record has a specific label.</summary>
+        /// <exception cref="AgentDBException">Thrown on error.</exception>
+        public bool LabelHas(string tableName, string recordId, string label)
+        {
+            CheckOpen();
+            int rc = NativeLabelHas(_handle, tableName, recordId, label);
+            if (rc == -1)
+                throw new AgentDBException(GetLastError("agentdb_label_has failed"));
+            return rc == 1;
         }
 
         // ── Stats ─────────────────────────────────────────────────────────

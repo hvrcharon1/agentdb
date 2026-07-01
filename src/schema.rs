@@ -1,7 +1,7 @@
 use crate::error::Result;
 use rusqlite::Connection;
 
-pub const SCHEMA_VERSION: &str = "4";
+pub const SCHEMA_VERSION: &str = "5";
 
 pub fn bootstrap(conn: &Connection) -> Result<()> {
     conn.execute_batch(
@@ -134,6 +134,89 @@ pub fn bootstrap(conn: &Connection) -> Result<()> {
             content,
             tokenize='porter ascii'
         );
+
+        -- Tool registry (schema v5)
+        CREATE TABLE IF NOT EXISTS _adb_tools (
+            id                TEXT PRIMARY KEY,
+            name              TEXT UNIQUE NOT NULL,
+            description       TEXT,
+            parameters_schema TEXT,
+            version           TEXT NOT NULL DEFAULT '1.0.0',
+            created_at        INTEGER NOT NULL,
+            updated_at        INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_tools_name ON _adb_tools(name);
+
+        -- Structured tool call log (schema v5)
+        CREATE TABLE IF NOT EXISTS _adb_tool_calls (
+            id         TEXT PRIMARY KEY,
+            session_id TEXT,
+            tool_name  TEXT NOT NULL,
+            arguments  TEXT,
+            result     TEXT,
+            error      TEXT,
+            latency_ms INTEGER,
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_tool_calls_session   ON _adb_tool_calls(session_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_tool_calls_tool_name ON _adb_tool_calls(tool_name, created_at);
+
+        -- Immutable audit log (schema v5)
+        CREATE TABLE IF NOT EXISTS _adb_audit_log (
+            id         TEXT PRIMARY KEY,
+            timestamp  INTEGER NOT NULL,
+            actor      TEXT,
+            action     TEXT NOT NULL,
+            table_name TEXT NOT NULL,
+            record_id  TEXT NOT NULL,
+            old_value  TEXT,
+            new_value  TEXT,
+            reason     TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_audit_timestamp  ON _adb_audit_log(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_audit_table_rec  ON _adb_audit_log(table_name, record_id);
+        CREATE INDEX IF NOT EXISTS idx_audit_actor      ON _adb_audit_log(actor, timestamp);
+
+        -- Token-budgeted context window entries (schema v5)
+        CREATE TABLE IF NOT EXISTS _adb_context_entries (
+            id              TEXT PRIMARY KEY,
+            session_id      TEXT NOT NULL,
+            source_type     TEXT NOT NULL,
+            source_id       TEXT NOT NULL,
+            content_preview TEXT,
+            token_count     INTEGER NOT NULL DEFAULT 0,
+            relevance_score REAL NOT NULL DEFAULT 0.0,
+            priority        INTEGER NOT NULL DEFAULT 0,
+            included_at     INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_ctx_session ON _adb_context_entries(session_id, priority DESC, relevance_score DESC);
+        CREATE INDEX IF NOT EXISTS idx_ctx_source  ON _adb_context_entries(source_type, source_id);
+
+        -- Versioned prompt templates (schema v5)
+        CREATE TABLE IF NOT EXISTS _adb_prompt_templates (
+            id         TEXT PRIMARY KEY,
+            name       TEXT NOT NULL,
+            version    INTEGER NOT NULL DEFAULT 1,
+            template   TEXT NOT NULL,
+            model_hint TEXT,
+            max_tokens INTEGER,
+            metadata   TEXT,
+            created_at INTEGER NOT NULL,
+            UNIQUE (name, version)
+        );
+        CREATE INDEX IF NOT EXISTS idx_prompt_name_ver ON _adb_prompt_templates(name, version DESC);
+
+        -- Privacy / data classification labels (schema v5)
+        CREATE TABLE IF NOT EXISTS _adb_data_labels (
+            table_name TEXT NOT NULL,
+            record_id  TEXT NOT NULL,
+            label      TEXT NOT NULL,
+            tagged_by  TEXT,
+            tagged_at  INTEGER NOT NULL,
+            PRIMARY KEY (table_name, record_id, label)
+        );
+        CREATE INDEX IF NOT EXISTS idx_data_labels_table ON _adb_data_labels(table_name, label);
+        CREATE INDEX IF NOT EXISTS idx_data_labels_label ON _adb_data_labels(label);
         ",
     )?;
 
@@ -189,6 +272,12 @@ pub fn migrate(conn: &Connection) -> Result<()> {
 
     // v3 → v4: message FTS virtual table (bootstrap already uses IF NOT EXISTS).
     // No ALTER TABLE needed — new table is created by bootstrap() above.
+
+    // v4 → v5: add embedding model provenance to vectors.
+    let _ = conn.execute_batch("ALTER TABLE _adb_vectors ADD COLUMN model TEXT;");
+
+    // v4 → v5: add token count to messages for context budgeting.
+    let _ = conn.execute_batch("ALTER TABLE _adb_messages ADD COLUMN token_count INTEGER;");
 
     // Stamp the new version.
     conn.execute(

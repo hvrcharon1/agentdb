@@ -54,17 +54,24 @@
 //! | `python` | PyO3 Python bindings (enables `ffi`) |
 //! | `wasm` | WASM/wasm-bindgen target |
 
+pub mod audit;
+pub mod context;
 pub mod conversations;
 pub mod db;
 pub mod error;
 pub mod filter;
 pub mod fts;
 pub mod hybrid;
+pub mod labels;
 pub mod memory;
+pub mod prompts;
 pub mod schema;
+pub mod tools;
 pub mod traces;
 pub mod vectors;
 pub mod workflows;
+
+pub mod mcp;
 
 #[cfg(feature = "async")]
 pub mod async_api;
@@ -75,13 +82,18 @@ pub mod ffi;
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
+pub use audit::{AuditEntry, AuditStore};
+pub use context::{ContextEntry, ContextStore};
 pub use conversations::{Conversation, ConversationStore, Message, MessageSearchResult};
 pub use db::{AgentDB, DbStats};
 pub use error::{AgentDbError, Result};
 pub use filter::matches as filter_matches;
 pub use fts::{FtsResult, FullTextStore};
 pub use hybrid::{HybridQuery, HybridResult, HybridStore};
+pub use labels::{DataLabel, LabelStore};
 pub use memory::{Edge, MemoryGraph, Node, TraversalOptions, TraversalResult};
+pub use prompts::{PromptStore, PromptTemplate};
+pub use tools::{Tool, ToolCall, ToolStore};
 pub use traces::{Trace, TraceStore};
 pub use vectors::{
     BatchEntry, Collection, DistanceMetric, SearchOptions, SearchResult, VectorEntry, VectorStore,
@@ -90,6 +102,7 @@ pub use workflows::{Workflow, WorkflowStep, WorkflowStore};
 
 #[cfg(feature = "async")]
 pub use async_api::{
-    AsyncAgentDB, AsyncCollection, AsyncConversationStore, AsyncFullTextStore, AsyncMemoryGraph,
+    AsyncAgentDB, AsyncAuditStore, AsyncCollection, AsyncContextStore, AsyncConversationStore,
+    AsyncFullTextStore, AsyncLabelStore, AsyncMemoryGraph, AsyncPromptStore, AsyncToolStore,
     AsyncTraceStore, AsyncVectorStore, AsyncWorkflowStore,
 };

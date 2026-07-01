@@ -129,6 +129,59 @@ char* agentdb_trace_add(AgentDbHandle* handle, const char* session_id,
 char* agentdb_trace_get_by_session(AgentDbHandle* handle, const char* session_id);
 char* agentdb_trace_get_tree(AgentDbHandle* handle, const char* root_id);
 
+/* ── SQL (parameterized) ──────────────────────────────────────────── */
+
+char* agentdb_query_json_params(AgentDbHandle* handle, const char* sql,
+          const char* params_json);
+
+/* ── Tool Registry ────────────────────────────────────────────────── */
+
+char* agentdb_tool_register(AgentDbHandle* handle, const char* name,
+          const char* description, const char* parameters_schema,
+          const char* version);
+char* agentdb_tool_list(AgentDbHandle* handle);
+char* agentdb_tool_log_call(AgentDbHandle* handle, const char* session_id,
+          const char* tool_name, const char* arguments,
+          const char* result, const char* error, int64_t latency_ms);
+
+/* ── Audit Log ────────────────────────────────────────────────────── */
+
+char* agentdb_audit_log(AgentDbHandle* handle, const char* actor,
+          const char* action, const char* table_name,
+          const char* record_id, const char* old_value,
+          const char* new_value, const char* reason);
+char* agentdb_audit_query_recent(AgentDbHandle* handle, size_t limit);
+
+/* ── Context Window ───────────────────────────────────────────────── */
+
+char* agentdb_context_add(AgentDbHandle* handle, const char* session_id,
+          const char* source_type, const char* source_id,
+          const char* content_preview, int64_t token_count,
+          double relevance_score, int64_t priority);
+char* agentdb_context_build_window(AgentDbHandle* handle,
+          const char* session_id, int64_t max_tokens);
+int   agentdb_context_clear(AgentDbHandle* handle, const char* session_id);
+
+/* ── Prompt Templates ─────────────────────────────────────────────── */
+
+char* agentdb_prompt_create(AgentDbHandle* handle, const char* name,
+          const char* template_, const char* model_hint,
+          int64_t max_tokens, const char* metadata);
+char* agentdb_prompt_render(AgentDbHandle* handle, const char* name,
+          const char* vars_json);
+
+/* ── Data Labels (Privacy) ────────────────────────────────────────── */
+
+int   agentdb_label_tag(AgentDbHandle* handle, const char* table_name,
+          const char* record_id, const char* label,
+          const char* tagged_by);
+int   agentdb_label_untag(AgentDbHandle* handle, const char* table_name,
+          const char* record_id, const char* label);
+char* agentdb_label_get(AgentDbHandle* handle, const char* table_name,
+          const char* record_id);
+int   agentdb_label_has(AgentDbHandle* handle, const char* table_name,
+          const char* record_id, const char* label);
+
 #ifdef __cplusplus
 }
 #endif

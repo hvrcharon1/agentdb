@@ -65,15 +65,19 @@ export interface NeighborResult {
 }
 
 export interface DbStats {
-  collections:   number;
-  vectors:       number;
-  nodes:         number;
-  edges:         number;
-  conversations: number;
-  messages:      number;
-  workflows:     number;
-  workflowSteps: number;
-  traces:        number;
+  collections:     number;
+  vectors:         number;
+  nodes:           number;
+  edges:           number;
+  conversations:   number;
+  messages:        number;
+  workflows:       number;
+  workflowSteps:   number;
+  traces:          number;
+  tools:           number;
+  toolCalls:       number;
+  auditEntries:    number;
+  promptTemplates: number;
 }
 
 export interface SearchOptions {
@@ -286,6 +290,58 @@ export class AgentDB {
 
   /** Get a subtree of traces rooted at a trace ID. */
   getTraceTree(traceId: string): Trace[];
+
+  // ── Tool Registry ──────────────────────────────────────────────────
+
+  /** Register or update a tool definition. Returns the tool ID. */
+  registerTool(name: string, description?: string | null, parametersSchema?: Record<string, unknown> | null, version?: string | null): string;
+
+  /** List all registered tools. */
+  listTools(): Record<string, unknown>[];
+
+  /** Log a tool call invocation. Returns the tool call ID. */
+  logToolCall(toolName: string, sessionId?: string | null, arguments?: Record<string, unknown> | null, result?: Record<string, unknown> | null, error?: string | null, latencyMs?: number | null): string;
+
+  // ── Audit Log ─────────────────────────────────────────────────────
+
+  /** Append an entry to the immutable audit log. Returns the entry ID. */
+  auditLog(action: string, tableName: string, recordId: string, actor?: string | null, oldValue?: Record<string, unknown> | null, newValue?: Record<string, unknown> | null, reason?: string | null): string;
+
+  /** Query recent audit log entries. */
+  auditQueryRecent(limit?: number | null): Record<string, unknown>[];
+
+  // ── Context Window ────────────────────────────────────────────────
+
+  /** Add an entry to the context window. Returns the entry ID. */
+  contextAdd(sessionId: string, sourceType: string, sourceId: string, contentPreview: string | null, tokenCount: number, relevanceScore: number, priority: number): string;
+
+  /** Build a token-budgeted context window for a session. */
+  contextBuildWindow(sessionId: string, maxTokens: number): Record<string, unknown>[];
+
+  /** Clear all context entries for a session. */
+  contextClear(sessionId: string): void;
+
+  // ── Prompt Templates ──────────────────────────────────────────────
+
+  /** Create a new version of a prompt template. Returns the template ID. */
+  promptCreate(name: string, template: string, modelHint?: string | null, maxTokens?: number | null, metadata?: Record<string, unknown> | null): string;
+
+  /** Render a prompt template with {{placeholder}} substitution. */
+  promptRender(name: string, vars: Record<string, string>): string;
+
+  // ── Data Labels (Privacy) ─────────────────────────────────────────
+
+  /** Tag a record with a privacy/classification label. */
+  labelTag(tableName: string, recordId: string, label: string, taggedBy?: string | null): void;
+
+  /** Remove a specific label from a record. */
+  labelUntag(tableName: string, recordId: string, label: string): void;
+
+  /** Get all labels for a record. */
+  labelGet(tableName: string, recordId: string): Record<string, unknown>[];
+
+  /** Check if a record has a specific label. */
+  labelHas(tableName: string, recordId: string, label: string): boolean;
 
   // ── Stats ──────────────────────────────────────────────────────────
 

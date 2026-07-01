@@ -113,15 +113,19 @@ pub struct NeighborResult {
 #[napi(object)]
 #[derive(Clone)]
 pub struct DbStats {
-    pub collections:    i64,
-    pub vectors:        i64,
-    pub nodes:          i64,
-    pub edges:          i64,
-    pub conversations:  i64,
-    pub messages:       i64,
-    pub workflows:      i64,
-    pub workflow_steps: i64,
-    pub traces:         i64,
+    pub collections:      i64,
+    pub vectors:          i64,
+    pub nodes:            i64,
+    pub edges:            i64,
+    pub conversations:    i64,
+    pub messages:         i64,
+    pub workflows:        i64,
+    pub workflow_steps:   i64,
+    pub traces:           i64,
+    pub tools:            i64,
+    pub tool_calls:       i64,
+    pub audit_entries:    i64,
+    pub prompt_templates: i64,
 }
 
 // ── helpers ───────────────────────────────────────────────────────────
@@ -560,15 +564,19 @@ impl AgentDB {
             .unwrap()
             .stats()
             .map(|s| DbStats {
-                collections:    s.collections,
-                vectors:        s.vectors,
-                nodes:          s.nodes,
-                edges:          s.edges,
-                conversations:  s.conversations,
-                messages:       s.messages,
-                workflows:      s.workflows,
-                workflow_steps: s.workflow_steps,
-                traces:         s.traces,
+                collections:      s.collections,
+                vectors:          s.vectors,
+                nodes:            s.nodes,
+                edges:            s.edges,
+                conversations:    s.conversations,
+                messages:         s.messages,
+                workflows:        s.workflows,
+                workflow_steps:   s.workflow_steps,
+                traces:           s.traces,
+                tools:            s.tools,
+                tool_calls:       s.tool_calls,
+                audit_entries:    s.audit_entries,
+                prompt_templates: s.prompt_templates,
             })
             .map_err(|e| Error::from_reason(e.to_string()))
     }
@@ -924,5 +932,334 @@ impl AgentDB {
                 })
             })
             .collect())
+    }
+
+    // ── Tool Registry ───────────────────────────────────────────────
+
+    /// Register or update a tool definition. Returns the tool ID.
+    #[napi]
+    pub fn register_tool(
+        &self,
+        name: String,
+        description: Option<String>,
+        parameters_schema: Option<serde_json::Value>,
+        version: Option<String>,
+    ) -> Result<String> {
+        self.db
+            .lock()
+            .unwrap()
+            .tools()
+            .register_tool(&name, description.as_deref(), parameters_schema, version.as_deref())
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// List all registered tools.
+    #[napi]
+    pub fn list_tools(&self) -> Result<Vec<serde_json::Value>> {
+        let tools = self.db
+            .lock()
+            .unwrap()
+            .tools()
+            .list_tools()
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        Ok(tools
+            .iter()
+            .map(|t| {
+                serde_json::json!({
+                    "id": t.id,
+                    "name": t.name,
+                    "description": t.description,
+                    "parametersSchema": t.parameters_schema,
+                    "version": t.version,
+                    "createdAt": t.created_at,
+                    "updatedAt": t.updated_at
+                })
+            })
+            .collect())
+    }
+
+    /// Log a tool call invocation. Returns the tool call ID.
+    #[napi]
+    pub fn log_tool_call(
+        &self,
+        tool_name: String,
+        session_id: Option<String>,
+        arguments: Option<serde_json::Value>,
+        result: Option<serde_json::Value>,
+        error: Option<String>,
+        latency_ms: Option<i64>,
+    ) -> Result<String> {
+        self.db
+            .lock()
+            .unwrap()
+            .tools()
+            .log_tool_call(
+                session_id.as_deref(),
+                &tool_name,
+                arguments,
+                result,
+                error.as_deref(),
+                latency_ms,
+            )
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    // ── Audit Log ───────────────────────────────────────────────────
+
+    /// Append an entry to the immutable audit log. Returns the entry ID.
+    #[napi]
+    pub fn audit_log(
+        &self,
+        action: String,
+        table_name: String,
+        record_id: String,
+        actor: Option<String>,
+        old_value: Option<serde_json::Value>,
+        new_value: Option<serde_json::Value>,
+        reason: Option<String>,
+    ) -> Result<String> {
+        self.db
+            .lock()
+            .unwrap()
+            .audit()
+            .log(
+                actor.as_deref(),
+                &action,
+                &table_name,
+                &record_id,
+                old_value,
+                new_value,
+                reason.as_deref(),
+            )
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Query recent audit log entries.
+    #[napi]
+    pub fn audit_query_recent(&self, limit: Option<u32>) -> Result<Vec<serde_json::Value>> {
+        let lim = limit.map(|n| n as usize);
+        let entries = self.db
+            .lock()
+            .unwrap()
+            .audit()
+            .query_recent(lim)
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        Ok(entries
+            .iter()
+            .map(|e| {
+                serde_json::json!({
+                    "id": e.id,
+                    "timestamp": e.timestamp,
+                    "actor": e.actor,
+                    "action": e.action,
+                    "tableName": e.table_name,
+                    "recordId": e.record_id,
+                    "oldValue": e.old_value,
+                    "newValue": e.new_value,
+                    "reason": e.reason
+                })
+            })
+            .collect())
+    }
+
+    // ── Context Window ──────────────────────────────────────────────
+
+    /// Add an entry to the context window for a session. Returns the entry ID.
+    #[napi]
+    pub fn context_add(
+        &self,
+        session_id: String,
+        source_type: String,
+        source_id: String,
+        content_preview: Option<String>,
+        token_count: i64,
+        relevance_score: f64,
+        priority: i64,
+    ) -> Result<String> {
+        self.db
+            .lock()
+            .unwrap()
+            .context()
+            .add_entry(
+                &session_id,
+                &source_type,
+                &source_id,
+                content_preview.as_deref(),
+                token_count,
+                relevance_score,
+                priority,
+            )
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Build a token-budgeted context window for a session.
+    #[napi]
+    pub fn context_build_window(
+        &self,
+        session_id: String,
+        max_tokens: i64,
+    ) -> Result<Vec<serde_json::Value>> {
+        let entries = self.db
+            .lock()
+            .unwrap()
+            .context()
+            .build_window(&session_id, max_tokens)
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        Ok(entries
+            .iter()
+            .map(|e| {
+                serde_json::json!({
+                    "id": e.id,
+                    "sessionId": e.session_id,
+                    "sourceType": e.source_type,
+                    "sourceId": e.source_id,
+                    "contentPreview": e.content_preview,
+                    "tokenCount": e.token_count,
+                    "relevanceScore": e.relevance_score,
+                    "priority": e.priority,
+                    "includedAt": e.included_at
+                })
+            })
+            .collect())
+    }
+
+    /// Clear all context entries for a session.
+    #[napi]
+    pub fn context_clear(&self, session_id: String) -> Result<()> {
+        self.db
+            .lock()
+            .unwrap()
+            .context()
+            .clear_session(&session_id)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    // ── Prompt Templates ────────────────────────────────────────────
+
+    /// Create a new version of a prompt template. Returns the template ID.
+    #[napi]
+    pub fn prompt_create(
+        &self,
+        name: String,
+        template: String,
+        model_hint: Option<String>,
+        max_tokens: Option<i64>,
+        metadata: Option<serde_json::Value>,
+    ) -> Result<String> {
+        self.db
+            .lock()
+            .unwrap()
+            .prompts()
+            .create_template(&name, &template, model_hint.as_deref(), max_tokens, metadata)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Render a prompt template with variable substitution.
+    #[napi]
+    pub fn prompt_render(
+        &self,
+        name: String,
+        vars: serde_json::Value,
+    ) -> Result<String> {
+        let map: std::collections::HashMap<String, String> =
+            if let serde_json::Value::Object(obj) = vars {
+                obj.into_iter()
+                    .map(|(k, v)| {
+                        (
+                            k,
+                            match v {
+                                serde_json::Value::String(s) => s,
+                                other => other.to_string(),
+                            },
+                        )
+                    })
+                    .collect()
+            } else {
+                std::collections::HashMap::new()
+            };
+        self.db
+            .lock()
+            .unwrap()
+            .prompts()
+            .render(&name, &map)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    // ── Data Labels (Privacy) ───────────────────────────────────────
+
+    /// Tag a record with a privacy/classification label.
+    #[napi]
+    pub fn label_tag(
+        &self,
+        table_name: String,
+        record_id: String,
+        label: String,
+        tagged_by: Option<String>,
+    ) -> Result<()> {
+        self.db
+            .lock()
+            .unwrap()
+            .labels()
+            .tag(&table_name, &record_id, &label, tagged_by.as_deref())
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Remove a specific label from a record.
+    #[napi]
+    pub fn label_untag(
+        &self,
+        table_name: String,
+        record_id: String,
+        label: String,
+    ) -> Result<()> {
+        self.db
+            .lock()
+            .unwrap()
+            .labels()
+            .untag(&table_name, &record_id, &label)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// Get all labels for a record.
+    #[napi]
+    pub fn label_get(
+        &self,
+        table_name: String,
+        record_id: String,
+    ) -> Result<Vec<serde_json::Value>> {
+        let labels = self.db
+            .lock()
+            .unwrap()
+            .labels()
+            .get_labels(&table_name, &record_id)
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        Ok(labels
+            .iter()
+            .map(|l| {
+                serde_json::json!({
+                    "tableName": l.table_name,
+                    "recordId": l.record_id,
+                    "label": l.label,
+                    "taggedBy": l.tagged_by,
+                    "taggedAt": l.tagged_at
+                })
+            })
+            .collect())
+    }
+
+    /// Check if a record has a specific label.
+    #[napi]
+    pub fn label_has(
+        &self,
+        table_name: String,
+        record_id: String,
+        label: String,
+    ) -> Result<bool> {
+        self.db
+            .lock()
+            .unwrap()
+            .labels()
+            .has_label(&table_name, &record_id, &label)
+            .map_err(|e| Error::from_reason(e.to_string()))
     }
 }

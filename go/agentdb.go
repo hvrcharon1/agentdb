@@ -58,15 +58,19 @@ type DB struct {
 
 // Stats holds the snapshot statistics returned by [DB.Stats].
 type Stats struct {
-	Collections   int64 `json:"collections"`
-	Vectors       int64 `json:"vectors"`
-	Nodes         int64 `json:"nodes"`
-	Edges         int64 `json:"edges"`
-	Conversations int64 `json:"conversations"`
-	Messages      int64 `json:"messages"`
-	Workflows     int64 `json:"workflows"`
-	WorkflowSteps int64 `json:"workflow_steps"`
-	Traces        int64 `json:"traces"`
+	Collections     int64 `json:"collections"`
+	Vectors         int64 `json:"vectors"`
+	Nodes           int64 `json:"nodes"`
+	Edges           int64 `json:"edges"`
+	Conversations   int64 `json:"conversations"`
+	Messages        int64 `json:"messages"`
+	Workflows       int64 `json:"workflows"`
+	WorkflowSteps   int64 `json:"workflow_steps"`
+	Traces          int64 `json:"traces"`
+	Tools           int64 `json:"tools"`
+	ToolCalls       int64 `json:"tool_calls"`
+	AuditEntries    int64 `json:"audit_entries"`
+	PromptTemplates int64 `json:"prompt_templates"`
 }
 
 // VectorResult is one entry returned by [DB.VectorSearch].
@@ -802,4 +806,317 @@ func (db *DB) WorkflowFail(id, errMsg string) error {
 		return lastError("agentdb_workflow_fail failed")
 	}
 	return nil
+}
+
+// ── Tool Registry ──────────────────────────────────────────────────────────
+
+// ToolRegister registers or updates a tool definition. Returns the tool ID.
+func (db *DB) ToolRegister(name, description string, parametersSchemaJSON []byte, version string) (string, error) {
+	cname := C.CString(name)
+	defer C.free(unsafe.Pointer(cname))
+
+	var cdesc *C.char
+	if description != "" {
+		cdesc = C.CString(description)
+		defer C.free(unsafe.Pointer(cdesc))
+	}
+
+	var cschema *C.char
+	if parametersSchemaJSON != nil {
+		cschema = C.CString(string(parametersSchemaJSON))
+		defer C.free(unsafe.Pointer(cschema))
+	}
+
+	var cver *C.char
+	if version != "" {
+		cver = C.CString(version)
+		defer C.free(unsafe.Pointer(cver))
+	}
+
+	ptr := C.agentdb_tool_register(db.handle, cname, cdesc, cschema, cver)
+	if ptr == nil {
+		return "", lastError("agentdb_tool_register failed")
+	}
+	result := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return result, nil
+}
+
+// ToolList returns all registered tools as a JSON array.
+func (db *DB) ToolList() (string, error) {
+	ptr := C.agentdb_tool_list(db.handle)
+	if ptr == nil {
+		return "", lastError("agentdb_tool_list failed")
+	}
+	raw := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return raw, nil
+}
+
+// ToolLogCall logs a tool call invocation. Returns the tool call ID.
+func (db *DB) ToolLogCall(sessionID, toolName string, argumentsJSON, resultJSON []byte, errMsg string, latencyMs int64) (string, error) {
+	var csid *C.char
+	if sessionID != "" {
+		csid = C.CString(sessionID)
+		defer C.free(unsafe.Pointer(csid))
+	}
+
+	ctn := C.CString(toolName)
+	defer C.free(unsafe.Pointer(ctn))
+
+	var cargs *C.char
+	if argumentsJSON != nil {
+		cargs = C.CString(string(argumentsJSON))
+		defer C.free(unsafe.Pointer(cargs))
+	}
+
+	var cres *C.char
+	if resultJSON != nil {
+		cres = C.CString(string(resultJSON))
+		defer C.free(unsafe.Pointer(cres))
+	}
+
+	var cerr *C.char
+	if errMsg != "" {
+		cerr = C.CString(errMsg)
+		defer C.free(unsafe.Pointer(cerr))
+	}
+
+	ptr := C.agentdb_tool_log_call(db.handle, csid, ctn, cargs, cres, cerr, C.int64_t(latencyMs))
+	if ptr == nil {
+		return "", lastError("agentdb_tool_log_call failed")
+	}
+	result := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return result, nil
+}
+
+// ── Audit Log ──────────────────────────────────────────────────────────────
+
+// AuditLog appends an entry to the immutable audit log. Returns the entry ID.
+func (db *DB) AuditLog(actor, action, tableName, recordID string, oldValueJSON, newValueJSON []byte, reason string) (string, error) {
+	var cactor *C.char
+	if actor != "" {
+		cactor = C.CString(actor)
+		defer C.free(unsafe.Pointer(cactor))
+	}
+
+	caction := C.CString(action)
+	defer C.free(unsafe.Pointer(caction))
+	ctbl := C.CString(tableName)
+	defer C.free(unsafe.Pointer(ctbl))
+	crid := C.CString(recordID)
+	defer C.free(unsafe.Pointer(crid))
+
+	var cold *C.char
+	if oldValueJSON != nil {
+		cold = C.CString(string(oldValueJSON))
+		defer C.free(unsafe.Pointer(cold))
+	}
+
+	var cnew *C.char
+	if newValueJSON != nil {
+		cnew = C.CString(string(newValueJSON))
+		defer C.free(unsafe.Pointer(cnew))
+	}
+
+	var creason *C.char
+	if reason != "" {
+		creason = C.CString(reason)
+		defer C.free(unsafe.Pointer(creason))
+	}
+
+	ptr := C.agentdb_audit_log(db.handle, cactor, caction, ctbl, crid, cold, cnew, creason)
+	if ptr == nil {
+		return "", lastError("agentdb_audit_log failed")
+	}
+	result := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return result, nil
+}
+
+// AuditQueryRecent returns recent audit log entries as a JSON array.
+func (db *DB) AuditQueryRecent(limit int) (string, error) {
+	ptr := C.agentdb_audit_query_recent(db.handle, C.ulong(limit))
+	if ptr == nil {
+		return "", lastError("agentdb_audit_query_recent failed")
+	}
+	raw := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return raw, nil
+}
+
+// ── Context Window ─────────────────────────────────────────────────────────
+
+// ContextAdd adds an entry to the context window. Returns the entry ID.
+func (db *DB) ContextAdd(sessionID, sourceType, sourceID, contentPreview string, tokenCount int64, relevanceScore float64, priority int64) (string, error) {
+	csid := C.CString(sessionID)
+	defer C.free(unsafe.Pointer(csid))
+	cst := C.CString(sourceType)
+	defer C.free(unsafe.Pointer(cst))
+	csi := C.CString(sourceID)
+	defer C.free(unsafe.Pointer(csi))
+
+	var cprev *C.char
+	if contentPreview != "" {
+		cprev = C.CString(contentPreview)
+		defer C.free(unsafe.Pointer(cprev))
+	}
+
+	ptr := C.agentdb_context_add(db.handle, csid, cst, csi, cprev, C.int64_t(tokenCount), C.double(relevanceScore), C.int64_t(priority))
+	if ptr == nil {
+		return "", lastError("agentdb_context_add failed")
+	}
+	result := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return result, nil
+}
+
+// ContextBuildWindow builds a token-budgeted context window as a JSON array.
+func (db *DB) ContextBuildWindow(sessionID string, maxTokens int64) (string, error) {
+	csid := C.CString(sessionID)
+	defer C.free(unsafe.Pointer(csid))
+
+	ptr := C.agentdb_context_build_window(db.handle, csid, C.int64_t(maxTokens))
+	if ptr == nil {
+		return "", lastError("agentdb_context_build_window failed")
+	}
+	raw := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return raw, nil
+}
+
+// ContextClear removes all context entries for a session.
+func (db *DB) ContextClear(sessionID string) error {
+	csid := C.CString(sessionID)
+	defer C.free(unsafe.Pointer(csid))
+
+	rc := C.agentdb_context_clear(db.handle, csid)
+	if rc != 0 {
+		return lastError("agentdb_context_clear failed")
+	}
+	return nil
+}
+
+// ── Prompt Templates ───────────────────────────────────────────────────────
+
+// PromptCreate creates a new version of a prompt template. Returns the template ID.
+func (db *DB) PromptCreate(name, template, modelHint string, maxTokens int64, metadataJSON []byte) (string, error) {
+	cname := C.CString(name)
+	defer C.free(unsafe.Pointer(cname))
+	ctmpl := C.CString(template)
+	defer C.free(unsafe.Pointer(ctmpl))
+
+	var cmodel *C.char
+	if modelHint != "" {
+		cmodel = C.CString(modelHint)
+		defer C.free(unsafe.Pointer(cmodel))
+	}
+
+	var cmeta *C.char
+	if metadataJSON != nil {
+		cmeta = C.CString(string(metadataJSON))
+		defer C.free(unsafe.Pointer(cmeta))
+	}
+
+	ptr := C.agentdb_prompt_create(db.handle, cname, ctmpl, cmodel, C.int64_t(maxTokens), cmeta)
+	if ptr == nil {
+		return "", lastError("agentdb_prompt_create failed")
+	}
+	result := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return result, nil
+}
+
+// PromptRender renders a prompt template with variable substitution.
+// varsJSON should be a JSON object of key-value string pairs.
+func (db *DB) PromptRender(name string, varsJSON []byte) (string, error) {
+	cname := C.CString(name)
+	defer C.free(unsafe.Pointer(cname))
+
+	var cvars *C.char
+	if varsJSON != nil {
+		cvars = C.CString(string(varsJSON))
+		defer C.free(unsafe.Pointer(cvars))
+	}
+
+	ptr := C.agentdb_prompt_render(db.handle, cname, cvars)
+	if ptr == nil {
+		return "", lastError("agentdb_prompt_render failed")
+	}
+	result := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return result, nil
+}
+
+// ── Data Labels (Privacy) ──────────────────────────────────────────────────
+
+// LabelTag tags a record with a privacy/classification label.
+func (db *DB) LabelTag(tableName, recordID, label, taggedBy string) error {
+	ctbl := C.CString(tableName)
+	defer C.free(unsafe.Pointer(ctbl))
+	crid := C.CString(recordID)
+	defer C.free(unsafe.Pointer(crid))
+	clbl := C.CString(label)
+	defer C.free(unsafe.Pointer(clbl))
+
+	var cby *C.char
+	if taggedBy != "" {
+		cby = C.CString(taggedBy)
+		defer C.free(unsafe.Pointer(cby))
+	}
+
+	rc := C.agentdb_label_tag(db.handle, ctbl, crid, clbl, cby)
+	if rc != 0 {
+		return lastError("agentdb_label_tag failed")
+	}
+	return nil
+}
+
+// LabelUntag removes a specific label from a record.
+func (db *DB) LabelUntag(tableName, recordID, label string) error {
+	ctbl := C.CString(tableName)
+	defer C.free(unsafe.Pointer(ctbl))
+	crid := C.CString(recordID)
+	defer C.free(unsafe.Pointer(crid))
+	clbl := C.CString(label)
+	defer C.free(unsafe.Pointer(clbl))
+
+	rc := C.agentdb_label_untag(db.handle, ctbl, crid, clbl)
+	if rc != 0 {
+		return lastError("agentdb_label_untag failed")
+	}
+	return nil
+}
+
+// LabelGet returns all labels for a record as a JSON array.
+func (db *DB) LabelGet(tableName, recordID string) (string, error) {
+	ctbl := C.CString(tableName)
+	defer C.free(unsafe.Pointer(ctbl))
+	crid := C.CString(recordID)
+	defer C.free(unsafe.Pointer(crid))
+
+	ptr := C.agentdb_label_get(db.handle, ctbl, crid)
+	if ptr == nil {
+		return "", lastError("agentdb_label_get failed")
+	}
+	raw := C.GoString(ptr)
+	C.agentdb_free_string(ptr)
+	return raw, nil
+}
+
+// LabelHas checks if a record has a specific label.
+func (db *DB) LabelHas(tableName, recordID, label string) (bool, error) {
+	ctbl := C.CString(tableName)
+	defer C.free(unsafe.Pointer(ctbl))
+	crid := C.CString(recordID)
+	defer C.free(unsafe.Pointer(crid))
+	clbl := C.CString(label)
+	defer C.free(unsafe.Pointer(clbl))
+
+	rc := C.agentdb_label_has(db.handle, ctbl, crid, clbl)
+	if rc == -1 {
+		return false, lastError("agentdb_label_has failed")
+	}
+	return rc == 1, nil
 }

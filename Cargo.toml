@@ -1,7 +1,7 @@
 # MSRV: 1.95.0 — libsqlite3-sys 0.38+ (via rusqlite 0.40) requires cfg_select! (stable 1.95).
 [package]
 name = "datacules-agentdb"
-version = "0.5.3"
+version = "0.6.0"
 edition = "2021"
 rust-version = "1.95"
 authors = ["Datacules LLC <hello@datacules.com>"]

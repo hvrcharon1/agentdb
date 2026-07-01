@@ -10,6 +10,53 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.6.0] — 2026-07-01 — AI-Native Architecture
+
+### Added
+- **Tool Registry** (`tools.rs`) — register tool definitions with JSON Schema parameters,
+  log invocations with latency tracking, query calls by session or tool name.
+- **Immutable Audit Log** (`audit.rs`) — append-only provenance trail with actor, action,
+  old/new value diffs, and reason. Query by record, actor, or recency.
+- **Token-Budgeted Context Window** (`context.rs`) — manage context entries per session with
+  priority and relevance scores; `build_window(max_tokens)` fills optimally.
+- **Versioned Prompt Templates** (`prompts.rs`) — store, version, and render `{{placeholder}}`
+  templates with model hints and max-token constraints.
+- **Data Classification Labels** (`labels.rs`) — tag any record with privacy/classification
+  labels (PII, sensitive, internal, etc.); query by label across tables.
+- **Schema v5 migration** — 6 new tables (`_adb_tools`, `_adb_tool_calls`, `_adb_audit_log`,
+  `_adb_context_entries`, `_adb_prompt_templates`, `_adb_data_labels`) plus `model` column on
+  vectors and `token_count` on messages.
+- **FFI bindings** for all new layers: `agentdb_tool_register`, `agentdb_tool_list`,
+  `agentdb_tool_log_call`, `agentdb_audit_log`, `agentdb_audit_query_recent`,
+  `agentdb_context_add`, `agentdb_context_build_window`, `agentdb_context_clear`,
+  `agentdb_prompt_create`, `agentdb_prompt_render`, `agentdb_label_tag`,
+  `agentdb_label_untag`, `agentdb_label_get`, `agentdb_label_has`.
+- **Node.js bindings** — `registerTool`, `listTools`, `logToolCall`, `auditLog`,
+  `auditQueryRecent`, `contextAdd`, `contextBuildWindow`, `contextClear`, `promptCreate`,
+  `promptRender`, `labelTag`, `labelUntag`, `labelGet`, `labelHas`.
+- **Go bindings** — `ToolRegister`, `ToolList`, `ToolLogCall`, `AuditLog`,
+  `AuditQueryRecent`, `ContextAdd`, `ContextBuildWindow`, `ContextClear`,
+  `PromptCreate`, `PromptRender`, `LabelTag`, `LabelUntag`, `LabelGet`, `LabelHas`.
+- **DbStats** extended with `tools`, `tool_calls`, `audit_entries`, `prompt_templates`.
+- **Java bindings** — `toolRegister`, `toolList`, `toolLogCall`, `auditLog`,
+  `auditQueryRecent`, `contextAdd`, `contextBuildWindow`, `contextClear`, `promptCreate`,
+  `promptRender`, `labelTag`, `labelUntag`, `labelGet`, `labelHas`.
+- **C# bindings** — `ToolRegister`, `ToolList`, `ToolLogCall`, `AuditLog`,
+  `AuditQueryRecent`, `ContextAdd`, `ContextBuildWindow`, `ContextClear`, `PromptCreate`,
+  `PromptRender`, `LabelTag`, `LabelUntag`, `LabelGet`, `LabelHas`.
+- **WASM bindings** — `tool_register`, `tool_list`, `tool_log_call`, `audit_log`,
+  `audit_query_recent`, `context_add`, `context_build_window`, `context_clear`,
+  `prompt_create`, `prompt_render`, `label_tag`, `label_untag`, `label_get`, `label_has`.
+  Stats now includes all 13 counters.
+- **Async API** — `AsyncToolStore`, `AsyncAuditStore`, `AsyncContextStore`,
+  `AsyncPromptStore`, `AsyncLabelStore` with full method coverage.
+- **MCP Server Interface** (`mcp.rs`) — JSON-RPC 2.0 transport implementing MCP protocol:
+  `initialize`, `tools/list`, `tools/call`, `resources/list`, `resources/read`.
+  Exposes 21 tools covering SQL, vectors, graph, tools, audit, context, prompts, labels.
+- **76 new integration tests** covering all 5 AI-native modules.
+
+---
+
 ## [0.5.3] — 2026-07-01 — API Ergonomics & Serde
 
 ### Added

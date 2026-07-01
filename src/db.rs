@@ -1,9 +1,14 @@
+use crate::audit::AuditStore;
+use crate::context::ContextStore;
 use crate::conversations::ConversationStore;
 use crate::error::Result;
 use crate::fts::FullTextStore;
 use crate::hybrid::{HybridQuery, HybridResult, HybridStore};
+use crate::labels::LabelStore;
 use crate::memory::MemoryGraph;
+use crate::prompts::PromptStore;
 use crate::schema;
+use crate::tools::ToolStore;
 use crate::traces::TraceStore;
 use crate::vectors::VectorStore;
 use crate::workflows::WorkflowStore;
@@ -58,6 +63,31 @@ impl AgentDB {
     /// Access the reasoning-trace layer
     pub fn traces(&self) -> TraceStore {
         TraceStore::new(Arc::clone(&self.conn))
+    }
+
+    /// Access the tool registry and call log
+    pub fn tools(&self) -> ToolStore {
+        ToolStore::new(Arc::clone(&self.conn))
+    }
+
+    /// Access the immutable audit log
+    pub fn audit(&self) -> AuditStore {
+        AuditStore::new(Arc::clone(&self.conn))
+    }
+
+    /// Access the token-budgeted context window manager
+    pub fn context(&self) -> ContextStore {
+        ContextStore::new(Arc::clone(&self.conn))
+    }
+
+    /// Access the versioned prompt template store
+    pub fn prompts(&self) -> PromptStore {
+        PromptStore::new(Arc::clone(&self.conn))
+    }
+
+    /// Access the data classification / privacy label store
+    pub fn labels(&self) -> LabelStore {
+        LabelStore::new(Arc::clone(&self.conn))
     }
 
     /// Run a hybrid graph + vector query
@@ -222,15 +252,19 @@ impl AgentDB {
         let conn = self.conn.lock().unwrap();
         conn.query_row(
             "SELECT
-                 (SELECT COUNT(*)           FROM _adb_collections)          AS collections,
-                 (SELECT COALESCE(SUM(count),0) FROM _adb_collections)      AS vectors,
-                 (SELECT COUNT(*)           FROM _adb_nodes)                 AS nodes,
-                 (SELECT COUNT(*)           FROM _adb_edges)                 AS edges,
-                 (SELECT COUNT(*)           FROM _adb_conversations)         AS conversations,
-                 (SELECT COUNT(*)           FROM _adb_messages)              AS messages,
-                 (SELECT COUNT(*)           FROM _adb_workflows)             AS workflows,
-                 (SELECT COUNT(*)           FROM _adb_workflow_steps)        AS workflow_steps,
-                 (SELECT COUNT(*)           FROM _adb_traces)                AS traces",
+                 (SELECT COUNT(*)                FROM _adb_collections)     AS collections,
+                 (SELECT COALESCE(SUM(count),0)  FROM _adb_collections)     AS vectors,
+                 (SELECT COUNT(*)                FROM _adb_nodes)            AS nodes,
+                 (SELECT COUNT(*)                FROM _adb_edges)            AS edges,
+                 (SELECT COUNT(*)                FROM _adb_conversations)    AS conversations,
+                 (SELECT COUNT(*)                FROM _adb_messages)         AS messages,
+                 (SELECT COUNT(*)                FROM _adb_workflows)        AS workflows,
+                 (SELECT COUNT(*)                FROM _adb_workflow_steps)   AS workflow_steps,
+                 (SELECT COUNT(*)                FROM _adb_traces)           AS traces,
+                 (SELECT COUNT(*)                FROM _adb_tools)            AS tools,
+                 (SELECT COUNT(*)                FROM _adb_tool_calls)       AS tool_calls,
+                 (SELECT COUNT(*)                FROM _adb_audit_log)        AS audit_entries,
+                 (SELECT COUNT(*)                FROM _adb_prompt_templates) AS prompt_templates",
             [],
             |r| {
                 Ok(DbStats {
@@ -243,6 +277,10 @@ impl AgentDB {
                     workflows: r.get(6)?,
                     workflow_steps: r.get(7)?,
                     traces: r.get(8)?,
+                    tools: r.get(9)?,
+                    tool_calls: r.get(10)?,
+                    audit_entries: r.get(11)?,
+                    prompt_templates: r.get(12)?,
                 })
             },
         )
@@ -271,6 +309,14 @@ pub struct DbStats {
     pub workflow_steps: i64,
     /// Total number of reasoning trace entries.
     pub traces: i64,
+    /// Number of registered tool definitions.
+    pub tools: i64,
+    /// Total number of logged tool calls.
+    pub tool_calls: i64,
+    /// Total number of audit log entries.
+    pub audit_entries: i64,
+    /// Total number of prompt template versions.
+    pub prompt_templates: i64,
 }
 
 impl Drop for AgentDB {
