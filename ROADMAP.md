@@ -104,12 +104,15 @@
 - [x] Data Labels (`_adb_data_labels`) — privacy/compliance tagging on any record
 - [x] MCP Server (`src/mcp.rs`) — Model Context Protocol server wrapping all layers
 
-## v0.7.0 — Ecosystem Integrations
-- [ ] `langchain-agentdb` Python package — implements `VectorStore` + `Memory` base classes
-- [ ] LlamaIndex storage adapter
-- [ ] AgentDB Sync — CRDT-based replication protocol
-- [ ] Conflict resolution: last-write-wins + custom strategies
-- [ ] CLI sync commands: `agentdb sync push/pull/watch`
+## v0.7.0 — Ecosystem Integrations ✅
+- [x] `langchain-agentdb` Python package — implements `VectorStore` + `Memory` base classes
+- [x] LlamaIndex storage adapter
+- [x] AgentDB Sync — CRDT-based replication protocol
+- [x] Conflict resolution: last-write-wins + custom strategies
+- [x] Tri-modal hybrid query (vector + graph + FTS weighted blending)
+- [x] OPFS (Origin Private File System) persistence for WASM
+- [x] Ruby gem via `ffi` wrapping the C FFI layer
+- [x] Comprehensive test suites (async API, Node.js, Python)
 
 ## v0.8.0 — WASM Persistence + Ruby SDK
 - [ ] OPFS (Origin Private File System) adapter — persistent browser storage

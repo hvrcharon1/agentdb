@@ -337,7 +337,7 @@ A brief map of what's available. Full API documentation lives on [docs.rs](https
 | v0.4.5 — Dep upgrades (rusqlite 0.40, pyo3 0.29, bincode 2, thiserror 2), MSRV 1.85 | ✅ Released |
 | v0.5.0 — API completeness: 9 new FFI ops, full SDK parity (Go/Node/Java/.NET), hybrid filter, fail_workflow, 9-field DbStats | ✅ Released |
 | v0.6.0 — AI-Native Architecture (Tools, Audit, Context, Prompts, Labels, MCP) | ✅ Released |
-| v0.7.0 — Ecosystem Integrations (LangChain, LlamaIndex, AgentDB Sync) | 🔜 Next |
+| v0.7.0 — Ecosystem Integrations (LangChain, LlamaIndex, AgentDB Sync) | ✅ Released |
 | v0.8.0 — WASM Persistence (OPFS) + Ruby SDK | Planned |
 | v1.0.0 — Production Release | Planned |
 

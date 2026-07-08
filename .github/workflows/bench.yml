@@ -25,13 +25,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
       # Pin to same version as ci.yml so bench code stays fmt-consistent.
-      - name: Install Rust 1.75.0 (bench)
+      - name: Install Rust 1.95.0 (bench)
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: "1.75.0"
+          toolchain: "1.95.0"
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -40,8 +40,8 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-bench-1.75.0-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-bench-1.75.0-
+          key: ${{ runner.os }}-cargo-bench-1.95.0-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-bench-1.95.0-
 
       - name: Run benchmarks
         run: cargo bench --bench vector_search --bench graph_traverse 2>&1 | tee bench_output.txt
