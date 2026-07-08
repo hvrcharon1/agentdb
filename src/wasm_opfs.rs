@@ -55,8 +55,9 @@ use crate::wasm::WasmAgentDB;
 /// Returns `Err` if the browser does not support OPFS.
 #[cfg(feature = "wasm")]
 async fn opfs_root() -> Result<FileSystemDirectoryHandle, JsValue> {
-    let window = web_sys::window()
-        .ok_or_else(|| JsValue::from_str("OPFS: no global `window` object — are you in a Worker?"))?;
+    let window = web_sys::window().ok_or_else(|| {
+        JsValue::from_str("OPFS: no global `window` object — are you in a Worker?")
+    })?;
 
     let navigator = window.navigator();
     let storage = navigator.storage();
@@ -65,9 +66,9 @@ async fn opfs_root() -> Result<FileSystemDirectoryHandle, JsValue> {
     let promise = storage.get_directory();
     let handle = JsFuture::from(promise).await?;
 
-    handle
-        .dyn_into::<FileSystemDirectoryHandle>()
-        .map_err(|_| JsValue::from_str("OPFS: getDirectory() did not return a FileSystemDirectoryHandle"))
+    handle.dyn_into::<FileSystemDirectoryHandle>().map_err(|_| {
+        JsValue::from_str("OPFS: getDirectory() did not return a FileSystemDirectoryHandle")
+    })
 }
 
 /// Build the OPFS filename for a logical database name.
@@ -79,7 +80,10 @@ fn db_filename(name: &str) -> String {
 /// Read an entire OPFS file as bytes. Returns an empty `Vec` if the file does
 /// not exist yet (so that a first-open creates a fresh database).
 #[cfg(feature = "wasm")]
-async fn opfs_read_bytes(dir: &FileSystemDirectoryHandle, filename: &str) -> Result<Vec<u8>, JsValue> {
+async fn opfs_read_bytes(
+    dir: &FileSystemDirectoryHandle,
+    filename: &str,
+) -> Result<Vec<u8>, JsValue> {
     // Attempt to get the file handle without `create: true`.
     // If the file does not exist the browser rejects the promise with a
     // `NotFoundError` — we catch that and return an empty buffer.
@@ -90,8 +94,7 @@ async fn opfs_read_bytes(dir: &FileSystemDirectoryHandle, filename: &str) -> Res
         Ok(v) => v,
         Err(err) => {
             // Treat NotFoundError as "file doesn't exist yet" → empty bytes
-            let name_prop = Reflect::get(&err, &JsValue::from_str("name"))
-                .unwrap_or_default();
+            let name_prop = Reflect::get(&err, &JsValue::from_str("name")).unwrap_or_default();
             if name_prop.as_string().as_deref() == Some("NotFoundError") {
                 return Ok(Vec::new());
             }
@@ -101,7 +104,9 @@ async fn opfs_read_bytes(dir: &FileSystemDirectoryHandle, filename: &str) -> Res
 
     let file_handle = file_handle_val
         .dyn_into::<web_sys::FileSystemFileHandle>()
-        .map_err(|_| JsValue::from_str("OPFS: getFileHandle() did not return a FileSystemFileHandle"))?;
+        .map_err(|_| {
+            JsValue::from_str("OPFS: getFileHandle() did not return a FileSystemFileHandle")
+        })?;
 
     // file_handle.getFile() → Promise<File>
     let file_val = JsFuture::from(file_handle.get_file()).await?;
@@ -126,8 +131,7 @@ async fn opfs_write_bytes(
     let opts = FileSystemGetFileOptions::new();
     opts.set_create(true);
 
-    let file_handle_val =
-        JsFuture::from(dir.get_file_handle_with_options(filename, &opts)).await?;
+    let file_handle_val = JsFuture::from(dir.get_file_handle_with_options(filename, &opts)).await?;
     let file_handle = file_handle_val
         .dyn_into::<web_sys::FileSystemFileHandle>()
         .map_err(|_| {
@@ -214,10 +218,7 @@ pub(crate) fn sqlite_serialize(conn: &rusqlite::Connection) -> Result<Vec<u8>, J
 /// SQLITE_DESERIALIZE_FREEONCLOSE`. We copy `bytes` into a `sqlite3_malloc`
 /// buffer so that SQLite owns the memory for the lifetime of the connection.
 #[cfg(feature = "wasm")]
-pub(crate) fn sqlite_deserialize(
-    conn: &rusqlite::Connection,
-    bytes: &[u8],
-) -> Result<(), JsValue> {
+pub(crate) fn sqlite_deserialize(conn: &rusqlite::Connection, bytes: &[u8]) -> Result<(), JsValue> {
     use libsqlite3_sys as ffi;
     use std::ffi::CString;
 
@@ -345,8 +346,7 @@ pub async fn delete_persistent(name: &str) -> Result<(), JsValue> {
         Ok(_) => Ok(()),
         Err(err) => {
             // NotFoundError is fine — the file is already gone
-            let name_prop = Reflect::get(&err, &JsValue::from_str("name"))
-                .unwrap_or_default();
+            let name_prop = Reflect::get(&err, &JsValue::from_str("name")).unwrap_or_default();
             if name_prop.as_string().as_deref() == Some("NotFoundError") {
                 Ok(())
             } else {
@@ -380,8 +380,10 @@ pub async fn list_databases() -> Result<Vec<String>, JsValue> {
     //
     // entries() returns an async iterator of [name, handle] pairs.
     // We drive it manually using the .next() → Promise<{done, value}> protocol.
-    let entries_iter = js_sys::Reflect::get(&root, &JsValue::from_str("entries"))
-        .map_err(|_| JsValue::from_str("OPFS: FileSystemDirectoryHandle.entries() not available"))?;
+    let entries_iter =
+        js_sys::Reflect::get(&root, &JsValue::from_str("entries")).map_err(|_| {
+            JsValue::from_str("OPFS: FileSystemDirectoryHandle.entries() not available")
+        })?;
 
     let entries_fn = entries_iter
         .dyn_ref::<js_sys::Function>()

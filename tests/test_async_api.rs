@@ -12,7 +12,9 @@ use std::collections::HashMap;
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 async fn open() -> AsyncAgentDB {
-    AsyncAgentDB::open(":memory:").await.expect("failed to open async in-memory db")
+    AsyncAgentDB::open(":memory:")
+        .await
+        .expect("failed to open async in-memory db")
 }
 
 // ── AsyncAgentDB open / close ─────────────────────────────────────────────────
@@ -178,7 +180,11 @@ async fn async_vector_upsert_updates_existing() {
     })
     .await
     .unwrap();
-    assert_eq!(col.count().await.unwrap(), 1, "re-upsert must not inflate count");
+    assert_eq!(
+        col.count().await.unwrap(),
+        1,
+        "re-upsert must not inflate count"
+    );
 }
 
 #[tokio::test]
@@ -186,9 +192,21 @@ async fn async_vector_batch_upsert() {
     let db = open().await;
     let col = db.vectors().collection("batch", 4).await.unwrap();
     let entries = vec![
-        BatchEntry { id: "b1".into(), vector: vec![1.0, 0.0, 0.0, 0.0], metadata: None },
-        BatchEntry { id: "b2".into(), vector: vec![0.0, 1.0, 0.0, 0.0], metadata: None },
-        BatchEntry { id: "b3".into(), vector: vec![0.0, 0.0, 1.0, 0.0], metadata: None },
+        BatchEntry {
+            id: "b1".into(),
+            vector: vec![1.0, 0.0, 0.0, 0.0],
+            metadata: None,
+        },
+        BatchEntry {
+            id: "b2".into(),
+            vector: vec![0.0, 1.0, 0.0, 0.0],
+            metadata: None,
+        },
+        BatchEntry {
+            id: "b3".into(),
+            vector: vec![0.0, 0.0, 1.0, 0.0],
+            metadata: None,
+        },
     ];
     let inserted = col.upsert_batch(entries).await.unwrap();
     assert_eq!(inserted, 3);
@@ -249,8 +267,14 @@ async fn async_vector_upsert_with_text() {
 async fn async_conversation_create_and_list() {
     let db = open().await;
     let convs = db.conversations();
-    convs.create_conversation("c1", Some("First"), None).await.unwrap();
-    convs.create_conversation("c2", None, Some(json!({"agent": "bot"}))).await.unwrap();
+    convs
+        .create_conversation("c1", Some("First"), None)
+        .await
+        .unwrap();
+    convs
+        .create_conversation("c2", None, Some(json!({"agent": "bot"})))
+        .await
+        .unwrap();
     let list = convs.list_conversations().await.unwrap();
     assert_eq!(list.len(), 2);
     assert!(list.iter().any(|c| c.id == "c1"));
@@ -262,7 +286,10 @@ async fn async_conversation_add_message_returns_id() {
     let db = open().await;
     let convs = db.conversations();
     convs.create_conversation("c1", None, None).await.unwrap();
-    let id = convs.add_message("c1", "user", "Hello!", None).await.unwrap();
+    let id = convs
+        .add_message("c1", "user", "Hello!", None)
+        .await
+        .unwrap();
     assert!(!id.is_empty());
 }
 
@@ -271,9 +298,18 @@ async fn async_conversation_get_messages_ordered() {
     let db = open().await;
     let convs = db.conversations();
     convs.create_conversation("c1", None, None).await.unwrap();
-    convs.add_message("c1", "system", "You are helpful.", None).await.unwrap();
-    convs.add_message("c1", "user", "What is 2+2?", None).await.unwrap();
-    convs.add_message("c1", "assistant", "4.", None).await.unwrap();
+    convs
+        .add_message("c1", "system", "You are helpful.", None)
+        .await
+        .unwrap();
+    convs
+        .add_message("c1", "user", "What is 2+2?", None)
+        .await
+        .unwrap();
+    convs
+        .add_message("c1", "assistant", "4.", None)
+        .await
+        .unwrap();
     let msgs = convs.get_messages("c1", None).await.unwrap();
     assert_eq!(msgs.len(), 3);
     assert_eq!(msgs[0].role, "system");
@@ -288,7 +324,10 @@ async fn async_conversation_get_messages_with_limit() {
     let convs = db.conversations();
     convs.create_conversation("c1", None, None).await.unwrap();
     for i in 0..6u32 {
-        convs.add_message("c1", "user", &format!("msg {i}"), None).await.unwrap();
+        convs
+            .add_message("c1", "user", &format!("msg {i}"), None)
+            .await
+            .unwrap();
     }
     let msgs = convs.get_messages("c1", Some(3)).await.unwrap();
     assert_eq!(msgs.len(), 3);
@@ -310,8 +349,14 @@ async fn async_conversation_search_messages() {
     let db = open().await;
     let convs = db.conversations();
     convs.create_conversation("c1", None, None).await.unwrap();
-    convs.add_message("c1", "user", "The quick brown fox", None).await.unwrap();
-    convs.add_message("c1", "assistant", "It jumps over the lazy dog", None).await.unwrap();
+    convs
+        .add_message("c1", "user", "The quick brown fox", None)
+        .await
+        .unwrap();
+    convs
+        .add_message("c1", "assistant", "It jumps over the lazy dog", None)
+        .await
+        .unwrap();
     let results = convs.search_messages("fox", 10, None).await.unwrap();
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].conversation_id, "c1");
@@ -323,11 +368,20 @@ async fn async_conversation_search_messages_filter_by_conversation() {
     let convs = db.conversations();
     convs.create_conversation("c1", None, None).await.unwrap();
     convs.create_conversation("c2", None, None).await.unwrap();
-    convs.add_message("c1", "user", "apple banana", None).await.unwrap();
-    convs.add_message("c2", "user", "apple orange", None).await.unwrap();
+    convs
+        .add_message("c1", "user", "apple banana", None)
+        .await
+        .unwrap();
+    convs
+        .add_message("c2", "user", "apple orange", None)
+        .await
+        .unwrap();
     let all = convs.search_messages("apple", 10, None).await.unwrap();
     assert_eq!(all.len(), 2);
-    let c1_only = convs.search_messages("apple", 10, Some("c1")).await.unwrap();
+    let c1_only = convs
+        .search_messages("apple", 10, Some("c1"))
+        .await
+        .unwrap();
     assert_eq!(c1_only.len(), 1);
     assert_eq!(c1_only[0].conversation_id, "c1");
 }
@@ -363,9 +417,13 @@ async fn async_workflow_full_lifecycle() {
 async fn async_workflow_fail() {
     let db = open().await;
     let wf = db.workflows();
-    wf.create_workflow("wf-fail", "Failing", None, None).await.unwrap();
+    wf.create_workflow("wf-fail", "Failing", None, None)
+        .await
+        .unwrap();
     wf.add_step("wf-fail", "Step1", None).await.unwrap();
-    wf.fail_workflow("wf-fail", Some("network timeout")).await.unwrap();
+    wf.fail_workflow("wf-fail", Some("network timeout"))
+        .await
+        .unwrap();
     let workflow = wf.get_workflow("wf-fail").await.unwrap();
     assert_eq!(workflow.status, "failed");
 }
@@ -445,7 +503,9 @@ async fn async_trace_tree() {
 async fn async_memory_add_node_and_get() {
     let db = open().await;
     let mem = db.memory();
-    mem.add_node("n1", "concept", Some(json!({"value": 42}))).await.unwrap();
+    mem.add_node("n1", "concept", Some(json!({"value": 42})))
+        .await
+        .unwrap();
     let node = mem.get_node("n1").await.unwrap();
     assert_eq!(node.id, "n1");
     assert_eq!(node.kind, "concept");
@@ -463,7 +523,14 @@ async fn async_memory_add_edge_and_neighbors() {
     mem.add_edge("a", "b", "knows", 1.0).await.unwrap();
     mem.add_edge("a", "c", "knows", 0.5).await.unwrap();
     let nbrs = mem
-        .neighbors("a", TraversalOptions { relation: None, max_depth: 1, min_weight: None })
+        .neighbors(
+            "a",
+            TraversalOptions {
+                relation: None,
+                max_depth: 1,
+                min_weight: None,
+            },
+        )
         .await
         .unwrap();
     assert_eq!(nbrs.len(), 2);
@@ -506,7 +573,14 @@ async fn async_memory_delete_node_and_edge() {
     // Delete the edge first, then verify it's gone
     mem.delete_edge("p", "q", "linked").await.unwrap();
     let nbrs = mem
-        .neighbors("p", TraversalOptions { relation: None, max_depth: 1, min_weight: None })
+        .neighbors(
+            "p",
+            TraversalOptions {
+                relation: None,
+                max_depth: 1,
+                min_weight: None,
+            },
+        )
         .await
         .unwrap();
     assert!(nbrs.is_empty());
@@ -514,7 +588,10 @@ async fn async_memory_delete_node_and_edge() {
     // Delete the node
     mem.delete_node("p").await.unwrap();
     let result = mem.get_node("p").await;
-    assert!(result.is_err(), "get_node on deleted node should return an error");
+    assert!(
+        result.is_err(),
+        "get_node on deleted node should return an error"
+    );
 }
 
 #[tokio::test]
@@ -536,12 +613,22 @@ async fn async_memory_nodes_by_kind() {
 async fn async_fts_index_and_search() {
     let db = open().await;
     let fts = db.fts();
-    fts.index_text("docs", "d1", "col1", "The quick brown fox jumps over the lazy dog")
-        .await
-        .unwrap();
-    fts.index_text("docs", "d2", "col1", "A fast red car drove past the sleeping cat")
-        .await
-        .unwrap();
+    fts.index_text(
+        "docs",
+        "d1",
+        "col1",
+        "The quick brown fox jumps over the lazy dog",
+    )
+    .await
+    .unwrap();
+    fts.index_text(
+        "docs",
+        "d2",
+        "col1",
+        "A fast red car drove past the sleeping cat",
+    )
+    .await
+    .unwrap();
     let results = fts.search("docs", "quick fox", 10).await.unwrap();
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].id, "d1");
@@ -550,7 +637,11 @@ async fn async_fts_index_and_search() {
 #[tokio::test]
 async fn async_fts_search_empty_collection() {
     let db = open().await;
-    let results = db.fts().search("nonexistent", "anything", 10).await.unwrap();
+    let results = db
+        .fts()
+        .search("nonexistent", "anything", 10)
+        .await
+        .unwrap();
     assert!(results.is_empty());
 }
 
@@ -558,8 +649,12 @@ async fn async_fts_search_empty_collection() {
 async fn async_fts_delete_text() {
     let db = open().await;
     let fts = db.fts();
-    fts.index_text("notes", "n1", "col1", "Important meeting tomorrow").await.unwrap();
-    fts.index_text("notes", "n2", "col1", "Meeting cancelled").await.unwrap();
+    fts.index_text("notes", "n1", "col1", "Important meeting tomorrow")
+        .await
+        .unwrap();
+    fts.index_text("notes", "n2", "col1", "Meeting cancelled")
+        .await
+        .unwrap();
     fts.delete_text("notes", "n1").await.unwrap();
     let results = fts.search("notes", "meeting", 10).await.unwrap();
     assert_eq!(results.len(), 1);
@@ -570,8 +665,12 @@ async fn async_fts_delete_text() {
 async fn async_fts_upsert_replaces_existing() {
     let db = open().await;
     let fts = db.fts();
-    fts.index_text("docs", "d1", "col1", "Original content here").await.unwrap();
-    fts.index_text("docs", "d1", "col1", "Updated replacement content").await.unwrap();
+    fts.index_text("docs", "d1", "col1", "Original content here")
+        .await
+        .unwrap();
+    fts.index_text("docs", "d1", "col1", "Updated replacement content")
+        .await
+        .unwrap();
     let old_results = fts.search("docs", "original", 10).await.unwrap();
     assert!(old_results.is_empty());
     let new_results = fts.search("docs", "replacement", 10).await.unwrap();
@@ -583,7 +682,9 @@ async fn async_fts_upsert_replaces_existing() {
 async fn async_fts_optimize() {
     let db = open().await;
     let fts = db.fts();
-    fts.index_text("opt", "o1", "col1", "Optimization test document").await.unwrap();
+    fts.index_text("opt", "o1", "col1", "Optimization test document")
+        .await
+        .unwrap();
     fts.optimize("opt").await.unwrap();
     let results = fts.search("opt", "optimization", 10).await.unwrap();
     assert_eq!(results.len(), 1);
@@ -594,9 +695,14 @@ async fn async_fts_top_k_limits_results() {
     let db = open().await;
     let fts = db.fts();
     for i in 0..8u32 {
-        fts.index_text("many", &format!("m{i}"), "col1", &format!("document with query word {i}"))
-            .await
-            .unwrap();
+        fts.index_text(
+            "many",
+            &format!("m{i}"),
+            "col1",
+            &format!("document with query word {i}"),
+        )
+        .await
+        .unwrap();
     }
     let results = fts.search("many", "query", 3).await.unwrap();
     assert!(results.len() <= 3);
@@ -639,8 +745,14 @@ async fn async_tool_register_with_schema() {
 async fn async_tool_upsert_on_conflict() {
     let db = open().await;
     let tools = db.tools();
-    tools.register_tool("calc", Some("v1"), None, Some("1.0")).await.unwrap();
-    tools.register_tool("calc", Some("v2"), None, Some("2.0")).await.unwrap();
+    tools
+        .register_tool("calc", Some("v1"), None, Some("1.0"))
+        .await
+        .unwrap();
+    tools
+        .register_tool("calc", Some("v2"), None, Some("2.0"))
+        .await
+        .unwrap();
     let tool = tools.get_tool("calc").await.unwrap();
     assert_eq!(tool.description.as_deref(), Some("v2"));
     assert_eq!(tools.list_tools().await.unwrap().len(), 1);
@@ -650,9 +762,18 @@ async fn async_tool_upsert_on_conflict() {
 async fn async_tool_list_all() {
     let db = open().await;
     let tools = db.tools();
-    tools.register_tool("tool_a", None, None, None).await.unwrap();
-    tools.register_tool("tool_b", None, None, None).await.unwrap();
-    tools.register_tool("tool_c", None, None, None).await.unwrap();
+    tools
+        .register_tool("tool_a", None, None, None)
+        .await
+        .unwrap();
+    tools
+        .register_tool("tool_b", None, None, None)
+        .await
+        .unwrap();
+    tools
+        .register_tool("tool_c", None, None, None)
+        .await
+        .unwrap();
     let list = tools.list_tools().await.unwrap();
     assert_eq!(list.len(), 3);
 }
@@ -682,7 +803,10 @@ async fn async_tool_log_call_and_get() {
         .await
         .unwrap();
     assert!(!call_id.is_empty());
-    let calls = tools.get_tool_calls(Some("sess-1"), None, None).await.unwrap();
+    let calls = tools
+        .get_tool_calls(Some("sess-1"), None, None)
+        .await
+        .unwrap();
     assert_eq!(calls.len(), 1);
     assert_eq!(calls[0].tool_name, "web_search");
     assert_eq!(calls[0].latency_ms, Some(50));
@@ -693,10 +817,20 @@ async fn async_tool_log_call_with_error() {
     let db = open().await;
     let tools = db.tools();
     tools
-        .log_tool_call(Some("sess-2"), "api_call", None, None, Some("timeout"), Some(30000))
+        .log_tool_call(
+            Some("sess-2"),
+            "api_call",
+            None,
+            None,
+            Some("timeout"),
+            Some(30000),
+        )
         .await
         .unwrap();
-    let calls = tools.get_tool_calls(Some("sess-2"), None, None).await.unwrap();
+    let calls = tools
+        .get_tool_calls(Some("sess-2"), None, None)
+        .await
+        .unwrap();
     assert_eq!(calls[0].error.as_deref(), Some("timeout"));
 }
 
@@ -704,9 +838,18 @@ async fn async_tool_log_call_with_error() {
 async fn async_tool_get_calls_filter_by_tool_name() {
     let db = open().await;
     let tools = db.tools();
-    tools.log_tool_call(Some("s1"), "search", None, None, None, None).await.unwrap();
-    tools.log_tool_call(Some("s1"), "calc", None, None, None, None).await.unwrap();
-    let calc_calls = tools.get_tool_calls(None, Some("calc"), None).await.unwrap();
+    tools
+        .log_tool_call(Some("s1"), "search", None, None, None, None)
+        .await
+        .unwrap();
+    tools
+        .log_tool_call(Some("s1"), "calc", None, None, None, None)
+        .await
+        .unwrap();
+    let calc_calls = tools
+        .get_tool_calls(None, Some("calc"), None)
+        .await
+        .unwrap();
     assert_eq!(calc_calls.len(), 1);
     assert_eq!(calc_calls[0].tool_name, "calc");
 }
@@ -716,9 +859,15 @@ async fn async_tool_get_calls_with_limit() {
     let db = open().await;
     let tools = db.tools();
     for _ in 0..6u32 {
-        tools.log_tool_call(Some("s1"), "ping", None, None, None, None).await.unwrap();
+        tools
+            .log_tool_call(Some("s1"), "ping", None, None, None, None)
+            .await
+            .unwrap();
     }
-    let limited = tools.get_tool_calls(Some("s1"), None, Some(3)).await.unwrap();
+    let limited = tools
+        .get_tool_calls(Some("s1"), None, Some(3))
+        .await
+        .unwrap();
     assert_eq!(limited.len(), 3);
 }
 
@@ -759,7 +908,10 @@ async fn async_audit_log_with_old_and_new_values() {
         )
         .await
         .unwrap();
-    let entries = audit.query_by_record("table_a", "rec-1", None).await.unwrap();
+    let entries = audit
+        .query_by_record("table_a", "rec-1", None)
+        .await
+        .unwrap();
     assert_eq!(entries.len(), 1);
     let e = &entries[0];
     assert_eq!(e.actor.as_deref(), Some("agent-1"));
@@ -773,9 +925,18 @@ async fn async_audit_log_with_old_and_new_values() {
 async fn async_audit_query_by_actor() {
     let db = open().await;
     let audit = db.audit();
-    audit.log(Some("alice"), "insert", "t", "r1", None, None, None).await.unwrap();
-    audit.log(Some("bob"), "insert", "t", "r2", None, None, None).await.unwrap();
-    audit.log(Some("alice"), "update", "t", "r1", None, None, None).await.unwrap();
+    audit
+        .log(Some("alice"), "insert", "t", "r1", None, None, None)
+        .await
+        .unwrap();
+    audit
+        .log(Some("bob"), "insert", "t", "r2", None, None, None)
+        .await
+        .unwrap();
+    audit
+        .log(Some("alice"), "update", "t", "r1", None, None, None)
+        .await
+        .unwrap();
     let alice_entries = audit.query_by_actor("alice", None).await.unwrap();
     assert_eq!(alice_entries.len(), 2);
     for e in &alice_entries {
@@ -788,7 +949,10 @@ async fn async_audit_query_recent_with_limit() {
     let db = open().await;
     let audit = db.audit();
     for i in 0..5u32 {
-        audit.log(None, "ping", "t", &format!("r{i}"), None, None, None).await.unwrap();
+        audit
+            .log(None, "ping", "t", &format!("r{i}"), None, None, None)
+            .await
+            .unwrap();
     }
     let recent = audit.query_recent(Some(2)).await.unwrap();
     assert_eq!(recent.len(), 2);
@@ -800,7 +964,10 @@ async fn async_audit_query_by_record_with_limit() {
     let db = open().await;
     let audit = db.audit();
     for _ in 0..4u32 {
-        audit.log(None, "touch", "tbl", "rec", None, None, None).await.unwrap();
+        audit
+            .log(None, "touch", "tbl", "rec", None, None, None)
+            .await
+            .unwrap();
     }
     let results = audit.query_by_record("tbl", "rec", Some(2)).await.unwrap();
     assert_eq!(results.len(), 2);
@@ -813,7 +980,15 @@ async fn async_context_add_entry_and_get() {
     let db = open().await;
     let ctx = db.context();
     let id = ctx
-        .add_entry("sess-1", "message", "msg-001", Some("Hello world"), 5, 0.9, 10)
+        .add_entry(
+            "sess-1",
+            "message",
+            "msg-001",
+            Some("Hello world"),
+            5,
+            0.9,
+            10,
+        )
         .await
         .unwrap();
     assert!(!id.is_empty());
@@ -828,9 +1003,15 @@ async fn async_context_add_entry_and_get() {
 async fn async_context_build_window_respects_token_budget() {
     let db = open().await;
     let ctx = db.context();
-    ctx.add_entry("s1", "a", "1", None, 50, 0.9, 10).await.unwrap();
-    ctx.add_entry("s1", "b", "2", None, 50, 0.8, 9).await.unwrap();
-    ctx.add_entry("s1", "c", "3", None, 50, 0.7, 8).await.unwrap();
+    ctx.add_entry("s1", "a", "1", None, 50, 0.9, 10)
+        .await
+        .unwrap();
+    ctx.add_entry("s1", "b", "2", None, 50, 0.8, 9)
+        .await
+        .unwrap();
+    ctx.add_entry("s1", "c", "3", None, 50, 0.7, 8)
+        .await
+        .unwrap();
     let window = ctx.build_window("s1", 100).await.unwrap();
     assert_eq!(window.len(), 2);
     let total: i64 = window.iter().map(|e| e.token_count).sum();
@@ -841,8 +1022,12 @@ async fn async_context_build_window_respects_token_budget() {
 async fn async_context_build_window_prioritises_high_priority() {
     let db = open().await;
     let ctx = db.context();
-    ctx.add_entry("s1", "low", "1", None, 30, 0.9, 1).await.unwrap();
-    ctx.add_entry("s1", "high", "2", None, 30, 0.5, 100).await.unwrap();
+    ctx.add_entry("s1", "low", "1", None, 30, 0.9, 1)
+        .await
+        .unwrap();
+    ctx.add_entry("s1", "high", "2", None, 30, 0.5, 100)
+        .await
+        .unwrap();
     let window = ctx.build_window("s1", 40).await.unwrap();
     assert_eq!(window.len(), 1);
     assert_eq!(window[0].source_type, "high");
@@ -852,8 +1037,12 @@ async fn async_context_build_window_prioritises_high_priority() {
 async fn async_context_clear_session() {
     let db = open().await;
     let ctx = db.context();
-    ctx.add_entry("s1", "a", "1", None, 10, 0.5, 1).await.unwrap();
-    ctx.add_entry("s1", "b", "2", None, 10, 0.5, 1).await.unwrap();
+    ctx.add_entry("s1", "a", "1", None, 10, 0.5, 1)
+        .await
+        .unwrap();
+    ctx.add_entry("s1", "b", "2", None, 10, 0.5, 1)
+        .await
+        .unwrap();
     ctx.clear_session("s1").await.unwrap();
     assert!(ctx.get_entries("s1").await.unwrap().is_empty());
 }
@@ -862,8 +1051,13 @@ async fn async_context_clear_session() {
 async fn async_context_remove_entry() {
     let db = open().await;
     let ctx = db.context();
-    let id = ctx.add_entry("s1", "a", "1", None, 10, 0.5, 1).await.unwrap();
-    ctx.add_entry("s1", "b", "2", None, 10, 0.5, 1).await.unwrap();
+    let id = ctx
+        .add_entry("s1", "a", "1", None, 10, 0.5, 1)
+        .await
+        .unwrap();
+    ctx.add_entry("s1", "b", "2", None, 10, 0.5, 1)
+        .await
+        .unwrap();
     ctx.remove_entry(&id).await.unwrap();
     let entries = ctx.get_entries("s1").await.unwrap();
     assert_eq!(entries.len(), 1);
@@ -877,7 +1071,13 @@ async fn async_prompt_create_template_and_get() {
     let db = open().await;
     let prompts = db.prompts();
     let id = prompts
-        .create_template("greeting", "Hello, {{name}}!", Some("claude-3-opus"), Some(4096), None)
+        .create_template(
+            "greeting",
+            "Hello, {{name}}!",
+            Some("claude-3-opus"),
+            Some(4096),
+            None,
+        )
         .await
         .unwrap();
     assert!(!id.is_empty());
@@ -892,9 +1092,18 @@ async fn async_prompt_create_template_and_get() {
 async fn async_prompt_versioning() {
     let db = open().await;
     let prompts = db.prompts();
-    prompts.create_template("sys", "You are v1", None, None, None).await.unwrap();
-    prompts.create_template("sys", "You are v2", None, None, None).await.unwrap();
-    prompts.create_template("sys", "You are v3", None, None, None).await.unwrap();
+    prompts
+        .create_template("sys", "You are v1", None, None, None)
+        .await
+        .unwrap();
+    prompts
+        .create_template("sys", "You are v2", None, None, None)
+        .await
+        .unwrap();
+    prompts
+        .create_template("sys", "You are v3", None, None, None)
+        .await
+        .unwrap();
     let latest = prompts.get_template("sys").await.unwrap();
     assert_eq!(latest.version, 3);
     assert_eq!(latest.template, "You are v3");
@@ -904,9 +1113,18 @@ async fn async_prompt_versioning() {
 async fn async_prompt_list_templates() {
     let db = open().await;
     let prompts = db.prompts();
-    prompts.create_template("a", "body a", None, None, None).await.unwrap();
-    prompts.create_template("a", "body a v2", None, None, None).await.unwrap();
-    prompts.create_template("b", "body b", None, None, None).await.unwrap();
+    prompts
+        .create_template("a", "body a", None, None, None)
+        .await
+        .unwrap();
+    prompts
+        .create_template("a", "body a v2", None, None, None)
+        .await
+        .unwrap();
+    prompts
+        .create_template("b", "body b", None, None, None)
+        .await
+        .unwrap();
     let list = prompts.list_templates().await.unwrap();
     assert_eq!(list.len(), 3);
 }
@@ -916,7 +1134,13 @@ async fn async_prompt_render_with_vars() {
     let db = open().await;
     let prompts = db.prompts();
     prompts
-        .create_template("greet", "Hello {{name}}, welcome to {{place}}!", None, None, None)
+        .create_template(
+            "greet",
+            "Hello {{name}}, welcome to {{place}}!",
+            None,
+            None,
+            None,
+        )
         .await
         .unwrap();
     let mut vars = HashMap::new();
@@ -944,8 +1168,14 @@ async fn async_prompt_render_missing_var_left_intact() {
 async fn async_prompt_delete_template() {
     let db = open().await;
     let prompts = db.prompts();
-    prompts.create_template("doomed", "v1", None, None, None).await.unwrap();
-    prompts.create_template("doomed", "v2", None, None, None).await.unwrap();
+    prompts
+        .create_template("doomed", "v1", None, None, None)
+        .await
+        .unwrap();
+    prompts
+        .create_template("doomed", "v2", None, None, None)
+        .await
+        .unwrap();
     prompts.delete_template("doomed").await.unwrap();
     assert!(prompts.get_template("doomed").await.is_err());
     // Deleting a non-existent template should not error
@@ -958,7 +1188,10 @@ async fn async_prompt_delete_template() {
 async fn async_label_tag_and_get() {
     let db = open().await;
     let labels = db.labels();
-    labels.tag("_adb_messages", "msg-1", "pii", Some("agent-1")).await.unwrap();
+    labels
+        .tag("_adb_messages", "msg-1", "pii", Some("agent-1"))
+        .await
+        .unwrap();
     let result = labels.get_labels("_adb_messages", "msg-1").await.unwrap();
     assert_eq!(result.len(), 1);
     assert_eq!(result[0].label, "pii");
@@ -980,8 +1213,14 @@ async fn async_label_multiple_labels_on_record() {
 async fn async_label_upsert_on_duplicate() {
     let db = open().await;
     let labels = db.labels();
-    labels.tag("tbl", "rec", "secret", Some("alice")).await.unwrap();
-    labels.tag("tbl", "rec", "secret", Some("bob")).await.unwrap();
+    labels
+        .tag("tbl", "rec", "secret", Some("alice"))
+        .await
+        .unwrap();
+    labels
+        .tag("tbl", "rec", "secret", Some("bob"))
+        .await
+        .unwrap();
     let result = labels.get_labels("tbl", "rec").await.unwrap();
     assert_eq!(result.len(), 1);
     assert_eq!(result[0].tagged_by.as_deref(), Some("bob"));
@@ -1030,7 +1269,10 @@ async fn async_label_find_by_label_with_limit() {
     let db = open().await;
     let labels = db.labels();
     for i in 0..8u32 {
-        labels.tag("tbl", &format!("r{i}"), "tag", None).await.unwrap();
+        labels
+            .tag("tbl", &format!("r{i}"), "tag", None)
+            .await
+            .unwrap();
     }
     let results = labels.find_by_label("tag", Some(3)).await.unwrap();
     assert_eq!(results.len(), 3);
@@ -1064,23 +1306,39 @@ async fn async_stats_reflects_all_stores() {
 
     // Vectors
     let col = db.vectors().collection("stats_col", 4).await.unwrap();
-    col.upsert(VectorEntry { id: "v1".into(), vector: vec![1.0, 0.0, 0.0, 0.0], metadata: None })
-        .await
-        .unwrap();
+    col.upsert(VectorEntry {
+        id: "v1".into(),
+        vector: vec![1.0, 0.0, 0.0, 0.0],
+        metadata: None,
+    })
+    .await
+    .unwrap();
 
     // Memory nodes
     db.memory().add_node("n1", "concept", None).await.unwrap();
     db.memory().add_node("n2", "concept", None).await.unwrap();
 
     // Conversation
-    db.conversations().create_conversation("c1", None, None).await.unwrap();
+    db.conversations()
+        .create_conversation("c1", None, None)
+        .await
+        .unwrap();
 
     // Tools
-    db.tools().register_tool("my_tool", None, None, None).await.unwrap();
-    db.tools().log_tool_call(None, "my_tool", None, None, None, None).await.unwrap();
+    db.tools()
+        .register_tool("my_tool", None, None, None)
+        .await
+        .unwrap();
+    db.tools()
+        .log_tool_call(None, "my_tool", None, None, None, None)
+        .await
+        .unwrap();
 
     // Audit
-    db.audit().log(None, "op", "t", "r", None, None, None).await.unwrap();
+    db.audit()
+        .log(None, "op", "t", "r", None, None, None)
+        .await
+        .unwrap();
 
     let s = db.stats().await.unwrap();
     assert_eq!(s.collections, 1);

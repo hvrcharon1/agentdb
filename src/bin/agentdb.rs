@@ -415,7 +415,7 @@ fn cmd_migrate(path: &str) -> agentdb::Result<()> {
 /// row in each matching table.  Internal SQLite tables (`sqlite_*`) are always
 /// excluded.
 fn cmd_export(path: &str, only_table: Option<&str>) -> agentdb::Result<()> {
-    use rusqlite::{Connection, params};
+    use rusqlite::{params, Connection};
 
     let conn = Connection::open(path).map_err(agentdb::AgentDbError::Sqlite)?;
 

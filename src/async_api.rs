@@ -804,8 +804,14 @@ impl AsyncToolStore {
         let name = tool_name.to_string();
         let err = error.map(|s| s.to_string());
         task::spawn_blocking(move || {
-            db.tools()
-                .log_tool_call(sid.as_deref(), &name, arguments, result, err.as_deref(), latency_ms)
+            db.tools().log_tool_call(
+                sid.as_deref(),
+                &name,
+                arguments,
+                result,
+                err.as_deref(),
+                latency_ms,
+            )
         })
         .await
         .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
@@ -887,7 +893,11 @@ impl AsyncAuditStore {
     }
 
     /// Query audit entries by actor.
-    pub async fn query_by_actor(&self, actor: &str, limit: Option<usize>) -> Result<Vec<AuditEntry>> {
+    pub async fn query_by_actor(
+        &self,
+        actor: &str,
+        limit: Option<usize>,
+    ) -> Result<Vec<AuditEntry>> {
         let db = self.inner.clone();
         let actor = actor.to_string();
         task::spawn_blocking(move || db.audit().query_by_actor(&actor, limit))
@@ -930,8 +940,15 @@ impl AsyncContextStore {
         let si = source_id.to_string();
         let cp = content_preview.map(|s| s.to_string());
         task::spawn_blocking(move || {
-            db.context()
-                .add_entry(&sid, &st, &si, cp.as_deref(), token_count, relevance_score, priority)
+            db.context().add_entry(
+                &sid,
+                &st,
+                &si,
+                cp.as_deref(),
+                token_count,
+                relevance_score,
+                priority,
+            )
         })
         .await
         .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
@@ -1091,12 +1108,7 @@ impl AsyncLabelStore {
     }
 
     /// Check if a record has a specific label.
-    pub async fn has_label(
-        &self,
-        table_name: &str,
-        record_id: &str,
-        label: &str,
-    ) -> Result<bool> {
+    pub async fn has_label(&self, table_name: &str, record_id: &str, label: &str) -> Result<bool> {
         let db = self.inner.clone();
         let table = table_name.to_string();
         let record = record_id.to_string();

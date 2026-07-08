@@ -59,7 +59,10 @@ impl McpServer {
         let is_notification = req.get("id").is_none_or(|v| v.is_null());
         let id = req.get("id").cloned().unwrap_or(Value::Null);
         let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("");
-        let params = req.get("params").cloned().unwrap_or(Value::Object(Default::default()));
+        let params = req
+            .get("params")
+            .cloned()
+            .unwrap_or(Value::Object(Default::default()));
 
         // Notifications: no response per JSON-RPC 2.0 / MCP spec
         if is_notification {
@@ -200,7 +203,10 @@ impl McpServer {
             .get("name")
             .and_then(|n| n.as_str())
             .ok_or((-32602, "Missing 'name' parameter".to_string()))?;
-        let args = params.get("arguments").cloned().unwrap_or(Value::Object(Default::default()));
+        let args = params
+            .get("arguments")
+            .cloned()
+            .unwrap_or(Value::Object(Default::default()));
         let vars: HashMap<String, String> = args
             .get("vars")
             .and_then(|v| serde_json::from_value(v.clone()).ok())
@@ -219,11 +225,7 @@ impl McpServer {
         }))
     }
 
-    fn dispatch_tool(
-        &self,
-        name: &str,
-        args: &Value,
-    ) -> std::result::Result<Value, (i32, String)> {
+    fn dispatch_tool(&self, name: &str, args: &Value) -> std::result::Result<Value, (i32, String)> {
         let err = |e: crate::error::AgentDbError| (-32000, e.to_string());
 
         match name {
@@ -261,10 +263,7 @@ impl McpServer {
                     .get("query")
                     .and_then(|v| serde_json::from_value(v.clone()).ok())
                     .ok_or((-32602, "Missing 'query' array".to_string()))?;
-                let top_k = args
-                    .get("top_k")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(10) as usize;
+                let top_k = args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
                 let filter = args.get("filter").cloned();
                 let dim = query.len();
                 let col = self.db.vectors().collection(collection, dim).map_err(err)?;
@@ -304,8 +303,12 @@ impl McpServer {
             }
             "graph_neighbors" => {
                 let node_id = get_str(args, "node_id")?;
-                let max_depth = args.get("max_depth").and_then(|v| v.as_u64()).unwrap_or(2) as usize;
-                let min_weight = args.get("min_weight").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let max_depth =
+                    args.get("max_depth").and_then(|v| v.as_u64()).unwrap_or(2) as usize;
+                let min_weight = args
+                    .get("min_weight")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
                 let relation = args.get("relation").and_then(|v| v.as_str());
                 let results = self
                     .db
@@ -364,7 +367,14 @@ impl McpServer {
                 let id = self
                     .db
                     .tools()
-                    .log_tool_call(session_id, tool_name, arguments, result, error, Some(latency_ms))
+                    .log_tool_call(
+                        session_id,
+                        tool_name,
+                        arguments,
+                        result,
+                        error,
+                        Some(latency_ms),
+                    )
                     .map_err(err)?;
                 Ok(json!({ "id": id }))
             }
@@ -379,7 +389,9 @@ impl McpServer {
                 let id = self
                     .db
                     .audit()
-                    .log(actor, action, table_name, record_id, old_value, new_value, reason)
+                    .log(
+                        actor, action, table_name, record_id, old_value, new_value, reason,
+                    )
                     .map_err(err)?;
                 Ok(json!({ "id": id }))
             }
@@ -552,191 +564,279 @@ impl McpServer {
 
     fn tool_definitions(&self) -> Value {
         json!([
-            tool_def("execute", "Execute a raw SQL statement (DDL/DML)", json!({
-                "type": "object",
-                "properties": { "sql": { "type": "string", "description": "SQL statement" } },
-                "required": ["sql"]
-            })),
-            tool_def("query", "Execute a SELECT and return rows as JSON", json!({
-                "type": "object",
-                "properties": { "sql": { "type": "string", "description": "SELECT statement" } },
-                "required": ["sql"]
-            })),
-            tool_def("vector_upsert", "Insert or update a vector embedding", json!({
-                "type": "object",
-                "properties": {
-                    "collection": { "type": "string" },
-                    "id": { "type": "string" },
-                    "vector": { "type": "array", "items": { "type": "number" } },
-                    "metadata": { "type": "object" }
-                },
-                "required": ["collection", "id", "vector"]
-            })),
-            tool_def("vector_search", "Approximate nearest-neighbor search", json!({
-                "type": "object",
-                "properties": {
-                    "collection": { "type": "string" },
-                    "query": { "type": "array", "items": { "type": "number" } },
-                    "top_k": { "type": "integer", "default": 10 },
-                    "filter": { "type": "object" }
-                },
-                "required": ["collection", "query"]
-            })),
-            tool_def("graph_add_node", "Add or update a memory graph node", json!({
-                "type": "object",
-                "properties": {
-                    "id": { "type": "string" },
-                    "kind": { "type": "string" },
-                    "data": { "type": "object" }
-                },
-                "required": ["id", "kind"]
-            })),
-            tool_def("graph_add_edge", "Add or update a directed graph edge", json!({
-                "type": "object",
-                "properties": {
-                    "src": { "type": "string" },
-                    "dst": { "type": "string" },
-                    "relation": { "type": "string" },
-                    "weight": { "type": "number", "default": 1.0 }
-                },
-                "required": ["src", "dst", "relation"]
-            })),
-            tool_def("graph_neighbors", "Traverse the memory graph from a node", json!({
-                "type": "object",
-                "properties": {
-                    "node_id": { "type": "string" },
-                    "max_depth": { "type": "integer", "default": 2 },
-                    "min_weight": { "type": "number", "default": 0.0 },
-                    "relation": { "type": "string" }
-                },
-                "required": ["node_id"]
-            })),
-            tool_def("tool_register", "Register or update a tool definition", json!({
-                "type": "object",
-                "properties": {
-                    "name": { "type": "string" },
-                    "description": { "type": "string" },
-                    "parameters_schema": { "type": "object" },
-                    "version": { "type": "string" }
-                },
-                "required": ["name"]
-            })),
-            tool_def("tool_list", "List all registered tools", json!({
-                "type": "object", "properties": {}
-            })),
-            tool_def("tool_log_call", "Log a tool invocation", json!({
-                "type": "object",
-                "properties": {
-                    "tool_name": { "type": "string" },
-                    "session_id": { "type": "string" },
-                    "arguments": { "type": "object" },
-                    "result": { "type": "object" },
-                    "error": { "type": "string" },
-                    "latency_ms": { "type": "integer" }
-                },
-                "required": ["tool_name"]
-            })),
-            tool_def("audit_log", "Append an entry to the audit log", json!({
-                "type": "object",
-                "properties": {
-                    "action": { "type": "string" },
-                    "table_name": { "type": "string" },
-                    "record_id": { "type": "string" },
-                    "actor": { "type": "string" },
-                    "old_value": { "type": "object" },
-                    "new_value": { "type": "object" },
-                    "reason": { "type": "string" }
-                },
-                "required": ["action", "table_name", "record_id"]
-            })),
-            tool_def("audit_query_recent", "Query recent audit log entries", json!({
-                "type": "object",
-                "properties": { "limit": { "type": "integer", "default": 100 } }
-            })),
-            tool_def("context_add", "Add an entry to the context window", json!({
-                "type": "object",
-                "properties": {
-                    "session_id": { "type": "string" },
-                    "source_type": { "type": "string" },
-                    "source_id": { "type": "string" },
-                    "content_preview": { "type": "string" },
-                    "token_count": { "type": "integer" },
-                    "relevance_score": { "type": "number" },
-                    "priority": { "type": "integer" }
-                },
-                "required": ["session_id", "source_type", "source_id", "token_count"]
-            })),
-            tool_def("context_build_window", "Build a token-budgeted context window", json!({
-                "type": "object",
-                "properties": {
-                    "session_id": { "type": "string" },
-                    "max_tokens": { "type": "integer" }
-                },
-                "required": ["session_id", "max_tokens"]
-            })),
-            tool_def("context_clear", "Clear all context entries for a session", json!({
-                "type": "object",
-                "properties": { "session_id": { "type": "string" } },
-                "required": ["session_id"]
-            })),
-            tool_def("prompt_create", "Create a new prompt template version", json!({
-                "type": "object",
-                "properties": {
-                    "name": { "type": "string" },
-                    "template": { "type": "string" },
-                    "model_hint": { "type": "string" },
-                    "max_tokens": { "type": "integer" },
-                    "metadata": { "type": "object" }
-                },
-                "required": ["name", "template"]
-            })),
-            tool_def("prompt_render", "Render a prompt template with variables", json!({
-                "type": "object",
-                "properties": {
-                    "name": { "type": "string" },
-                    "vars": { "type": "object", "additionalProperties": { "type": "string" } }
-                },
-                "required": ["name"]
-            })),
-            tool_def("label_tag", "Tag a record with a classification label", json!({
-                "type": "object",
-                "properties": {
-                    "table_name": { "type": "string" },
-                    "record_id": { "type": "string" },
-                    "label": { "type": "string" },
-                    "tagged_by": { "type": "string" }
-                },
-                "required": ["table_name", "record_id", "label"]
-            })),
-            tool_def("label_untag", "Remove a label from a record", json!({
-                "type": "object",
-                "properties": {
-                    "table_name": { "type": "string" },
-                    "record_id": { "type": "string" },
-                    "label": { "type": "string" }
-                },
-                "required": ["table_name", "record_id", "label"]
-            })),
-            tool_def("label_get", "Get all labels for a record", json!({
-                "type": "object",
-                "properties": {
-                    "table_name": { "type": "string" },
-                    "record_id": { "type": "string" }
-                },
-                "required": ["table_name", "record_id"]
-            })),
-            tool_def("label_has", "Check if a record has a specific label", json!({
-                "type": "object",
-                "properties": {
-                    "table_name": { "type": "string" },
-                    "record_id": { "type": "string" },
-                    "label": { "type": "string" }
-                },
-                "required": ["table_name", "record_id", "label"]
-            })),
-            tool_def("stats", "Get database-wide statistics", json!({
-                "type": "object", "properties": {}
-            })),
+            tool_def(
+                "execute",
+                "Execute a raw SQL statement (DDL/DML)",
+                json!({
+                    "type": "object",
+                    "properties": { "sql": { "type": "string", "description": "SQL statement" } },
+                    "required": ["sql"]
+                })
+            ),
+            tool_def(
+                "query",
+                "Execute a SELECT and return rows as JSON",
+                json!({
+                    "type": "object",
+                    "properties": { "sql": { "type": "string", "description": "SELECT statement" } },
+                    "required": ["sql"]
+                })
+            ),
+            tool_def(
+                "vector_upsert",
+                "Insert or update a vector embedding",
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "collection": { "type": "string" },
+                        "id": { "type": "string" },
+                        "vector": { "type": "array", "items": { "type": "number" } },
+                        "metadata": { "type": "object" }
+                    },
+                    "required": ["collection", "id", "vector"]
+                })
+            ),
+            tool_def(
+                "vector_search",
+                "Approximate nearest-neighbor search",
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "collection": { "type": "string" },
+                        "query": { "type": "array", "items": { "type": "number" } },
+                        "top_k": { "type": "integer", "default": 10 },
+                        "filter": { "type": "object" }
+                    },
+                    "required": ["collection", "query"]
+                })
+            ),
+            tool_def(
+                "graph_add_node",
+                "Add or update a memory graph node",
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string" },
+                        "kind": { "type": "string" },
+                        "data": { "type": "object" }
+                    },
+                    "required": ["id", "kind"]
+                })
+            ),
+            tool_def(
+                "graph_add_edge",
+                "Add or update a directed graph edge",
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "src": { "type": "string" },
+                        "dst": { "type": "string" },
+                        "relation": { "type": "string" },
+                        "weight": { "type": "number", "default": 1.0 }
+                    },
+                    "required": ["src", "dst", "relation"]
+                })
+            ),
+            tool_def(
+                "graph_neighbors",
+                "Traverse the memory graph from a node",
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "node_id": { "type": "string" },
+                        "max_depth": { "type": "integer", "default": 2 },
+                        "min_weight": { "type": "number", "default": 0.0 },
+                        "relation": { "type": "string" }
+                    },
+                    "required": ["node_id"]
+                })
+            ),
+            tool_def(
+                "tool_register",
+                "Register or update a tool definition",
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string" },
+                        "description": { "type": "string" },
+                        "parameters_schema": { "type": "object" },
+                        "version": { "type": "string" }
+                    },
+                    "required": ["name"]
+                })
+            ),
+            tool_def(
+                "tool_list",
+                "List all registered tools",
+                json!({
+                    "type": "object", "properties": {}
+                })
+            ),
+            tool_def(
+                "tool_log_call",
+                "Log a tool invocation",
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "tool_name": { "type": "string" },
+                        "session_id": { "type": "string" },
+                        "arguments": { "type": "object" },
+                        "result": { "type": "object" },
+                        "error": { "type": "string" },
+                        "latency_ms": { "type": "integer" }
+                    },
+                    "required": ["tool_name"]
+                })
+            ),
+            tool_def(
+                "audit_log",
+                "Append an entry to the audit log",
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "action": { "type": "string" },
+                        "table_name": { "type": "string" },
+                        "record_id": { "type": "string" },
+                        "actor": { "type": "string" },
+                        "old_value": { "type": "object" },
+                        "new_value": { "type": "object" },
+                        "reason": { "type": "string" }
+                    },
+                    "required": ["action", "table_name", "record_id"]
+                })
+            ),
+            tool_def(
+                "audit_query_recent",
+                "Query recent audit log entries",
+                json!({
+                    "type": "object",
+                    "properties": { "limit": { "type": "integer", "default": 100 } }
+                })
+            ),
+            tool_def(
+                "context_add",
+                "Add an entry to the context window",
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "session_id": { "type": "string" },
+                        "source_type": { "type": "string" },
+                        "source_id": { "type": "string" },
+                        "content_preview": { "type": "string" },
+                        "token_count": { "type": "integer" },
+                        "relevance_score": { "type": "number" },
+                        "priority": { "type": "integer" }
+                    },
+                    "required": ["session_id", "source_type", "source_id", "token_count"]
+                })
+            ),
+            tool_def(
+                "context_build_window",
+                "Build a token-budgeted context window",
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "session_id": { "type": "string" },
+                        "max_tokens": { "type": "integer" }
+                    },
+                    "required": ["session_id", "max_tokens"]
+                })
+            ),
+            tool_def(
+                "context_clear",
+                "Clear all context entries for a session",
+                json!({
+                    "type": "object",
+                    "properties": { "session_id": { "type": "string" } },
+                    "required": ["session_id"]
+                })
+            ),
+            tool_def(
+                "prompt_create",
+                "Create a new prompt template version",
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string" },
+                        "template": { "type": "string" },
+                        "model_hint": { "type": "string" },
+                        "max_tokens": { "type": "integer" },
+                        "metadata": { "type": "object" }
+                    },
+                    "required": ["name", "template"]
+                })
+            ),
+            tool_def(
+                "prompt_render",
+                "Render a prompt template with variables",
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string" },
+                        "vars": { "type": "object", "additionalProperties": { "type": "string" } }
+                    },
+                    "required": ["name"]
+                })
+            ),
+            tool_def(
+                "label_tag",
+                "Tag a record with a classification label",
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "table_name": { "type": "string" },
+                        "record_id": { "type": "string" },
+                        "label": { "type": "string" },
+                        "tagged_by": { "type": "string" }
+                    },
+                    "required": ["table_name", "record_id", "label"]
+                })
+            ),
+            tool_def(
+                "label_untag",
+                "Remove a label from a record",
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "table_name": { "type": "string" },
+                        "record_id": { "type": "string" },
+                        "label": { "type": "string" }
+                    },
+                    "required": ["table_name", "record_id", "label"]
+                })
+            ),
+            tool_def(
+                "label_get",
+                "Get all labels for a record",
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "table_name": { "type": "string" },
+                        "record_id": { "type": "string" }
+                    },
+                    "required": ["table_name", "record_id"]
+                })
+            ),
+            tool_def(
+                "label_has",
+                "Check if a record has a specific label",
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "table_name": { "type": "string" },
+                        "record_id": { "type": "string" },
+                        "label": { "type": "string" }
+                    },
+                    "required": ["table_name", "record_id", "label"]
+                })
+            ),
+            tool_def(
+                "stats",
+                "Get database-wide statistics",
+                json!({
+                    "type": "object", "properties": {}
+                })
+            ),
         ])
     }
 }

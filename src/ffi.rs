@@ -813,10 +813,7 @@ pub unsafe extern "C" fn agentdb_tri_modal_query(
             return std::ptr::null_mut();
         }
     };
-    let anchor_node = obj["anchor_node"]
-        .as_str()
-        .unwrap_or("")
-        .to_string();
+    let anchor_node = obj["anchor_node"].as_str().unwrap_or("").to_string();
     let embedding: Vec<f32> = obj["embedding"]
         .as_array()
         .map(|arr| {
@@ -832,9 +829,10 @@ pub unsafe extern "C" fn agentdb_tri_modal_query(
     let alpha = obj["alpha"].as_f64().unwrap_or(0.33) as f32;
     let beta = obj["beta"].as_f64().unwrap_or(0.33) as f32;
     let gamma = obj["gamma"].as_f64().unwrap_or(0.34) as f32;
-    let filter: Option<serde_json::Value> = obj.get("filter").cloned().and_then(|v| {
-        if v.is_null() { None } else { Some(v) }
-    });
+    let filter: Option<serde_json::Value> =
+        obj.get("filter")
+            .cloned()
+            .and_then(|v| if v.is_null() { None } else { Some(v) });
 
     let q = TriModalQuery {
         anchor_node,

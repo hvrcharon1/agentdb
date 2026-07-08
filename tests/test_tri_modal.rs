@@ -57,8 +57,8 @@ fn tri_modal_basic_all_channels() {
 
     let query = TriModalQuery {
         anchor_node: "anchor".to_string(),
-        embedding: bias_vec(0, 4),          // similar to d1
-        text_query: "rust".to_string(),      // matches d1 and d3
+        embedding: bias_vec(0, 4),      // similar to d1
+        text_query: "rust".to_string(), // matches d1 and d3
         collection: "docs".to_string(),
         graph_depth: 2,
         top_k: 4,
@@ -109,19 +109,31 @@ fn tri_modal_pure_vector_mode() {
         })
         .unwrap();
 
-    assert!(!tri_results.is_empty(), "pure vector mode should return results");
+    assert!(
+        !tri_results.is_empty(),
+        "pure vector mode should return results"
+    );
 
     // All graph_weight components should be None (beta=0, graph not traversed)
     // and all fts_rank components should be None (gamma=0, FTS not queried)
     for r in &tri_results {
-        assert!(r.graph_weight.is_none(), "graph_weight should be None in pure vector mode");
-        assert!(r.fts_rank.is_none(), "fts_rank should be None in pure vector mode");
+        assert!(
+            r.graph_weight.is_none(),
+            "graph_weight should be None in pure vector mode"
+        );
+        assert!(
+            r.fts_rank.is_none(),
+            "fts_rank should be None in pure vector mode"
+        );
         assert!(r.vector_score.is_some(), "vector_score should be present");
     }
 
     // Top result should be d2 (most similar to bias_vec(1,4))
     let top = &tri_results[0];
-    assert_eq!(top.id, "d2", "d2 should be the top result in pure vector mode");
+    assert_eq!(
+        top.id, "d2",
+        "d2 should be the top result in pure vector mode"
+    );
 }
 
 // ── Test 3: Pure FTS mode (alpha=0, beta=0, gamma=1) ──────────────────────
@@ -150,14 +162,23 @@ fn tri_modal_pure_fts_mode() {
 
     // All vector_score and graph_weight components should be None
     for r in &results {
-        assert!(r.vector_score.is_none(), "vector_score should be None in pure FTS mode");
-        assert!(r.graph_weight.is_none(), "graph_weight should be None in pure FTS mode");
+        assert!(
+            r.vector_score.is_none(),
+            "vector_score should be None in pure FTS mode"
+        );
+        assert!(
+            r.graph_weight.is_none(),
+            "graph_weight should be None in pure FTS mode"
+        );
         assert!(r.fts_rank.is_some(), "fts_rank should be present");
     }
 
     // d2 is the only document matching "python machine learning"
     let top = &results[0];
-    assert_eq!(top.id, "d2", "d2 should be the top FTS result for 'python machine learning'");
+    assert_eq!(
+        top.id, "d2",
+        "d2 should be the top FTS result for 'python machine learning'"
+    );
 }
 
 // ── Test 4: Weight validation ──────────────────────────────────────────────
@@ -181,7 +202,10 @@ fn tri_modal_weight_validation_rejects_bad_weights() {
         filter: None,
     });
 
-    assert!(result.is_err(), "should reject weights that don't sum to ~1.0");
+    assert!(
+        result.is_err(),
+        "should reject weights that don't sum to ~1.0"
+    );
     let err_msg = result.unwrap_err().to_string();
     assert!(
         err_msg.contains("alpha") || err_msg.contains("gamma") || err_msg.contains("1.0"),
@@ -210,7 +234,10 @@ fn tri_modal_weight_validation_accepts_valid_weights() {
 
     // 1/3 + 1/3 + 1/3 is slightly less than 1.0 in floating point;
     // the implementation has a 0.01 tolerance so this should pass.
-    assert!(result.is_ok(), "equal thirds should be accepted (within tolerance)");
+    assert!(
+        result.is_ok(),
+        "equal thirds should be accepted (within tolerance)"
+    );
 }
 
 // ── Test 5: Empty result handling ──────────────────────────────────────────
@@ -234,7 +261,10 @@ fn tri_modal_empty_collection_returns_empty() {
         })
         .unwrap();
 
-    assert!(results.is_empty(), "empty collection should return empty results");
+    assert!(
+        results.is_empty(),
+        "empty collection should return empty results"
+    );
 }
 
 #[test]
@@ -259,9 +289,15 @@ fn tri_modal_no_fts_text_skips_fts() {
         .unwrap();
 
     // Should still return results from vector + graph channels
-    assert!(!results.is_empty(), "should return results even without FTS query");
+    assert!(
+        !results.is_empty(),
+        "should return results even without FTS query"
+    );
     for r in &results {
-        assert!(r.fts_rank.is_none(), "fts_rank should be None when text_query is empty");
+        assert!(
+            r.fts_rank.is_none(),
+            "fts_rank should be None when text_query is empty"
+        );
     }
 }
 

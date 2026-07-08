@@ -51,7 +51,10 @@ mod tests {
         // Feed a remote timestamp that's older than our current physical time.
         clock.update(0); // epoch — always in the past
         let t1 = clock.now();
-        assert!(t1 > t0, "clock must not regress after receiving an old remote ts");
+        assert!(
+            t1 > t0,
+            "clock must not regress after receiving an old remote ts"
+        );
     }
 
     // ── record_mutation / get_ops_since ───────────────────────────────────────
@@ -102,7 +105,11 @@ mod tests {
             .unwrap();
 
         let later = engine.get_ops_since(watermark).unwrap();
-        assert_eq!(later.len(), 2, "only ops after watermark should be returned");
+        assert_eq!(
+            later.len(),
+            2,
+            "only ops after watermark should be returned"
+        );
         for op in &later {
             assert!(op.hlc_ts > watermark);
         }
@@ -353,13 +360,19 @@ mod tests {
         let db = open_db();
         let engine = SyncEngine::new(&db, "node-local").unwrap();
 
-        engine.add_peer("peer-1", Some("http://old.endpoint")).unwrap();
+        engine
+            .add_peer("peer-1", Some("http://old.endpoint"))
+            .unwrap();
         engine
             .add_peer("peer-1", Some("http://new.endpoint"))
             .unwrap();
 
         let statuses = engine.sync_status().unwrap();
-        assert_eq!(statuses.len(), 1, "duplicate add_peer should not double the row");
+        assert_eq!(
+            statuses.len(),
+            1,
+            "duplicate add_peer should not double the row"
+        );
         assert_eq!(
             statuses[0].endpoint.as_deref(),
             Some("http://new.endpoint"),
@@ -384,9 +397,15 @@ mod tests {
     fn test_hlc_ts_increases_across_record_mutation_calls() {
         let db = open_db();
         let mut engine = SyncEngine::new(&db, "n").unwrap();
-        engine.record_mutation("t", "r1", OpType::Insert, None).unwrap();
-        engine.record_mutation("t", "r2", OpType::Insert, None).unwrap();
-        engine.record_mutation("t", "r3", OpType::Insert, None).unwrap();
+        engine
+            .record_mutation("t", "r1", OpType::Insert, None)
+            .unwrap();
+        engine
+            .record_mutation("t", "r2", OpType::Insert, None)
+            .unwrap();
+        engine
+            .record_mutation("t", "r3", OpType::Insert, None)
+            .unwrap();
         let ops = engine.get_ops_since(0).unwrap();
         assert_eq!(ops.len(), 3);
         // Ops are ordered by hlc_ts ASC — verify they're strictly increasing.
