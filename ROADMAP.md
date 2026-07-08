@@ -114,10 +114,10 @@
 - [x] Ruby gem via `ffi` wrapping the C FFI layer
 - [x] Comprehensive test suites (async API, Node.js, Python)
 
-## v0.8.0 — WASM Persistence + Ruby SDK
-- [ ] OPFS (Origin Private File System) adapter — persistent browser storage
+## v0.8.0 — Cloud Targets
 - [ ] Cloudflare Workers target (Durable Objects storage backend)
-- [ ] Ruby gem via `ffi` wrapping the C FFI layer
+- [ ] `BENCHMARKS.md` — baseline numbers (100k vectors, 10k nodes, all platforms)
+- [ ] Schema migration runner for future schema upgrades
 
 ## v1.0.0 — Production
 - [ ] Published to crates.io (`cargo add agentdb`)

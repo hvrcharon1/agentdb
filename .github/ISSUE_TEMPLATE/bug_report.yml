@@ -13,7 +13,7 @@ body:
     attributes:
       label: AgentDB version
       description: Output of `cargo pkgid agentdb` or your Cargo.toml version string
-      placeholder: "0.3.0"
+      placeholder: "0.7.0"
     validations:
       required: true
 
