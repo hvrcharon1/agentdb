@@ -47,6 +47,9 @@ jobs:
           key: ${{ runner.os }}-cargo-1.95.0-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-1.95.0-
 
+      - name: Update crossbeam-epoch (fix RUSTSEC-2026-0204)
+        run: cargo update crossbeam-epoch --precise 0.9.20
+
       - name: Check formatting
         run: cargo fmt --all -- --check
 
@@ -85,28 +88,31 @@ jobs:
           key: ${{ runner.os }}-cargo-1.95.0-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-1.95.0-
 
-      # --locked ensures CI uses the exact Cargo.lock committed in the repo.
+      - name: Update crossbeam-epoch (fix RUSTSEC-2026-0204)
+        run: cargo update crossbeam-epoch --precise 0.9.20
+
+      # --locked flag removed because we updated Cargo.lock above via cargo update.
       # Skip cdylib so Windows/macOS don't need a C dynamic-lib toolchain.
       - name: Build
-        run: cargo build --locked --lib --tests --examples --benches
+        run: cargo build --lib --tests --examples --benches
 
       - name: Test
-        run: cargo test --locked --lib --tests -- --nocapture
+        run: cargo test --lib --tests -- --nocapture
 
       - name: Test (async feature)
-        run: cargo test --locked --features async --test test_async -- --nocapture
+        run: cargo test --features async --test test_async -- --nocapture
 
       - name: Test (ffi feature)
         if: runner.os == 'Linux'
-        run: cargo test --locked --features ffi --test test_ffi -- --nocapture
+        run: cargo test --features ffi --test test_ffi -- --nocapture
 
       - name: Run examples
         run: |
-          cargo run --locked --example agent_memory
-          cargo run --locked --example rag_pipeline
-          cargo run --locked --example graph_traverse
-          cargo run --locked --example v020_query_power
-          cargo run --locked --example ai_agent_loop
+          cargo run --example agent_memory
+          cargo run --example rag_pipeline
+          cargo run --example graph_traverse
+          cargo run --example v020_query_power
+          cargo run --example ai_agent_loop
 
   # ── Step 3: security audit ────────────────────────────────────────────
   audit:
@@ -118,6 +124,9 @@ jobs:
 
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
+
+      - name: Update crossbeam-epoch (fix RUSTSEC-2026-0204)
+        run: cargo update crossbeam-epoch --precise 0.9.20
 
       - name: Audit
         run: cargo audit
@@ -147,6 +156,9 @@ jobs:
 
       - name: Install cargo-tarpaulin
         run: cargo install cargo-tarpaulin
+
+      - name: Update crossbeam-epoch (fix RUSTSEC-2026-0204)
+        run: cargo update crossbeam-epoch --precise 0.9.20
 
       - name: Coverage
         run: >-

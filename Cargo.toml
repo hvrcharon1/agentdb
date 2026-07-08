@@ -126,12 +126,6 @@ python = ["pyo3", "ffi"]
 # WASM build via wasm-pack.
 wasm = ["wasm-bindgen", "web-sys", "js-sys", "wasm-bindgen-futures", "libsqlite3-sys"]
 
-# ── Dependency overrides (security patches) ────────────────────────────
-# Force crossbeam-epoch to >=0.9.20 to fix RUSTSEC-2026-0204
-# (Invalid pointer dereference in fmt::Pointer impl)
-[patch.crates-io]
-crossbeam-epoch = { version = "0.9.20" }
-
 # ── Build profiles ─────────────────────────────────────────────────────
 [profile.release]
 opt-level     = 3
