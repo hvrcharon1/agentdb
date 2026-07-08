@@ -23,6 +23,7 @@ jobs:
   benchmark:
     name: Benchmarks
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
@@ -42,6 +43,9 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-bench-1.95.0-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-bench-1.95.0-
+
+      - name: Update crossbeam-epoch (fix RUSTSEC-2026-0204)
+        run: cargo update crossbeam-epoch --precise 0.9.20
 
       - name: Run benchmarks
         run: cargo bench --bench vector_search --bench graph_traverse 2>&1 | tee bench_output.txt
