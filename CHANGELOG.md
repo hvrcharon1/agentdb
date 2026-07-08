@@ -10,6 +10,63 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.7.0] — 2026-07-08 — Sync, Tri-Modal Query, OPFS, Integrations
+
+### Added
+- **CRDT-Based Sync Engine** (`sync.rs`) — operation-based replication with Hybrid Logical
+  Clocks, `_adb_sync_log` and `_adb_sync_peers` tables, configurable conflict resolution
+  (Last-Writer-Wins / First-Writer-Wins). `SyncEngine` API: `record_mutation`,
+  `get_ops_since`, `apply_remote_ops`, `add_peer`, `sync_status`.
+- **Tri-Modal Hybrid Query** (`hybrid.rs`) — blended vector ANN + graph traversal + FTS BM25
+  in a single query. `TriModalQuery` with alpha/beta/gamma weights, min-max normalization,
+  conditional channel execution. Exposed in core, async, and FFI APIs.
+- **WASM OPFS Persistence** (`wasm_opfs.rs`) — browser databases survive page reloads via
+  Origin Private File System. Load-save pattern using SQLite `serialize`/`deserialize`.
+  Functions: `open_persistent`, `save`, `delete_persistent`, `list_databases`.
+- **LangChain Integration** (`integrations/langchain-agentdb/`) — `AgentDBVectorStore`
+  implementing LangChain's `VectorStore` base class, `AgentDBChatMessageHistory` for
+  conversation memory. Published as `langchain-agentdb` on PyPI.
+- **LlamaIndex Integration** (`integrations/llamaindex-agentdb/`) — `AgentDBVectorStore`
+  implementing `BasePydanticVectorStore`, `AgentDBChatStore` for message history.
+  Published as `llamaindex-agentdb` on PyPI.
+- **Ruby SDK** (`ruby/`) — full FFI bindings (40+ functions) via `ffi` gem. `Database`,
+  `Collection` classes with idiomatic Ruby API. RSpec test suite.
+- **CLI `version` subcommand** — prints version + target triple.
+- **CLI `export` subcommand** — dumps database as SQL statements (CREATE + INSERT).
+- **CLI `completions` subcommand** — generates shell completions for bash/zsh/fish/powershell
+  via `clap_complete`.
+- **Node.js test suite** (`nodejs/test/test_full.js`) — 91 tests covering full API surface.
+- **Python test suite** (`python/tests/test_agentdb.py`) — 10 test classes.
+- **Async API tests** (`tests/test_async_api.rs`) — 73 tests covering all async stores.
+- **Sync tests** (`tests/test_sync.rs`) — 16 tests for HLC, mutations, conflict resolution.
+- **Tri-modal tests** (`tests/test_tri_modal.rs`) — 8 tests for blended queries.
+- **WASM browser demo** (`examples/wasm/index.html`) — in-memory usage example with OPFS preview.
+- **Manual publish steps** (`.github/MANUAL_PUBLISH_STEPS.md`) — Snap, WinGet, Chocolatey,
+  crates.io registration and token setup documentation.
+- **WinGet v0.7.0 manifest** — ready for submission to `microsoft/winget-pkgs`.
+
+### Changed
+- **`rand` 0.8 → 0.10** — `thread_rng()` → `rng()`, `.gen::<f64>()` → `.random::<f64>()`,
+  `use rand::RngExt` replaces `use rand::Rng`.
+- **`criterion` 0.5 → 0.8** — removed deleted `html_reports` feature.
+- **Codecov threshold** raised from 70% to 80%.
+- **CI coverage** now includes `--features async,ffi` for full code path measurement.
+- **`publish.yml`** — pinned toolchain to MSRV 1.95.0, added `--locked` to `cargo publish`.
+- **ROADMAP.md** — v0.6.0 marked as shipped; v0.7.0 (Ecosystem) and v0.8.0 (WASM+Ruby) added.
+- **README.md** — roadmap table updated to reflect actual release history.
+
+### Fixed
+- **Snap/WinGet/Chocolatey publish workflows** — root cause: `actions/checkout@v7` doesn't
+  exist (→ `@v4`). Also: WinGet version prefix stripping, Choco nupkg filename, CRLF sed.
+- **Node.js smoke test** — class exported as `AgentDb` not `AgentDB`; fixed import.
+- **Python `upsert_with_text`** — parameter order corrected (`metadata` before `text`).
+- **Python `__version__`** — updated to match package version.
+- **`src/wasm.rs` `audit_query_recent`** — was calling `.query_recent(limit)` instead of
+  `.query_recent(Some(limit))`.
+- **`src/wasm.rs` comment** — stale v0.4.0 milestone reference updated to v0.8.0.
+
+---
+
 ## [0.6.0] — 2026-07-01 — AI-Native Architecture
 
 ### Added
@@ -391,7 +448,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-[Unreleased]: https://github.com/hvrcharon1/agentdb/compare/v0.5.3...HEAD
+[Unreleased]: https://github.com/hvrcharon1/agentdb/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/hvrcharon1/agentdb/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/hvrcharon1/agentdb/compare/v0.5.3...v0.6.0
 [0.5.3]: https://github.com/hvrcharon1/agentdb/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/hvrcharon1/agentdb/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/hvrcharon1/agentdb/compare/v0.5.0...v0.5.1

@@ -1,0 +1,21 @@
+PackageIdentifier: Datacules.AgentDB
+PackageVersion: 0.7.0
+InstallerType: zip
+InstallModes:
+  - interactive
+  - silent
+  - silentWithProgress
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/hvrcharon1/agentdb/releases/download/v0.7.0/agentdb-x86_64-pc-windows-msvc.zip
+    # TODO: Replace with the real SHA256 of the release asset before submitting the PR.
+    # Run: curl -sL <InstallerUrl> | sha256sum
+    # Or download the file and run: certutil -hashfile agentdb-x86_64-pc-windows-msvc.zip SHA256
+    InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
+    InstallerType: zip
+    NestedInstallerType: portable
+    NestedInstallerFiles:
+      - RelativeFilePath: agentdb.exe
+        PortableCommandAlias: agentdb
+ManifestType: installer
+ManifestVersion: 1.6.0

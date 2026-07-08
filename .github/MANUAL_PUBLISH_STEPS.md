@@ -56,25 +56,25 @@ package identity can be reviewed and approved.
 - A GitHub **PAT** (classic or fine-grained) with `repo` + `workflow` scopes saved as the
   repository secret `WINGET_TOKEN` — this is what winget-releaser uses for future PRs.
 
-### 2b. Get the real SHA256 for the v0.6.0 installer
+### 2b. Get the real SHA256 for the v0.7.0 installer
 
 Before opening the PR, replace the placeholder SHA256 in
-`winget/manifests/d/Datacules/AgentDB/0.6.0/Datacules.AgentDB.installer.yaml`.
+`winget/manifests/d/Datacules/AgentDB/0.7.0/Datacules.AgentDB.installer.yaml`.
 
 ```bash
 # Linux / WSL
-curl -sL https://github.com/hvrcharon1/agentdb/releases/download/v0.6.0/agentdb-x86_64-pc-windows-msvc.zip \
+curl -sL https://github.com/hvrcharon1/agentdb/releases/download/v0.7.0/agentdb-x86_64-pc-windows-msvc.zip \
   | sha256sum
 
 # Windows PowerShell
 $hash = (Get-FileHash -Algorithm SHA256 (Invoke-WebRequest `
-  "https://github.com/hvrcharon1/agentdb/releases/download/v0.6.0/agentdb-x86_64-pc-windows-msvc.zip" `
+  "https://github.com/hvrcharon1/agentdb/releases/download/v0.7.0/agentdb-x86_64-pc-windows-msvc.zip" `
   -OutFile agentdb.zip; "agentdb.zip")).Hash.ToLower()
 echo $hash
 ```
 
 Update the `InstallerSha256` field in
-`winget/manifests/d/Datacules/AgentDB/0.6.0/Datacules.AgentDB.installer.yaml` with the
+`winget/manifests/d/Datacules/AgentDB/0.7.0/Datacules.AgentDB.installer.yaml` with the
 real 64-character hex value.
 
 ### 2c. Submit the PR
@@ -88,18 +88,18 @@ cp -r winget/manifests/d/Datacules winget-pkgs/manifests/d/
 
 # Create a branch
 cd winget-pkgs
-git checkout -b add-Datacules.AgentDB-0.6.0
+git checkout -b add-Datacules.AgentDB-0.7.0
 
 # Stage and commit
-git add manifests/d/Datacules/AgentDB/0.6.0/
-git commit -m "Add Datacules.AgentDB version 0.6.0"
+git add manifests/d/Datacules/AgentDB/0.7.0/
+git commit -m "Add Datacules.AgentDB version 0.7.0"
 
 # Push and open the PR
-git push origin add-Datacules.AgentDB-0.6.0
+git push origin add-Datacules.AgentDB-0.7.0
 gh pr create \
   --repo microsoft/winget-pkgs \
-  --title "Add Datacules.AgentDB version 0.6.0" \
-  --body "New package submission for AgentDB v0.6.0 — single-file embedded database for AI agents."
+  --title "Add Datacules.AgentDB version 0.7.0" \
+  --body "New package submission for AgentDB v0.7.0 — single-file embedded database for AI agents."
 ```
 
 ### 2d. Manifest files (for reference)
@@ -107,7 +107,7 @@ gh pr create \
 The three manifests live at:
 
 ```
-winget/manifests/d/Datacules/AgentDB/0.6.0/
+winget/manifests/d/Datacules/AgentDB/0.7.0/
 ├── Datacules.AgentDB.yaml                  (version manifest)
 ├── Datacules.AgentDB.installer.yaml        (installer — update SHA256 before submitting)
 └── Datacules.AgentDB.locale.en-US.yaml     (package metadata)
@@ -117,7 +117,7 @@ Key fields in the installer manifest:
 
 | Field | Value |
 |-------|-------|
-| `InstallerUrl` | `https://github.com/hvrcharon1/agentdb/releases/download/v0.6.0/agentdb-x86_64-pc-windows-msvc.zip` |
+| `InstallerUrl` | `https://github.com/hvrcharon1/agentdb/releases/download/v0.7.0/agentdb-x86_64-pc-windows-msvc.zip` |
 | `InstallerType` | `zip` |
 | `NestedInstallerType` | `portable` |
 | `PortableCommandAlias` | `agentdb` |
