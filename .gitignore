@@ -2,6 +2,11 @@
 nodejs/target
 nodejs/node_modules
 nodejs/Cargo.lock
+nodejs/package-lock.json
+nodejs/*.node
+python/target/
+python/Cargo.lock
+choco/*.nupkg
 *.agentdb
 *.agentdb-shm
 *.agentdb-wal

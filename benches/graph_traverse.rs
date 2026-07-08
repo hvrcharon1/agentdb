@@ -1,5 +1,6 @@
 use agentdb::{AgentDB, TraversalOptions};
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::hint::black_box;
 
 fn build_graph(db: &AgentDB, node_count: usize, edge_factor: usize) {
     let graph = db.memory();

@@ -438,7 +438,7 @@ fn cmd_export(path: &str, only_table: Option<&str>) -> agentdb::Result<()> {
         .filter_map(|r| r.ok())
         .filter(|(name, _)| {
             // If --table was specified, only include that table.
-            only_table.map_or(true, |t| name == t)
+            only_table.is_none_or(|t| name == t)
         })
         .collect();
 

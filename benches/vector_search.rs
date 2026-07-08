@@ -1,5 +1,6 @@
 use agentdb::{AgentDB, DistanceMetric, SearchOptions, VectorEntry};
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::hint::black_box;
 
 fn make_vec(seed: f32, dim: usize) -> Vec<f32> {
     (0..dim)

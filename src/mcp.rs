@@ -56,7 +56,7 @@ impl McpServer {
             }
         };
 
-        let is_notification = !req.get("id").is_some_and(|v| !v.is_null());
+        let is_notification = req.get("id").is_none_or(|v| v.is_null());
         let id = req.get("id").cloned().unwrap_or(Value::Null);
         let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("");
         let params = req.get("params").cloned().unwrap_or(Value::Object(Default::default()));
