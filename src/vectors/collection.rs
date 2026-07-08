@@ -90,32 +90,34 @@ impl Collection {
         let meta = entry.metadata.as_ref().map(|m| m.to_string());
         let now = now_ms();
         let conn = self.conn.lock().unwrap();
+        let tx = conn.unchecked_transaction()?;
         // INSERT OR IGNORE returns changes()=1 for a new row, 0 for a duplicate.
-        let inserted = conn.execute(
+        let inserted = tx.execute(
             "INSERT OR IGNORE INTO _adb_vectors
                  (id, collection_id, vector, metadata, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
             params![entry.id, self.id, blob, meta, now],
         )?;
         if inserted == 0 {
-            conn.execute(
+            tx.execute(
                 "UPDATE _adb_vectors SET vector = ?1, metadata = ?2, updated_at = ?5
                  WHERE id = ?3 AND collection_id = ?4",
                 params![blob, meta, entry.id, self.id, now],
             )?;
         }
-        conn.execute(
+        tx.execute(
             "INSERT INTO _adb_hnsw_index (collection_id, index_blob, built_at, is_dirty)
              VALUES (?1, X'', ?2, 1)
              ON CONFLICT(collection_id) DO UPDATE SET is_dirty = 1",
             params![self.id, now_ms()],
         )?;
         if inserted > 0 {
-            conn.execute(
+            tx.execute(
                 "UPDATE _adb_collections SET count = count + 1 WHERE id = ?1",
                 params![self.id],
             )?;
         }
+        tx.commit()?;
         *self.index.lock().unwrap() = None;
         Ok(())
     }
@@ -381,6 +383,30 @@ impl VectorStore {
 
     pub fn collection(&self, name: &str, dim: usize) -> Result<Collection> {
         self.collection_with_metric(name, dim, DistanceMetric::Cosine)
+    }
+
+    /// Open an existing collection by name. Returns an error if it doesn't exist.
+    pub fn get_collection(&self, name: &str) -> Result<Collection> {
+        let conn = self.conn.lock().unwrap();
+        let (id, dim, mstr): (String, usize, String) = conn
+            .query_row(
+                "SELECT id, dim, metric FROM _adb_collections WHERE name = ?1",
+                params![name],
+                |row| Ok((row.get(0)?, row.get::<_, i64>(1)? as usize, row.get(2)?)),
+            )
+            .map_err(|_| AgentDbError::InvalidArgument(format!("collection not found: {name}")))?;
+        let metric = match mstr.as_str() {
+            "euclidean" => DistanceMetric::Euclidean,
+            "dot" => DistanceMetric::DotProduct,
+            _ => DistanceMetric::Cosine,
+        };
+        Ok(Collection::new(
+            id,
+            name.to_string(),
+            dim,
+            metric,
+            Arc::clone(&self.conn),
+        ))
     }
 
     pub fn collection_with_metric(

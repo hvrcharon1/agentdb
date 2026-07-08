@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AgentDB WASM demo</title>
+  <style>
+    body { font-family: monospace; background: #0d1117; color: #c9d1d9; padding: 2rem; }
+    h1   { color: #58a6ff; }
+    pre  { background: #161b22; border: 1px solid #30363d; padding: 1rem; border-radius: 6px;
+           white-space: pre-wrap; word-break: break-all; }
+    .ok  { color: #3fb950; }
+    .err { color: #f85149; }
+    .dim { color: #8b949e; }
+  </style>
+</head>
+<body>
+  <h1>AgentDB WASM demo</h1>
+  <p class="dim">
+    Build first:
+    <code>wasm-pack build --target web --features wasm</code>
+    then serve this directory with any static file server.
+  </p>
+  <pre id="log">Loading…</pre>
+
+  <script type="module">
+    // ── 1. Import the wasm-pack generated module ─────────────────────────────
+    // After running `wasm-pack build --target web --features wasm` the output
+    // lands in pkg/ one level up from this file.
+    import init, { WasmAgentDB } from '../pkg/agentdb.js';
+
+    const log = document.getElementById('log');
+    function print(msg, cls = '') {
+      const line = document.createElement('span');
+      if (cls) line.className = cls;
+      line.textContent = msg + '\n';
+      log.appendChild(line);
+    }
+
+    // Clear the placeholder text on first real output.
+    log.textContent = '';
+
+    try {
+      // ── 2. Initialise the WASM module ──────────────────────────────────────
+      await init();
+      print('[init] WASM module loaded', 'ok');
+
+      // ── 3. Open an in-memory database ──────────────────────────────────────
+      const db = WasmAgentDB.open_memory();
+      print('[open] in-memory database opened', 'ok');
+
+      // ── 4. Basic SQL ────────────────────────────────────────────────────────
+      db.execute("CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT)");
+      db.execute("INSERT INTO notes VALUES ('n1', 'Remember OPFS for persistence')");
+      db.execute("INSERT INTO notes VALUES ('n2', 'Vectors go in collections')");
+      const rows = JSON.parse(db.query_json("SELECT * FROM notes ORDER BY id"));
+      print('[sql]  notes: ' + JSON.stringify(rows), 'ok');
+
+      // ── 5. Vector upsert + search ───────────────────────────────────────────
+      db.vector_upsert('thoughts', 'v1', [0.9, 0.1, 0.0, 0.0], '{"topic":"memory"}');
+      db.vector_upsert('thoughts', 'v2', [0.1, 0.9, 0.0, 0.0], '{"topic":"vectors"}');
+      const hits = JSON.parse(db.vector_search('thoughts', [0.85, 0.15, 0.0, 0.0], 2));
+      print('[vec]  search results: ' + JSON.stringify(hits), 'ok');
+
+      // ── 6. Stats ────────────────────────────────────────────────────────────
+      const stats = JSON.parse(db.stats());
+      print('[stats] ' + JSON.stringify(stats), 'ok');
+
+      // ── 7. Prompt template ──────────────────────────────────────────────────
+      db.prompt_create('greet', 'Hello, {{name}}! You have {{n}} notes.', '', 0, '');
+      const rendered = db.prompt_render('greet', JSON.stringify({ name: 'Agent', n: '2' }));
+      print('[prompt] ' + rendered, 'ok');
+
+      print('\nAll in-memory operations succeeded.', 'ok');
+
+    } catch (err) {
+      print('[error] ' + err, 'err');
+      console.error(err);
+    }
+
+    // ── OPFS persistent storage (NOT YET IMPLEMENTED) ─────────────────────────
+    //
+    // When the OPFS VFS is complete (see src/wasm_opfs.rs), persistent databases
+    // will be available via the `open_persistent` export:
+    //
+    //   import init, { WasmAgentDB, open_persistent } from '../pkg/agentdb.js';
+    //   await init();
+    //
+    //   // Opens (or creates) myagent.sqlite in the browser's OPFS sandbox.
+    //   // Data survives page reloads and browser restarts.
+    //   const db = await open_persistent('myagent');
+    //
+    //   db.execute("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY)");
+    //   db.execute("INSERT OR IGNORE INTO sessions VALUES ('s1')");
+    //   const rows = JSON.parse(db.query_json("SELECT * FROM sessions"));
+    //   console.log('persistent sessions:', rows);
+    //
+    // Requirements:
+    //   - Must run inside a Worker (OPFS sync access handle is worker-only).
+    //   - The page origin must serve files over HTTPS (or http://localhost).
+    //   - Browser must support OPFS: Chrome 102+, Firefox 111+, Safari 15.2+.
+    //
+    // See: https://fs.spec.whatwg.org/#origin-private-file-system
+  </script>
+</body>
+</html>

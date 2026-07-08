@@ -20,6 +20,8 @@ jobs:
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.95.0"
 
       - name: Cache
         uses: actions/cache@v4
@@ -39,4 +41,4 @@ jobs:
           [ "$TAG" = "$CRATE" ] || (echo 'Version mismatch!' && exit 1)
 
       - name: cargo publish
-        run: cargo publish --package datacules-agentdb --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --package datacules-agentdb --locked --token ${{ secrets.CARGO_REGISTRY_TOKEN }}

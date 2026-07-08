@@ -4,7 +4,7 @@ use crate::conversations::{Conversation, Message};
 use crate::db::{AgentDB, DbStats};
 use crate::error::Result;
 use crate::fts::FtsResult;
-use crate::hybrid::{HybridQuery, HybridResult};
+use crate::hybrid::{HybridQuery, HybridResult, TriModalQuery, TriModalResult};
 use crate::labels::DataLabel;
 use crate::memory::{TraversalOptions, TraversalResult};
 use crate::prompts::PromptTemplate;
@@ -163,6 +163,14 @@ impl AsyncAgentDB {
         AsyncLabelStore {
             inner: self.inner.clone(),
         }
+    }
+
+    /// Run a tri-modal graph + vector + FTS query.
+    pub async fn tri_modal_query(&self, query: TriModalQuery) -> Result<Vec<TriModalResult>> {
+        let db = self.inner.clone();
+        task::spawn_blocking(move || db.tri_modal_query(&query))
+            .await
+            .map_err(|e| crate::error::AgentDbError::InvalidArgument(e.to_string()))?
     }
 
     /// Run a hybrid graph + vector query.

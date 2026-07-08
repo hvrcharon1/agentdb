@@ -9,16 +9,15 @@ coverage:
   status:
     project:
       default:
-        # Fail CI if overall coverage drops below 70%.
-        # Ratchet to 80% before v1.0.0.
-        target: 70%
+        # Fail CI if overall coverage drops below 80%.
+        target: 80%
         threshold: 2%
         if_not_found: success
         if_ci_failed: error
     patch:
       default:
-        # New code added in a PR must be at least 70% covered.
-        target: 70%
+        # New code added in a PR must be at least 80% covered.
+        target: 80%
         threshold: 2%
         if_not_found: success
         if_ci_failed: error

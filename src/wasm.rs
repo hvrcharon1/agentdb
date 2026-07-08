@@ -1,7 +1,8 @@
 //! # AgentDB — WASM bindings
 //!
 //! In-memory databases work today via wasm-pack. Persistent storage via OPFS
-//! (Origin Private File System) is not yet implemented.
+//! (Origin Private File System) is scaffolded in [`crate::wasm_opfs`] and will
+//! be available once the custom SQLite VFS implementation is complete.
 //!
 //! ## Building (in-memory only)
 //!
@@ -20,12 +21,25 @@
 //! const stats = JSON.parse(db.stats());
 //! // { collections:0, vectors:0, nodes:0, edges:0, conversations:0, ... }
 //! ```
+//!
+//! ## Persistent storage (planned)
+//!
+//! See [`crate::wasm_opfs`] for the OPFS VFS scaffold and implementation plan.
+//! Once complete, persistent databases will be opened with:
+//!
+//! ```js
+//! import init, { open_persistent } from './pkg/agentdb.js';
+//! await init();
+//! const db = await open_persistent("myagent");
+//! // Survives page reloads — backed by the browser's Origin Private File System.
+//! ```
 
 use wasm_bindgen::prelude::*;
 
 use crate::db::AgentDB;
 use crate::vectors::{DistanceMetric, SearchOptions, VectorEntry};
 use serde_json::Value;
+
 
 /// WASM-exposed AgentDB handle.
 ///
@@ -259,7 +273,7 @@ impl WasmAgentDB {
     pub fn audit_query_recent(&self, limit: usize) -> Result<String, JsValue> {
         self.db
             .audit()
-            .query_recent(limit)
+            .query_recent(Some(limit))
             .map(|entries| {
                 let arr: Vec<Value> = entries
                     .iter()
@@ -431,6 +445,73 @@ impl WasmAgentDB {
             .labels()
             .has_label(table_name, record_id, label)
             .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    // ── OPFS persistence helpers ─────────────────────────────────────
+
+    /// Construct a `WasmAgentDB` by deserializing a raw SQLite byte image.
+    ///
+    /// `bytes` must be a valid SQLite database file (e.g. produced by
+    /// [`WasmAgentDB::serialize_bytes`] or saved via [`save_persistent`]).
+    ///
+    /// ```js
+    /// // Round-trip example
+    /// const bytes = db.serialize_bytes();
+    /// const db2 = WasmAgentDB.from_bytes(bytes);
+    /// ```
+    #[wasm_bindgen(js_name = from_bytes)]
+    pub fn from_bytes(bytes: &[u8]) -> Result<WasmAgentDB, JsValue> {
+        let db = AgentDB::open(":memory:")
+            .map(|d| WasmAgentDB { db: d })
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        db.deserialize_bytes(bytes)?;
+        Ok(db)
+    }
+
+    /// Serialize this database to a raw SQLite byte image.
+    ///
+    /// The returned bytes can be stored anywhere (e.g. `localStorage`,
+    /// `IndexedDB`, or OPFS) and restored later via [`WasmAgentDB::from_bytes`].
+    ///
+    /// For automatic OPFS persistence use [`save_persistent`] instead.
+    pub fn serialize_bytes(&self) -> Result<Vec<u8>, JsValue> {
+        self.db
+            .with_conn(|conn| {
+                crate::wasm_opfs::sqlite_serialize(conn)
+                    .map_err(|e| crate::error::AgentDbError::InvalidArgument(
+                        e.as_string().unwrap_or_else(|| "serialize error".into()),
+                    ))
+            })
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Replace the database contents with the given raw SQLite byte image.
+    ///
+    /// This is used internally by [`open_persistent`] after reading bytes from
+    /// OPFS, and by [`WasmAgentDB::from_bytes`].
+    pub fn deserialize_bytes(&self, bytes: &[u8]) -> Result<(), JsValue> {
+        self.db
+            .with_conn(|conn| {
+                crate::wasm_opfs::sqlite_deserialize(conn, bytes)
+                    .map_err(|e| crate::error::AgentDbError::InvalidArgument(
+                        e.as_string().unwrap_or_else(|| "deserialize error".into()),
+                    ))
+            })
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Persist this database to OPFS under the logical `name`.
+    ///
+    /// Equivalent to calling the module-level [`save_persistent`] function.
+    /// `name` must match the name used when calling [`open_persistent`].
+    ///
+    /// ```js
+    /// const db = await open_persistent("myagent");
+    /// // ... make changes ...
+    /// await db.save("myagent");  // flush to OPFS
+    /// ```
+    pub async fn save(&self, name: &str) -> Result<(), JsValue> {
+        crate::wasm_opfs::save(self, name).await
     }
 
     /// Return database stats as a JSON object string.

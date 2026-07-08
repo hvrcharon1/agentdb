@@ -96,13 +96,25 @@
 - [x] Vector search N+1 metadata queries → single batch query
 - [x] Clippy-clean: `agentdb_open` marked `unsafe`, `const` thread_local
 
-## v0.6.0 — Ecosystem Integrations
+## v0.6.0 — AI-Native Architecture ✅
+- [x] Tool Registry (`_adb_tools`, `_adb_tool_calls`) — register, list, and log tool invocations
+- [x] Audit Log (`_adb_audit_log`) — actor/action/old/new/reason change trail
+- [x] Context Window (`_adb_context_entries`) — token-budgeted session context builder
+- [x] Prompt Templates (`_adb_prompt_templates`) — versioned templates with variable rendering
+- [x] Data Labels (`_adb_data_labels`) — privacy/compliance tagging on any record
+- [x] MCP Server (`src/mcp.rs`) — Model Context Protocol server wrapping all layers
+
+## v0.7.0 — Ecosystem Integrations
 - [ ] `langchain-agentdb` Python package — implements `VectorStore` + `Memory` base classes
 - [ ] LlamaIndex storage adapter
-- [ ] MCP (Model Context Protocol) server wrapping all five layers
 - [ ] AgentDB Sync — CRDT-based replication protocol
 - [ ] Conflict resolution: last-write-wins + custom strategies
 - [ ] CLI sync commands: `agentdb sync push/pull/watch`
+
+## v0.8.0 — WASM Persistence + Ruby SDK
+- [ ] OPFS (Origin Private File System) adapter — persistent browser storage
+- [ ] Cloudflare Workers target (Durable Objects storage backend)
+- [ ] Ruby gem via `ffi` wrapping the C FFI layer
 
 ## v1.0.0 — Production
 - [ ] Published to crates.io (`cargo add agentdb`)

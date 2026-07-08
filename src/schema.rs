@@ -177,6 +177,14 @@ pub fn bootstrap(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_audit_table_rec  ON _adb_audit_log(table_name, record_id);
         CREATE INDEX IF NOT EXISTS idx_audit_actor      ON _adb_audit_log(actor, timestamp);
 
+        -- Enforce immutability: prevent DELETE and UPDATE on the audit log
+        CREATE TRIGGER IF NOT EXISTS _adb_audit_no_delete
+            BEFORE DELETE ON _adb_audit_log
+            BEGIN SELECT RAISE(ABORT, 'audit log is immutable: DELETE not permitted'); END;
+        CREATE TRIGGER IF NOT EXISTS _adb_audit_no_update
+            BEFORE UPDATE ON _adb_audit_log
+            BEGIN SELECT RAISE(ABORT, 'audit log is immutable: UPDATE not permitted'); END;
+
         -- Token-budgeted context window entries (schema v5)
         CREATE TABLE IF NOT EXISTS _adb_context_entries (
             id              TEXT PRIMARY KEY,

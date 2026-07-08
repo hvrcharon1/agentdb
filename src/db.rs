@@ -3,7 +3,7 @@ use crate::context::ContextStore;
 use crate::conversations::ConversationStore;
 use crate::error::Result;
 use crate::fts::FullTextStore;
-use crate::hybrid::{HybridQuery, HybridResult, HybridStore};
+use crate::hybrid::{HybridQuery, HybridResult, HybridStore, TriModalQuery, TriModalResult};
 use crate::labels::LabelStore;
 use crate::memory::MemoryGraph;
 use crate::prompts::PromptStore;
@@ -88,6 +88,22 @@ impl AgentDB {
     /// Access the data classification / privacy label store
     pub fn labels(&self) -> LabelStore {
         LabelStore::new(Arc::clone(&self.conn))
+    }
+
+    /// Run a tri-modal graph + vector + FTS query
+    pub fn tri_modal_query(&self, q: &TriModalQuery) -> Result<Vec<TriModalResult>> {
+        let dim: usize = {
+            let conn = self.conn.lock().unwrap();
+            conn.query_row(
+                "SELECT dim FROM _adb_collections WHERE name = ?1",
+                rusqlite::params![q.collection],
+                |r| r.get::<_, i64>(0).map(|v| v as usize),
+            )
+            .unwrap_or(q.embedding.len())
+        };
+        let col = self.vectors().collection(&q.collection, dim)?;
+        let store = HybridStore::new(Arc::clone(&self.conn));
+        store.tri_modal_query(q, &col)
     }
 
     /// Run a hybrid graph + vector query
@@ -243,6 +259,11 @@ impl AgentDB {
                 col.reindex()?;
             }
         }
+        // Checkpoint WAL to consolidate into a single file
+        {
+            let conn = self.conn.lock().unwrap();
+            let _ = conn.pragma_update(None, "wal_checkpoint", "TRUNCATE");
+        }
         self.closed.store(true, Ordering::Release);
         Ok(())
     }
@@ -347,6 +368,43 @@ impl Drop for AgentDB {
                 }
             }
         }
+    }
+}
+
+// ── Internal connection accessor (used by sync module) ───────────────────────
+
+impl AgentDB {
+    /// Returns a clone of the internal `Arc<Mutex<Connection>>`.
+    ///
+    /// This is intentionally `pub(crate)` — only sub-modules of this crate
+    /// that need to share the same SQLite connection (e.g. `sync`) should use
+    /// it.  External callers should use the higher-level store accessors.
+    pub(crate) fn conn_arc(&self) -> Arc<Mutex<Connection>> {
+        Arc::clone(&self.conn)
+    }
+}
+
+// ── WASM-only connection accessor ────────────────────────────────────────────
+
+/// Methods only compiled when the `wasm` feature is active.
+///
+/// These provide low-level access to the underlying `rusqlite::Connection`
+/// required by the OPFS persistence layer (`crate::wasm_opfs`). They are
+/// intentionally not exposed in non-WASM builds to avoid leaking internals.
+#[cfg(feature = "wasm")]
+impl AgentDB {
+    /// Run a closure with exclusive access to the underlying SQLite connection.
+    ///
+    /// Used by `wasm_opfs::sqlite_serialize` and `sqlite_deserialize` which
+    /// need the raw `*mut sqlite3` handle.
+    ///
+    /// The closure **must not** panic while holding the lock.
+    pub(crate) fn with_conn<F, T>(&self, f: F) -> crate::error::Result<T>
+    where
+        F: FnOnce(&rusqlite::Connection) -> crate::error::Result<T>,
+    {
+        let conn = self.conn.lock().unwrap();
+        f(&conn)
     }
 }
 

@@ -28,7 +28,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 use crate::db::AgentDB;
-use crate::hybrid::HybridQuery;
+use crate::hybrid::{HybridQuery, TriModalQuery};
 use crate::vectors::{DistanceMetric, SearchOptions, VectorEntry};
 use serde_json::Value;
 use std::cell::RefCell;
@@ -757,6 +757,113 @@ pub unsafe extern "C" fn agentdb_hybrid_query(
                 })
                 .collect();
             let s = Value::Array(json).to_string();
+            CString::new(s)
+                .map(|c| c.into_raw())
+                .unwrap_or(std::ptr::null_mut())
+        }
+        Err(e) => {
+            set_last_error(e.to_string());
+            std::ptr::null_mut()
+        }
+    }
+}
+
+// ── Tri-modal query ───────────────────────────────────────────────────
+
+/// Run a tri-modal graph + vector + FTS query and return results as JSON.
+///
+/// `query_json` — a JSON object with fields:
+///   - `anchor_node`  (string)  — graph traversal start node id
+///   - `embedding`    (array)   — f32 query vector
+///   - `text_query`   (string)  — full-text search query
+///   - `collection`   (string)  — vector collection name
+///   - `graph_depth`  (integer) — max hops from anchor (default 3)
+///   - `top_k`        (integer) — results to return (default 10)
+///   - `alpha`        (number)  — vector weight (default 0.33)
+///   - `beta`         (number)  — graph weight (default 0.33)
+///   - `gamma`        (number)  — FTS weight (default 0.34)
+///   - `filter`       (object)  — optional metadata filter
+///
+/// Returns heap-allocated JSON string — free with `agentdb_free_string`.
+/// Returns NULL on error; check `agentdb_last_error()`.
+#[no_mangle]
+pub unsafe extern "C" fn agentdb_tri_modal_query(
+    handle: *mut AgentDbHandle,
+    query_json: *const c_char,
+) -> *mut c_char {
+    clear_last_error();
+    let h = match handle.as_ref() {
+        Some(h) => h,
+        None => {
+            set_last_error("null handle");
+            return std::ptr::null_mut();
+        }
+    };
+    let json_str = match CStr::from_ptr(query_json).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            set_last_error("agentdb_tri_modal_query: invalid query_json");
+            return std::ptr::null_mut();
+        }
+    };
+    let obj: serde_json::Value = match serde_json::from_str(json_str) {
+        Ok(v) => v,
+        Err(e) => {
+            set_last_error(format!("agentdb_tri_modal_query: parse error: {e}"));
+            return std::ptr::null_mut();
+        }
+    };
+    let anchor_node = obj["anchor_node"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    let embedding: Vec<f32> = obj["embedding"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_f64().map(|f| f as f32))
+                .collect()
+        })
+        .unwrap_or_default();
+    let text_query = obj["text_query"].as_str().unwrap_or("").to_string();
+    let collection = obj["collection"].as_str().unwrap_or("").to_string();
+    let graph_depth = obj["graph_depth"].as_u64().unwrap_or(3) as usize;
+    let top_k = obj["top_k"].as_u64().unwrap_or(10) as usize;
+    let alpha = obj["alpha"].as_f64().unwrap_or(0.33) as f32;
+    let beta = obj["beta"].as_f64().unwrap_or(0.33) as f32;
+    let gamma = obj["gamma"].as_f64().unwrap_or(0.34) as f32;
+    let filter: Option<serde_json::Value> = obj.get("filter").cloned().and_then(|v| {
+        if v.is_null() { None } else { Some(v) }
+    });
+
+    let q = TriModalQuery {
+        anchor_node,
+        embedding,
+        text_query,
+        collection,
+        graph_depth,
+        top_k,
+        alpha,
+        beta,
+        gamma,
+        filter,
+    };
+    match h.db.tri_modal_query(&q) {
+        Ok(results) => {
+            let json: Vec<serde_json::Value> = results
+                .iter()
+                .map(|r| {
+                    serde_json::json!({
+                        "id": r.id,
+                        "rank_score": r.rank_score,
+                        "vector_score": r.vector_score,
+                        "graph_weight": r.graph_weight,
+                        "fts_rank": r.fts_rank,
+                        "metadata": r.metadata
+                    })
+                })
+                .collect();
+            let s = serde_json::Value::Array(json).to_string();
             CString::new(s)
                 .map(|c| c.into_raw())
                 .unwrap_or(std::ptr::null_mut())
@@ -1562,7 +1669,6 @@ pub unsafe extern "C" fn agentdb_vector_delete(
     handle: *mut AgentDbHandle,
     collection: *const c_char,
     id: *const c_char,
-    dim: usize,
 ) -> i32 {
     clear_last_error();
     let h = match handle.as_ref() {
@@ -1586,7 +1692,7 @@ pub unsafe extern "C" fn agentdb_vector_delete(
             return -1;
         }
     };
-    let col = match h.db.vectors().collection(col_name, dim) {
+    let col = match h.db.vectors().get_collection(col_name) {
         Ok(c) => c,
         Err(e) => {
             set_last_error(e.to_string());

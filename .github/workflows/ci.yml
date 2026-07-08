@@ -149,7 +149,13 @@ jobs:
         run: cargo install cargo-tarpaulin
 
       - name: Coverage
-        run: cargo tarpaulin --out Xml --output-dir coverage/ --skip-clean
+        run: >-
+          cargo tarpaulin
+          --features async,ffi
+          --tests
+          --out Xml
+          --output-dir coverage/
+          --skip-clean
 
       - name: Upload to Codecov
         uses: codecov/codecov-action@v7

@@ -1,5 +1,5 @@
 use crate::error::{AgentDbError, Result};
-use rand::Rng;
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap, HashSet};
@@ -93,9 +93,9 @@ impl HnswIndex {
     }
 
     fn random_level(&self) -> usize {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let m_l = 1.0 / (self.m as f64).ln();
-        let level = (-rng.gen::<f64>().ln() * m_l).floor() as usize;
+        let level = (-rng.random::<f64>().ln() * m_l).floor() as usize;
         level.min(16)
     }
 

@@ -5,11 +5,14 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
 
+# Required secret:
+#   CHOCO_API_KEY — your Chocolatey.org API key (account → API keys).
+
 jobs:
   publish:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
       - name: Wait for release assets
         shell: bash
@@ -31,13 +34,19 @@ jobs:
           TAG_VERSION=${GITHUB_REF#refs/tags/v}
           SHA_WIN=$(grep 'x86_64-pc-windows-msvc' checksums.txt | awk '{print $1}')
 
-          sed -i "s/\$version     = .*/\$version     = '${TAG_VERSION}'/" choco/tools/chocolateyinstall.ps1
+          # Convert to Unix line endings before editing, then back to CRLF after
+          sed -i 's/\r//' choco/tools/chocolateyinstall.ps1
+          sed -i "s/\\\$version     = .*/\$version     = '${TAG_VERSION}'/" choco/tools/chocolateyinstall.ps1
           sed -i "s/checksum64    = .*/checksum64    = '${SHA_WIN}'/" choco/tools/chocolateyinstall.ps1
           sed -i "s/<version>.*<\/version>/<version>${TAG_VERSION}<\/version>/" choco/agentdb.nuspec
 
       - name: Pack and push
         shell: pwsh
+        env:
+          TAG_VERSION: ${{ github.ref_name }}
         run: |
-          cd choco
+          $version = $env:TAG_VERSION -replace '^v', ''
+          Set-Location choco
           choco pack agentdb.nuspec
-          choco push --source https://push.chocolatey.org/ --api-key ${{ secrets.CHOCO_API_KEY }}
+          # choco pack names the file agentdb.<version>.nupkg
+          choco push "agentdb.$version.nupkg" --source https://push.chocolatey.org/ --api-key ${{ secrets.CHOCO_API_KEY }}

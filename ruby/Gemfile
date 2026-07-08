@@ -1,0 +1,6 @@
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+# Pull in all dependencies declared in the gemspec.
+gemspec

@@ -3,7 +3,8 @@
 // Requires the .node binary — run `npm run build` first, then `npm test`.
 
 const assert = require('assert/strict');
-const { AgentDB } = require('..');
+// napi-rs emits 'AgentDb' (PascalCase from snake_case), not 'AgentDB'.
+const { AgentDb: AgentDB } = require('..');
 
 const db = AgentDB.open(':memory:');
 

@@ -38,40 +38,57 @@ impl McpServer {
     }
 
     /// Handle a single JSON-RPC message string and return the response.
-    pub fn handle_message(&self, input: &str) -> String {
+    ///
+    /// Returns `None` for notifications (messages without an `id` field),
+    /// per JSON-RPC 2.0 spec: servers MUST NOT reply to notifications.
+    pub fn handle_message(&self, input: &str) -> Option<String> {
         let req: Value = match serde_json::from_str(input) {
             Ok(v) => v,
             Err(e) => {
-                return json!({
-                    "jsonrpc": "2.0",
-                    "id": null,
-                    "error": { "code": -32700, "message": format!("Parse error: {e}") }
-                })
-                .to_string();
+                return Some(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": null,
+                        "error": { "code": -32700, "message": format!("Parse error: {e}") }
+                    })
+                    .to_string(),
+                );
             }
         };
 
+        let is_notification = !req.get("id").is_some_and(|v| !v.is_null());
         let id = req.get("id").cloned().unwrap_or(Value::Null);
         let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("");
         let params = req.get("params").cloned().unwrap_or(Value::Object(Default::default()));
 
+        // Notifications: no response per JSON-RPC 2.0 / MCP spec
+        if is_notification {
+            match method {
+                "initialized" | "notifications/cancelled" | "notifications/progress" => {}
+                _ => {}
+            }
+            return None;
+        }
+
         let result = match method {
             "initialize" => self.handle_initialize(&params),
-            "initialized" => return String::new(),
+            "ping" => Ok(json!({})),
             "tools/list" => self.handle_tools_list(),
             "tools/call" => self.handle_tools_call(&params),
             "resources/list" => self.handle_resources_list(),
             "resources/read" => self.handle_resources_read(&params),
+            "prompts/list" => self.handle_prompts_list(),
+            "prompts/get" => self.handle_prompts_get(&params),
             _ => Err((-32601, format!("Method not found: {method}"))),
         };
 
-        match result {
+        Some(match result {
             Ok(value) => json!({ "jsonrpc": "2.0", "id": id, "result": value }).to_string(),
             Err((code, msg)) => {
                 json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": msg } })
                     .to_string()
             }
-        }
+        })
     }
 
     fn handle_initialize(&self, _params: &Value) -> std::result::Result<Value, (i32, String)> {
@@ -147,6 +164,59 @@ impl McpServer {
             }
             _ => Err((-32002, format!("Resource not found: {uri}"))),
         }
+    }
+
+    fn handle_prompts_list(&self) -> std::result::Result<Value, (i32, String)> {
+        let templates = self
+            .db
+            .prompts()
+            .list_templates()
+            .map_err(|e| (-32000, e.to_string()))?;
+        let prompts: Vec<Value> = templates
+            .iter()
+            .map(|t| {
+                json!({
+                    "name": t.name,
+                    "description": format!("Prompt template '{}' v{}", t.name, t.version),
+                    "arguments": [{
+                        "name": "vars",
+                        "description": "JSON object of template variables for {{placeholder}} substitution",
+                        "required": false
+                    }]
+                })
+            })
+            .collect();
+        // Deduplicate by name (list_templates returns all versions)
+        let mut seen = std::collections::HashSet::new();
+        let unique: Vec<Value> = prompts
+            .into_iter()
+            .filter(|p| seen.insert(p["name"].as_str().unwrap_or("").to_string()))
+            .collect();
+        Ok(json!({ "prompts": unique }))
+    }
+
+    fn handle_prompts_get(&self, params: &Value) -> std::result::Result<Value, (i32, String)> {
+        let name = params
+            .get("name")
+            .and_then(|n| n.as_str())
+            .ok_or((-32602, "Missing 'name' parameter".to_string()))?;
+        let args = params.get("arguments").cloned().unwrap_or(Value::Object(Default::default()));
+        let vars: HashMap<String, String> = args
+            .get("vars")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default();
+        let rendered = self
+            .db
+            .prompts()
+            .render(name, &vars)
+            .map_err(|e| (-32000, e.to_string()))?;
+        Ok(json!({
+            "description": format!("Rendered prompt template '{name}'"),
+            "messages": [{
+                "role": "user",
+                "content": { "type": "text", "text": rendered }
+            }]
+        }))
     }
 
     fn dispatch_tool(

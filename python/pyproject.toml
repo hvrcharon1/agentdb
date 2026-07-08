@@ -27,8 +27,14 @@ classifiers = [
 "Bug Tracker" = "https://github.com/hvrcharon1/agentdb/issues"
 "Changelog"   = "https://github.com/hvrcharon1/agentdb/blob/main/CHANGELOG.md"
 
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
 [tool.maturin]
 python-source  = "python"
 features       = ["pyo3/extension-module"]
 module-name    = "agentdb._agentdb"
 strip          = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "llamaindex-agentdb"
+version = "0.1.0"
+description = "LlamaIndex VectorStore and ChatStore integrations backed by AgentDB"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+keywords = ["llama-index", "llamaindex", "agentdb", "vectorstore", "chatstore", "llm", "rag"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "llama-index-core>=0.11.0",
+    "datacules-agentdb>=0.6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "numpy>=1.24",
+]
+
+[project.urls]
+Homepage = "https://github.com/datacules/agentdb"
+Repository = "https://github.com/datacules/agentdb"
+"Bug Tracker" = "https://github.com/datacules/agentdb/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/llamaindex_agentdb"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -28,5 +28,5 @@ Quick start::
 
 from ._agentdb import AgentDB, Collection, SearchResult, FtsResult, HybridResult
 
-__version__ = "0.5.0"
+__version__ = "0.7.0"
 __all__ = ["AgentDB", "Collection", "SearchResult", "FtsResult", "HybridResult"]

@@ -5,11 +5,15 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
 
+# Required secret:
+#   WINGET_TOKEN — a GitHub PAT with 'repo' and 'workflow' scopes on your account,
+#   used by winget-releaser to fork microsoft/winget-pkgs and open a PR.
+
 jobs:
   publish:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
       - name: Wait for release assets
         shell: bash
@@ -25,10 +29,17 @@ jobs:
             sleep 10
           done
 
+      - name: Extract version
+        id: ver
+        shell: bash
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
       - name: Submit to WinGet
         uses: vedantmgoyal9/winget-releaser@v2
         with:
           identifier: Datacules.AgentDB
-          version: ${{ github.ref_name }}
+          # WinGet requires a plain semver without the "v" prefix (e.g. "0.6.0")
+          version: ${{ steps.ver.outputs.version }}
+          release-tag: ${{ github.ref_name }}
           installers-regex: 'agentdb-x86_64-pc-windows-msvc\.zip$'
           token: ${{ secrets.WINGET_TOKEN }}

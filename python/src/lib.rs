@@ -219,8 +219,8 @@ impl Collection {
         &self,
         id: String,
         vector: Vec<f32>,
-        text: &str,
         metadata: Option<Bound<'_, pyo3::PyAny>>,
+        text: &str,
     ) -> PyResult<()> {
         let meta = metadata
             .as_ref()

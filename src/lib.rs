@@ -72,6 +72,7 @@ pub mod vectors;
 pub mod workflows;
 
 pub mod mcp;
+pub mod sync;
 
 #[cfg(feature = "async")]
 pub mod async_api;
@@ -82,6 +83,9 @@ pub mod ffi;
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
+#[cfg(feature = "wasm")]
+pub mod wasm_opfs;
+
 pub use audit::{AuditEntry, AuditStore};
 pub use context::{ContextEntry, ContextStore};
 pub use conversations::{Conversation, ConversationStore, Message, MessageSearchResult};
@@ -89,7 +93,7 @@ pub use db::{AgentDB, DbStats};
 pub use error::{AgentDbError, Result};
 pub use filter::matches as filter_matches;
 pub use fts::{FtsResult, FullTextStore};
-pub use hybrid::{HybridQuery, HybridResult, HybridStore};
+pub use hybrid::{HybridQuery, HybridResult, HybridStore, TriModalQuery, TriModalResult};
 pub use labels::{DataLabel, LabelStore};
 pub use memory::{Edge, MemoryGraph, Node, TraversalOptions, TraversalResult};
 pub use prompts::{PromptStore, PromptTemplate};
