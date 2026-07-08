@@ -201,6 +201,26 @@ char *agentdb_hybrid_query(struct AgentDbHandle *handle,
                            const char *filter_json);
 
 /**
+ * Run a tri-modal graph + vector + FTS query and return results as JSON.
+ *
+ * `query_json` — a JSON object with fields:
+ *   - `anchor_node`  (string)  — graph traversal start node id
+ *   - `embedding`    (array)   — f32 query vector
+ *   - `text_query`   (string)  — full-text search query
+ *   - `collection`   (string)  — vector collection name
+ *   - `graph_depth`  (integer) — max hops from anchor (default 3)
+ *   - `top_k`        (integer) — results to return (default 10)
+ *   - `alpha`        (number)  — vector weight (default 0.33)
+ *   - `beta`         (number)  — graph weight (default 0.33)
+ *   - `gamma`        (number)  — FTS weight (default 0.34)
+ *   - `filter`       (object)  — optional metadata filter
+ *
+ * Returns heap-allocated JSON string — free with `agentdb_free_string`.
+ * Returns NULL on error; check `agentdb_last_error()`.
+ */
+char *agentdb_tri_modal_query(struct AgentDbHandle *handle, const char *query_json);
+
+/**
  * Return database statistics as a JSON object.
  *
  * Returns heap-allocated JSON string — free with `agentdb_free_string`.
@@ -357,10 +377,7 @@ char *agentdb_trace_get_by_session(struct AgentDbHandle *handle, const char *ses
  *
  * Returns 0 on success, -1 on error.
  */
-int32_t agentdb_vector_delete(struct AgentDbHandle *handle,
-                              const char *collection,
-                              const char *id,
-                              uintptr_t dim);
+int32_t agentdb_vector_delete(struct AgentDbHandle *handle, const char *collection, const char *id);
 
 /**
  * Drop an entire vector collection and all its vectors.
