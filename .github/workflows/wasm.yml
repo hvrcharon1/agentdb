@@ -61,7 +61,7 @@ jobs:
 
       - name: Install Node.js
         if: steps.wasm-build.outcome == 'success'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "20"
 
