@@ -51,7 +51,7 @@ jobs:
         run: cargo bench --bench vector_search --bench graph_traverse 2>&1 | tee bench_output.txt
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: bench-results
           path: |

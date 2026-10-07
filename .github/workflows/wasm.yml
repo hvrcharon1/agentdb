@@ -80,7 +80,7 @@ jobs:
 
       - name: Upload WASM package
         if: steps.wasm-build.outcome == 'success'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: wasm-pkg
           path: pkg/
